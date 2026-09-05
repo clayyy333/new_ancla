@@ -6,66 +6,26 @@ return function(context)
 -- ===============================================================
 
 UpdateTabStyles = function()
-	local isM3 = Settings.theme == "MaterialYou"
+	local movementTabs = {emotes = true, animations = true, favorites = true, recent = true}
+	local inMovements = movementTabs[currentTab] == true
+	movementNav.Visible = inMovements
+
 	for name, data in pairs(tabBtns) do
 		local active = currentTab == name
-		local targetColor = active and currentTheme.accent or currentTheme.sidebar
-		local targetIconColor = active and Color3.new(1, 1, 1) or currentTheme.text
-		
-		if data.quatrefoil then
-			if isM3 and active then
-				data.quatrefoil.Visible = true
-				data.quatrefoil.ImageColor3 = currentTheme.accent
-				local qSize = tabBtnS + 10
-				data.quatrefoil.Size = UDim2.new(0, 0, 0, 0)
-				TweenService:Create(data.quatrefoil, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-					Size = UDim2.new(0, qSize, 0, qSize),
-					ImageTransparency = 0.3
-				}):Play()
-			else
-				if data.quatrefoil.Visible then
-					local qRef = data.quatrefoil
-					TweenService:Create(qRef, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-						Size = UDim2.new(0, 0, 0, 0),
-						ImageTransparency = 1
-					}):Play()
-					task.delay(0.2, function()
-						if qRef and qRef.Parent then qRef.Visible = false end
-					end)
-				end
-			end
-		end
-		
-		TweenService:Create(data.btn, TweenInfo.new(0.2), {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0, tabBtnS, 0, tabBtnS)
+		TweenService:Create(data.btn, TweenInfo.new(0.18), {
+			BackgroundTransparency = active and 0.08 or 1,
+			BackgroundColor3 = active and currentTheme.accent or currentTheme.tertiary,
+			TextColor3 = active and Color3.new(1, 1, 1) or currentTheme.textDim
 		}):Play()
-		data.stroke.Transparency = 1
+	end
 
-		if isM3 then
-			if _tabIndicator then _tabIndicator.Visible = false end
-		else
-			if _tabIndicator then
-				_tabIndicator.Visible = true
-				if active then
-					_UpdateIndicatorGrad()
-					local targetY = data.yPos - 2
-					TweenService:Create(_tabIndicator, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-						Position = UDim2.new(0.5, -_indS/2, 0, targetY)
-					}):Play()
-				end
-			end
-		end
-		
-		if data.img then
-			TweenService:Create(data.img, TweenInfo.new(0.2), {
-				ImageColor3 = targetIconColor
-			}):Play()
-		else
-			TweenService:Create(data.btn, TweenInfo.new(0.2), {
-				TextColor3 = targetIconColor
-			}):Play()
-		end
+	for name, btn in pairs(mainNavBtns) do
+		local active = (name == "movements" and inMovements) or currentTab == name
+		TweenService:Create(btn, TweenInfo.new(0.18), {
+			BackgroundTransparency = active and 0.08 or 1,
+			BackgroundColor3 = active and currentTheme.accent or currentTheme.tertiary,
+			TextColor3 = active and Color3.new(1, 1, 1) or currentTheme.textDim
+		}):Play()
 	end
 end
 
@@ -597,7 +557,7 @@ UpdateTabData = function()
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
-		title.Text = isTR and "Animasyonlar" or "Animations"
+		title.Text = L.animations
 		titleIcon.Image = ResolveAssetImage("rbxassetid://75528584354229")
 		titleIcon.ImageColor3 = currentTheme.text
 		titleIcon.Visible = true
@@ -615,11 +575,18 @@ UpdateTabData = function()
 	titleIcon.Size = UDim2.new(0, tabIconSz, 0, tabIconSz)
 	title.Position = UDim2.new(0, titleIcon.Visible and (10 + tabIconSz + 6) or 10, 0, 0)
 	
+	titleIcon.Visible = false
+	title.Position = UDim2.new(0, 12, 0, 0)
+
 	UpdateTabStyles()
 	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and (not isPlaylists or viewingPlaylist)
 	if shouldRefresh then Refresh(true) end
 end
 
+mainNavBtns["movements"].MouseButton1Click:Connect(function()
+	if currentTab ~= "emotes" and currentTab ~= "animations" and currentTab ~= "favorites" and currentTab ~= "recent" then currentTab = "emotes" end
+	UpdateTabData()
+end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
 

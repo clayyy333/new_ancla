@@ -1,149 +1,74 @@
 -- Estado compartido mediante el contexto privado de la aplicacion.
 return function(context)
 	setfenv(1, context)
-
-sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, sideBarW, 1, 0)
-sidebar.BackgroundColor3 = currentTheme.sidebar
-sidebar.ClipsDescendants = true
-sidebar.ZIndex = 8
-sidebar.Parent = main
-Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 14)
-RegisterTheme(sidebar, "BackgroundColor3", "sidebar")
-
-sideOverlay = Instance.new("Frame")
-sideOverlay.Size = UDim2.new(0, 10, 1, 0)
-sideOverlay.Position = UDim2.new(1, -10, 0, 0)
-sideOverlay.BackgroundColor3 = currentTheme.sidebar
-sideOverlay.BorderSizePixel = 0
-sideOverlay.ZIndex = 7
-sideOverlay.Parent = sidebar
-RegisterTheme(sideOverlay, "BackgroundColor3", "sidebar")
-
-tabBtns = {}
-
-function CreateTabBtn(icon, tabName, yPos, customScale, rawImage)
-	local isUrl = type(icon) == "string" and (string.find(icon, "rbxassetid://") or string.find(icon, "http") or string.find(icon, "rbxthumb://"))
-	
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0, tabBtnS, 0, tabBtnS)
-	btn.Position = UDim2.new(0.5, -tabBtnS/2, 0, yPos)
-	btn.BackgroundColor3 = currentTheme.sidebar
-	btn.BackgroundTransparency = 0.8
-	btn.Text = ""
-	btn.TextSize = isMobile and 28 or 34
-	btn.Font = Enum.Font.GothamBold
-	btn.TextColor3 = currentTheme.text
-	btn.ZIndex = 9
-	btn.Parent = sidebar
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = currentTheme.sidebar
-	stroke.Thickness = 2
-	stroke.Transparency = 0.7
-	stroke.Parent = btn
-	
-	local imgElement = nil
-	if isUrl then
-		local img = Instance.new("ImageLabel")
-		local s = customScale or ((tabName == "emotes") and 0.85 or (0.95 * ICON_SCALE))
-		img.Size = UDim2.fromScale(s, s)
-		img.Position = UDim2.fromScale(0.5, 0.5)
-		img.AnchorPoint = Vector2.new(0.5, 0.5)
-		img.BackgroundTransparency = 1
-		img.Image = rawImage or ResolveAssetImage(icon)
-		img.ImageColor3 = currentTheme.text
-		img.ZIndex = 110
-		img.Parent = btn
-		RegisterTheme(img, "ImageColor3", "text")
-		imgElement = img
-	else
-		btn.Text = icon
-		RegisterTheme(btn, "TextColor3", "text")
+	topNav = Instance.new("Frame")
+	topNav.Name = "TopNavigation"
+	topNav.Size = UDim2.new(1, 0, 0, topNavH)
+	topNav.BackgroundColor3 = currentTheme.sidebar
+	topNav.ClipsDescendants = true
+	topNav.ZIndex = 20
+	topNav.Parent = main
+	Instance.new("UICorner", topNav).CornerRadius = UDim.new(0, 14)
+	RegisterTheme(topNav, "BackgroundColor3", "sidebar")
+	local navPad, rowH = isMobile and 5 or 7, isMobile and 31 or 35
+	mainNav = Instance.new("Frame")
+	mainNav.Size = UDim2.new(1, -(navPad * 2), 0, rowH)
+	mainNav.Position = UDim2.new(0, navPad, 0, navPad)
+	mainNav.BackgroundTransparency = 1
+	mainNav.ZIndex = 21
+	mainNav.Parent = topNav
+	local mainLayout = Instance.new("UIListLayout")
+	mainLayout.FillDirection = Enum.FillDirection.Horizontal
+	mainLayout.Padding = UDim.new(0, isMobile and 4 or 6)
+	mainLayout.Parent = mainNav
+	movementNav = Instance.new("Frame")
+	movementNav.Size = UDim2.new(1, -(navPad * 2), 0, rowH)
+	movementNav.Position = UDim2.new(0, navPad, 0, navPad + rowH + 3)
+	movementNav.BackgroundColor3 = currentTheme.secondary
+	movementNav.ZIndex = 21
+	movementNav.Parent = topNav
+	Instance.new("UICorner", movementNav).CornerRadius = UDim.new(0, 9)
+	RegisterTheme(movementNav, "BackgroundColor3", "secondary")
+	local movementPad = Instance.new("UIPadding")
+	movementPad.PaddingLeft = UDim.new(0, 4)
+	movementPad.Parent = movementNav
+	local movementLayout = Instance.new("UIListLayout")
+	movementLayout.FillDirection = Enum.FillDirection.Horizontal
+	movementLayout.Padding = UDim.new(0, 4)
+	movementLayout.Parent = movementNav
+	mainNavBtns, tabBtns = {}, {}
+	local function CreateTextNavButton(parent, text, name, width, height)
+		local btn = Instance.new("TextButton")
+		btn.Name = name .. "Button"
+		btn.Size = UDim2.new(0, width, 0, height)
+		btn.BackgroundColor3 = currentTheme.tertiary
+		btn.BackgroundTransparency = 1
+		btn.AutoButtonColor = false
+		btn.Text = text
+		btn.TextColor3 = currentTheme.textDim
+		btn.TextSize = isMobile and 11 or 13
+		btn.Font = Enum.Font.GothamBold
+		btn.ZIndex = 22
+		btn.Parent = parent
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		RegisterTheme(btn, "BackgroundColor3", "tertiary")
+		RegisterTheme(btn, "TextColor3", "textDim")
+		return btn
 	end
-
-	btn.MouseEnter:Connect(function()
-		if currentTab ~= tabName then
-			TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.7, BackgroundColor3 = _isPlaylistMode and Color3.fromRGB(0, 120, 255) or currentTheme.stroke, Size = UDim2.new(0, tabBtnS + 2, 0, tabBtnS + 2)}):Play()
+	local mainLabels = {{"movements", L.movements}, {"friends", L.friendTab}, {"keybinds", L.keybinds}, {"settings", L.settings}}
+	for _, item in ipairs(mainLabels) do
+		if item[1] ~= "keybinds" or not isMobile then
+			local width = isMobile and (item[1] == "movements" and 94 or 72) or (item[1] == "movements" and 122 or 94)
+			mainNavBtns[item[1]] = CreateTextNavButton(mainNav, item[2], item[1], width, rowH)
 		end
-	end)
-	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.15), {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0, tabBtnS, 0, tabBtnS)
-		}):Play()
-	end)
-	
-	local qSize = tabBtnS + 10
-	local quatrefoil = Instance.new("ImageLabel")
-	quatrefoil.Name = "Quatrefoil"
-	quatrefoil.Size = UDim2.new(0, qSize, 0, qSize)
-	quatrefoil.Position = UDim2.new(0.5, -qSize/2, 0, yPos + tabBtnS/2 - qSize/2)
-	quatrefoil.BackgroundTransparency = 1
-	quatrefoil.Image = ResolveAssetImage(Icons.Quatrefoil)
-	quatrefoil.ImageColor3 = currentTheme.accent
-	quatrefoil.ImageTransparency = 0.3
-	quatrefoil.ScaleType = Enum.ScaleType.Fit
-	quatrefoil.ZIndex = 9
-	quatrefoil.Visible = false
-	quatrefoil.Parent = sidebar
-	
-	tabBtns[tabName] = {btn = btn, stroke = stroke, img = imgElement, quatrefoil = quatrefoil, yPos = yPos}
-	return btn
-end
-
-CreateTabBtn(Icons.Emote, "emotes", 8)
-CreateTabBtn("rbxassetid://75528584354229", "animations", 8 + tabBtnS + 6, 0.85)
-CreateTabBtn(Icons.FavoriteFull, "favorites", 8 + (tabBtnS + 6) * 2)
-CreateTabBtn(Icons.Recent, "recent", 8 + (tabBtnS + 6) * 3)
-CreateTabBtn("rbxassetid://115725480722697", "friends", 8 + (tabBtnS + 6) * 4)
-if not isMobile then
-	CreateTabBtn(Icons.Keybind, "keybinds", 8 + (tabBtnS + 6) * 5)
-	CreateTabBtn(Icons.Settings, "settings", 8 + (tabBtnS + 6) * 6)
-else
-	CreateTabBtn(Icons.Settings, "settings", 8 + (tabBtnS + 6) * 5)
-end
-
-_indS = tabBtnS + 4
-_tabIndicator = Instance.new("Frame")
-_tabIndicator.Name = "TabIndicator"
-_tabIndicator.Size = UDim2.new(0, _indS, 0, _indS)
-_tabIndicator.Position = UDim2.new(0.5, -_indS/2, 0, 8 - 2)
-_tabIndicator.BackgroundColor3 = Color3.new(1, 1, 1)
-_tabIndicator.BackgroundTransparency = 0
-_tabIndicator.ZIndex = 8
-_tabIndicator.Parent = sidebar
-Instance.new("UICorner", _tabIndicator).CornerRadius = UDim.new(0, 12)
-
-_indStroke = Instance.new("UIStroke")
-_indStroke.Color = Color3.new(1, 1, 1)
-_indStroke.Thickness = 1.5
-_indStroke.Transparency = 0.15
-_indStroke.Parent = _tabIndicator
-
-_indGrad = Instance.new("UIGradient")
-_indGrad.Rotation = 90
-_indGrad.Transparency = NumberSequence.new{
-	NumberSequenceKeypoint.new(0, 0.25),
-	NumberSequenceKeypoint.new(1, 0.72)
-}
-_indGrad.Parent = _tabIndicator
-
-function _UpdateIndicatorGrad()
-	local acc = currentTheme.accent
-	local topC = Color3.new(math.min(1, acc.R + 0.18), math.min(1, acc.G + 0.18), math.min(1, acc.B + 0.18))
-	local botC = Color3.new(acc.R * 0.25, acc.G * 0.25, acc.B * 0.25)
-	_indGrad.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, topC),
-		ColorSequenceKeypoint.new(1, botC)
-	}
-end
-_UpdateIndicatorGrad()
-
--- ===============================================================
--- CONTENT
--- ===============================================================
-
+	end
+	local movementLabels = {{"emotes", L.emotes}, {"animations", L.animations}, {"favorites", L.favorites}, {"recent", L.recent}}
+	for _, item in ipairs(movementLabels) do
+		local btn = CreateTextNavButton(movementNav, item[2], item[1], isMobile and 76 or 105, rowH - 6)
+		tabBtns[item[1]] = {btn = btn, stroke = {Transparency = 1}, isMovement = true}
+	end
+	for _, name in ipairs({"friends", "keybinds", "settings"}) do
+		if mainNavBtns[name] then tabBtns[name] = {btn = mainNavBtns[name], stroke = {Transparency = 1}, isMain = true} end
+	end
 	return true
 end

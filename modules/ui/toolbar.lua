@@ -3,8 +3,8 @@ return function(context)
 	setfenv(1, context)
 
 content = Instance.new("Frame")
-content.Size = UDim2.new(1, -sideBarW, 1, 0)
-content.Position = UDim2.new(0, sideBarW, 0, 0)
+content.Size = UDim2.new(1, 0, 1, -topNavH)
+content.Position = UDim2.new(0, 0, 0, topNavH)
 content.BackgroundTransparency = 1
 content.ZIndex = 2
 content.ClipsDescendants = true
@@ -37,11 +37,12 @@ titleIcon.Image = ResolveAssetImage(Icons.Emote)
 titleIcon.ImageColor3 = currentTheme.text
 titleIcon.ZIndex = 6
 titleIcon.Parent = titleBar
+titleIcon.Visible = false
 RegisterTheme(titleIcon, "ImageColor3", "text")
 
 title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -160, 1, 0)
-title.Position = UDim2.new(0, 10 + titleIconSz + 6, 0, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = L.emotes
 title.TextColor3 = currentTheme.text

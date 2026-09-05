@@ -18,7 +18,7 @@ end
 
 titleBar.InputBegan:Connect(StartDrag)
 bottomBar.InputBegan:Connect(StartDrag)
-sidebar.InputBegan:Connect(StartDrag)
+topNav.InputBegan:Connect(StartDrag)
 
 UserInputService.InputChanged:Connect(function(input)
 	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
@@ -61,8 +61,7 @@ end)
 UserInputService.InputChanged:Connect(function(input)
 	if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 		local delta = input.Position - resizeStart
-		local tabCount = not isMobile and 7 or 6
-		local minH = 8 + (tabBtnS + 6) * (tabCount - 1) + tabBtnS + 16
+		local minH = topNavH + 260
 		local newW = math.clamp(sizeStart.X + delta.X, 400, 1200)
 		local newH = math.clamp(sizeStart.Y + delta.Y, minH, 800)
 		main.Size = UDim2.new(0, newW, 0, newH)
