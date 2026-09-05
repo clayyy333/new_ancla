@@ -2,31 +2,6 @@
 return function(context)
 	setfenv(1, context)
 
-bottomBar = Instance.new("Frame")
-bottomBar.Size = UDim2.new(1, 0, 0, bottomBarH)
-bottomBar.Position = UDim2.new(0, 0, 1, -bottomBarH)
-bottomBar.BackgroundColor3 = currentTheme.tertiary
-bottomBar.ZIndex = 15
-bottomBar.Parent = content
-Instance.new("UICorner", bottomBar).CornerRadius = UDim.new(0, 14)
-RegisterTheme(bottomBar, "BackgroundColor3", "tertiary")
-
-bottomOverlay = Instance.new("Frame")
-bottomOverlay.Size = UDim2.new(1, 0, 0, 8)
-bottomOverlay.BackgroundColor3 = currentTheme.tertiary
-bottomOverlay.BorderSizePixel = 0
-bottomOverlay.ZIndex = 14
-bottomOverlay.Parent = bottomBar
-RegisterTheme(bottomOverlay, "BackgroundColor3", "tertiary")
-
-grip = Instance.new("Frame")
-grip.Size = UDim2.new(0, 40, 0, 4)
-grip.Position = UDim2.new(0.5, -20, 0.5, -2)
-grip.BackgroundColor3 = currentTheme.textDim
-grip.ZIndex = 16
-grip.Parent = bottomBar
-Instance.new("UICorner", grip).CornerRadius = UDim.new(1, 0)
-RegisterTheme(grip, "BackgroundColor3", "textDim")
 
 scrollY = titleH + searchH + 14
 scroll = Instance.new("ScrollingFrame")
