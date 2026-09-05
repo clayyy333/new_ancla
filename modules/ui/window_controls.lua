@@ -1,0 +1,154 @@
+-- Estado compartido mediante el contexto privado de la aplicacion.
+return function(context)
+	setfenv(1, context)
+
+-- MINI ICON
+-- ===============================================================
+
+do
+local iconS = isMobile and 50 or 60
+local miniIcon = Instance.new("ImageButton")
+miniIcon.Size = UDim2.new(0, iconS, 0, iconS)
+miniIcon.Position = UDim2.new(0, 20, 0.5, -iconS/2)
+miniIcon.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+miniIcon.Image = "rbxassetid://88874992610290"
+miniIcon.Visible = false
+miniIcon.ZIndex = 1000
+miniIcon.Parent = gui
+Instance.new("UICorner", miniIcon).CornerRadius = UDim.new(1, 0)
+
+local miniIconStroke = Instance.new("UIStroke")
+miniIconStroke.Color = Color3.new(1, 1, 1)
+miniIconStroke.Thickness = 3
+miniIconStroke.Parent = miniIcon
+
+miniIconGrad = Instance.new("UIGradient")
+miniIconGrad.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, currentTheme.stroke),
+	ColorSequenceKeypoint.new(0.33, currentTheme.accent),
+	ColorSequenceKeypoint.new(0.66, currentTheme.stroke),
+	ColorSequenceKeypoint.new(1, currentTheme.accent)
+}
+miniIconGrad.Parent = miniIconStroke
+
+task.spawn(function()
+	local rot = 0
+	while miniIcon.Parent do
+		rot = rot + 360
+		TweenService:Create(miniIconGrad, TweenInfo.new(2, Enum.EasingStyle.Linear), {Rotation = rot}):Play()
+		task.wait(2)
+	end
+end)
+
+task.spawn(function()
+	while miniIcon.Parent do
+		if miniIcon.Visible then
+			TweenService:Create(miniIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {Size = UDim2.new(0, iconS + 4, 0, iconS + 4)}):Play()
+			task.wait(1)
+			TweenService:Create(miniIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {Size = UDim2.new(0, iconS, 0, iconS)}):Play()
+			task.wait(1)
+		else
+			task.wait(0.5)
+		end
+	end
+end)
+
+do
+local savedPos, savedSize = nil, nil
+local iconDragging, iconDragStart, iconStartPos = false, nil, nil
+
+miniIcon.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		iconDragging = true
+		iconDragStart = input.Position
+		iconStartPos = miniIcon.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if iconDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - iconDragStart
+		miniIcon.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X, iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if iconDragging then
+			local delta = input.Position - iconDragStart
+			if math.abs(delta.X) < 5 and math.abs(delta.Y) < 5 then
+				miniIcon.Visible = false
+				main.Visible = true
+				main.ClipsDescendants = true
+				main.Size = UDim2.new(0, 0, 0, 0)
+				main.BackgroundTransparency = 1
+				main.Rotation = 0
+				
+				local targetSize = savedSize or GetDefaultSize()
+				local targetPos = savedPos or UDim2.fromScale(0.5, 0.5)
+				main.Position = targetPos
+				
+				TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Size = targetSize, BackgroundTransparency = 0}):Play()
+				TweenService:Create(mainStroke, TweenInfo.new(0.35), {Transparency = 0}):Play()
+				
+				task.delay(0.4, function()
+					main.ClipsDescendants = true
+					if currentTab ~= "settings" then Refresh(true) end
+				end)
+			end
+		end
+		iconDragging = false
+	end
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+	main.ClipsDescendants = true
+	savedPos = main.Position
+	savedSize = main.Size
+	
+	TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}):Play()
+	TweenService:Create(mainStroke, TweenInfo.new(0.3), {Transparency = 1}):Play()
+	
+	task.delay(0.3, function()
+		main.Visible = false
+		miniIcon.Visible = true
+	end)
+end)
+
+local function _CleanupScript()
+	pcall(function() _heartbeatConn:Disconnect() end)
+	pcall(function() _charAddedConn:Disconnect() end)
+	pcall(function() if _keybindInputConn then _keybindInputConn:Disconnect() end end)
+	pcall(function() DisableCopyEmotePrompts() end)
+	pcall(function() StopHUDTracking() end)
+	pcall(function() VexroAcrylic.Stop() end)
+	-- Oynanan emote'u durdur
+	pcall(function() StopEmote(false) end)
+	-- Sunucuya disconnect bildir
+	pcall(function()
+		SaveData()
+	end)
+	_genv().VexroEmotesCleanup = nil
+	_genv().lastVexroEmote = nil
+	_genv().autoReloadEnabled_Vexro = nil
+	pcall(function() gui:Destroy() end)
+end
+
+_genv().VexroEmotesCleanup = _CleanupScript
+
+closeBtn.MouseButton1Click:Connect(function()
+	gui.Enabled = false
+	main.ClipsDescendants = true
+	TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+		Size = UDim2.new(0, 0, 0, 0),
+		BackgroundTransparency = 1
+	}):Play()
+	task.delay(0.22, _CleanupScript)
+end)
+end
+end
+
+-- ===============================================================
+
+	return true
+end
