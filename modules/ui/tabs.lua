@@ -10,15 +10,16 @@ UpdateTabStyles = function()
 		if not style then return end
 		local accent = currentTheme.accent
 		local light = Color3.new(
-			math.min(1, accent.R + 0.18),
-			math.min(1, accent.G + 0.18),
-			math.min(1, accent.B + 0.18)
+			math.min(1, accent.R + 0.08),
+			math.min(1, accent.G + 0.08),
+			math.min(1, accent.B + 0.08)
 		)
 		style.gradient.Color = ColorSequence.new{
 			ColorSequenceKeypoint.new(0, light),
-			ColorSequenceKeypoint.new(1, Color3.new(accent.R * 0.35, accent.G * 0.35, accent.B * 0.35))
+			ColorSequenceKeypoint.new(1, Color3.new(accent.R * 0.22, accent.G * 0.22, accent.B * 0.22))
 		}
 		style.gradient.Enabled = active
+		style.btn.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
 		style.stroke.Color = active and Color3.new(1, 1, 1) or currentTheme.stroke
 		TweenService:Create(style.stroke, TweenInfo.new(0.18), {Transparency = active and 0.25 or 1}):Play()
 		TweenService:Create(style.btn, TweenInfo.new(0.18), {
@@ -396,32 +397,6 @@ RefreshPlaylistsList = function()
 	end
 end
 
-function PrintHierarchy(obj, depth)
-	depth = depth or 0
-	local indent = string.rep("  ", depth)
-	local isGui = obj:IsA("GuiObject")
-	local transp = "N/A"
-	pcall(function()
-		if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("TextBox") or obj:IsA("TextButton") or obj:IsA("ImageLabel") or obj:IsA("TextLabel") then
-			transp = tostring(obj.BackgroundTransparency)
-		end
-	end)
-	print(string.format("[Hierarchy] %s%s (%s): Visible=%s, Size=%s, AbsSize=%s, AbsPos=%s, ZIndex=%s, Transp=%s",
-		indent,
-		obj.Name,
-		obj.ClassName,
-		tostring(isGui and obj.Visible or "N/A"),
-		tostring(isGui and obj.Size or "N/A"),
-		tostring(isGui and obj.AbsoluteSize or "N/A"),
-		tostring(isGui and obj.AbsolutePosition or "N/A"),
-		tostring(isGui and obj.ZIndex or "N/A"),
-		transp
-	))
-	for _, child in ipairs(obj:GetChildren()) do
-		PrintHierarchy(child, depth + 1)
-	end
-end
-
 UpdateTabData = function()
 	hideTrendingDropdown()
 	search.Text = ""
@@ -431,7 +406,6 @@ UpdateTabData = function()
 	local isFriends   = currentTab == "friends"
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
-	local isAnimations = currentTab == "animations"
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
@@ -455,29 +429,6 @@ UpdateTabData = function()
 		end
 	end
 	pageBar.Visible = not hideNormal
-		task.delay(0.1, function()
-		pcall(function()
-			if playlistsPanel then
-				print("[Emotes] Delayed check: playlistsPanel Parent=" .. tostring(playlistsPanel.Parent and playlistsPanel.Parent.Name or "nil") .. ", Visible=" .. tostring(playlistsPanel.Visible) .. ", Size=" .. tostring(playlistsPanel.Size) .. ", AbsSize=" .. tostring(playlistsPanel.AbsoluteSize) .. ", AbsPos=" .. tostring(playlistsPanel.AbsolutePosition) .. ", ZIndex=" .. tostring(playlistsPanel.ZIndex) .. ", CanvasSize=" .. tostring(playlistsPanel.CanvasSize))
-				for _, child in ipairs(playlistsPanel:GetChildren()) do
-					print("[Emotes] Delayed child: Name=" .. child.Name .. ", Class=" .. child.ClassName .. ", Size=" .. tostring(child:IsA("GuiObject") and child.Size or "N/A") .. ", AbsSize=" .. tostring(child:IsA("GuiObject") and child.AbsoluteSize or "N/A") .. ", AbsPos=" .. tostring(child:IsA("GuiObject") and child.AbsolutePosition or "N/A") .. ", Visible=" .. tostring(child:IsA("GuiObject") and child.Visible or "N/A"))
-					if child.Name == "playlistTopBar" then
-						for _, sub in ipairs(child:GetChildren()) do
-							print("[Emotes]   Sub-child: Name=" .. sub.Name .. ", Class=" .. sub.ClassName .. ", Size=" .. tostring(sub:IsA("GuiObject") and sub.Size or "N/A") .. ", AbsSize=" .. tostring(sub:IsA("GuiObject") and sub.AbsoluteSize or "N/A") .. ", AbsPos=" .. tostring(sub:IsA("GuiObject") and sub.AbsolutePosition or "N/A") .. ", Visible=" .. tostring(sub:IsA("GuiObject") and sub.Visible or "N/A"))
-						end
-					end
-				end
-			else
-				print("[Emotes] Delayed check: playlistsPanel is NIL")
-			end
-			print("[Hierarchy] --- START CONTENT HIERARCHY ---")
-			if content then
-				PrintHierarchy(content)
-			end
-			print("[Hierarchy] --- END CONTENT HIERARCHY ---")
-		end)
-	end)
-	
 	if hideNormal then
 		emptyLbl.Visible = false
 	end
@@ -496,9 +447,6 @@ UpdateTabData = function()
 			filtered = Emotes
 		end
 		title.Text = L.emotes
-		titleIcon.Image = ResolveAssetImage(Icons.Emote)
-		titleIcon.ImageColor3 = currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "favorites" then
 		currentData = {}
 		for i = 1, #Favorites do
@@ -509,9 +457,6 @@ UpdateTabData = function()
 		end
 		filtered = currentData
 		title.Text = L.favorites
-		titleIcon.Image = ResolveAssetImage(Icons.FavoriteFull)
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 
 	elseif currentTab == "recent" then
 		currentData = {}
@@ -523,14 +468,8 @@ UpdateTabData = function()
 		end
 		filtered = currentData
 		title.Text = L.recent
-		titleIcon.Image = ResolveAssetImage(Icons.Recent)
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "settings" then
 		title.Text = L.settings
-		titleIcon.Image = ResolveAssetImage(Icons.Settings)
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "playlists" then
 		if _currentPlaylistId then
 			currentData = {}
@@ -547,41 +486,15 @@ UpdateTabData = function()
 			filtered = currentData
 		end
 		title.Text = L.playlistsTab
-		titleIcon.Image = ResolveAssetImage("rbxassetid://108973165274475")
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "friends" then
 		title.Text = L.friendTab
-		titleIcon.Image = ResolveAssetImage("rbxassetid://115725480722697")
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "keybinds" then
 		title.Text = L.keybinds
-		titleIcon.Image = ResolveAssetImage("rbxassetid://122679509852670")
-		titleIcon.ImageColor3 = (Settings.theme == "FrostedGlass" or Settings.theme == "DarkGlass") and currentTheme.accent or currentTheme.text
-		titleIcon.Visible = true
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
 		title.Text = L.animations
-		titleIcon.Image = ResolveAssetImage("rbxassetid://75528584354229")
-		titleIcon.ImageColor3 = currentTheme.text
-		titleIcon.Visible = true
 	end
-	
-	local baseIconSz = isMobile and 31 or 37
-	local tabIconSz = baseIconSz
-	if currentTab == "animations" then
-		tabIconSz = math.floor(baseIconSz * 0.75)
-	elseif currentTab == "emotes" then
-		tabIconSz = baseIconSz
-	else
-		tabIconSz = math.floor(baseIconSz * 1.3)
-	end
-	titleIcon.Size = UDim2.new(0, tabIconSz, 0, tabIconSz)
-	title.Position = UDim2.new(0, titleIcon.Visible and (10 + tabIconSz + 6) or 10, 0, 0)
-	
-	titleIcon.Visible = false
 	title.Position = UDim2.new(0, 12, 0, 0)
 
 	UpdateTabStyles()

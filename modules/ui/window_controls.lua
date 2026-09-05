@@ -7,15 +7,19 @@ return function(context)
 
 do
 local iconS = isMobile and 50 or 60
-local miniIcon = Instance.new("ImageButton")
+local miniIcon = Instance.new("TextButton")
 miniIcon.Size = UDim2.new(0, iconS, 0, iconS)
 miniIcon.Position = UDim2.new(0, 20, 0.5, -iconS/2)
-miniIcon.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-miniIcon.Image = "rbxassetid://88874992610290"
+miniIcon.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+miniIcon.Text = "nav"
+miniIcon.TextColor3 = Color3.fromRGB(238, 238, 242)
+miniIcon.TextSize = isMobile and 15 or 17
+miniIcon.Font = Enum.Font.GothamBold
+miniIcon.AutoButtonColor = false
 miniIcon.Visible = false
 miniIcon.ZIndex = 1000
 miniIcon.Parent = gui
-Instance.new("UICorner", miniIcon).CornerRadius = UDim.new(1, 0)
+Instance.new("UICorner", miniIcon).CornerRadius = UDim.new(0, isMobile and 11 or 14)
 
 local miniIconStroke = Instance.new("UIStroke")
 miniIconStroke.Color = Color3.new(1, 1, 1)
@@ -35,23 +39,11 @@ task.spawn(function()
 	local rot = 0
 	while miniIcon.Parent do
 		rot = rot + 360
-		TweenService:Create(miniIconGrad, TweenInfo.new(2, Enum.EasingStyle.Linear), {Rotation = rot}):Play()
-		task.wait(2)
+		TweenService:Create(miniIconGrad, TweenInfo.new(8, Enum.EasingStyle.Linear), {Rotation = rot}):Play()
+		task.wait(8)
 	end
 end)
 
-task.spawn(function()
-	while miniIcon.Parent do
-		if miniIcon.Visible then
-			TweenService:Create(miniIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {Size = UDim2.new(0, iconS + 4, 0, iconS + 4)}):Play()
-			task.wait(1)
-			TweenService:Create(miniIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {Size = UDim2.new(0, iconS, 0, iconS)}):Play()
-			task.wait(1)
-		else
-			task.wait(0.5)
-		end
-	end
-end)
 
 do
 local savedPos, savedSize = nil, nil

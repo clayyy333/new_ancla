@@ -52,12 +52,18 @@ return function(context)
 		btn.AutoButtonColor = false
 		btn.Text = text
 		btn.TextColor3 = currentTheme.text
-		btn.TextSize = isMobile and 11 or 13
+		btn.TextSize = isMobile and 12 or 14
 		btn.TextWrapped = true
-		btn.Font = Enum.Font.GothamBold
+		btn.Font = Enum.Font.GothamMedium
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+		if parent == movementNav then
+			btn.TextXAlignment = Enum.TextXAlignment.Left
+			local textPadding = Instance.new("UIPadding")
+			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
+			textPadding.Parent = btn
+		end
 
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = currentTheme.stroke
@@ -89,6 +95,8 @@ return function(context)
 		UDim2.new(0, isMobile and 118 or 150, 1, 0),
 		UDim2.new(0, 0, 0, 0)
 	)
+	topBtn.Font = Enum.Font.GothamBold
+	topBtn.TextSize = isMobile and 14 or 16
 	mainNavBtns.movements = topBtn
 	mainNavButtonStyle = {btn = topBtn, stroke = topStroke, gradient = topGradient}
 

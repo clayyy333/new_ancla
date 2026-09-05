@@ -27,18 +27,6 @@ titleOverlay.ZIndex = 4
 titleOverlay.Parent = titleBar
 RegisterTheme(titleOverlay, "BackgroundColor3", "secondary")
 
-titleIconSz = math.floor(titleH * 0.65)
-titleIcon = Instance.new("ImageLabel")
-titleIcon.Size = UDim2.new(0, titleIconSz, 0, titleIconSz)
-titleIcon.Position = UDim2.new(0, 10, 0.5, 0)
-titleIcon.AnchorPoint = Vector2.new(0, 0.5)
-titleIcon.BackgroundTransparency = 1
-titleIcon.Image = ResolveAssetImage(Icons.Emote)
-titleIcon.ImageColor3 = currentTheme.text
-titleIcon.ZIndex = 6
-titleIcon.Parent = titleBar
-titleIcon.Visible = false
-RegisterTheme(titleIcon, "ImageColor3", "text")
 
 title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -160, 1, 0)
