@@ -3,8 +3,8 @@ return function(context)
 	setfenv(1, context)
 
 content = Instance.new("Frame")
-content.Size = UDim2.new(1, 0, 1, -topNavH)
-content.Position = UDim2.new(0, 0, 0, topNavH)
+content.Size = UDim2.new(1, -sideBarW, 1, -topNavH)
+content.Position = UDim2.new(0, sideBarW, 0, topNavH)
 content.BackgroundTransparency = 1
 content.ZIndex = 2
 content.ClipsDescendants = true

@@ -6,26 +6,32 @@ return function(context)
 -- ===============================================================
 
 UpdateTabStyles = function()
-	local movementTabs = {emotes = true, animations = true, favorites = true, recent = true}
-	local inMovements = movementTabs[currentTab] == true
-	movementNav.Visible = inMovements
-
-	for name, data in pairs(tabBtns) do
-		local active = currentTab == name
-		TweenService:Create(data.btn, TweenInfo.new(0.18), {
-			BackgroundTransparency = active and 0.08 or 1,
-			BackgroundColor3 = active and currentTheme.accent or currentTheme.tertiary,
-			TextColor3 = active and Color3.new(1, 1, 1) or currentTheme.textDim
+	local function SetGradient(style, active)
+		if not style then return end
+		local accent = currentTheme.accent
+		local light = Color3.new(
+			math.min(1, accent.R + 0.18),
+			math.min(1, accent.G + 0.18),
+			math.min(1, accent.B + 0.18)
+		)
+		style.gradient.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, light),
+			ColorSequenceKeypoint.new(1, Color3.new(accent.R * 0.35, accent.G * 0.35, accent.B * 0.35))
+		}
+		style.gradient.Enabled = active
+		style.stroke.Color = active and Color3.new(1, 1, 1) or currentTheme.stroke
+		TweenService:Create(style.stroke, TweenInfo.new(0.18), {Transparency = active and 0.25 or 1}):Play()
+		TweenService:Create(style.btn, TweenInfo.new(0.18), {
+			BackgroundTransparency = active and 0 or 1,
+			BackgroundColor3 = active and currentTheme.accent or currentTheme.sidebar,
+			TextColor3 = active and Color3.new(1, 1, 1) or currentTheme.text
 		}):Play()
 	end
 
-	for name, btn in pairs(mainNavBtns) do
-		local active = (name == "movements" and inMovements) or currentTab == name
-		TweenService:Create(btn, TweenInfo.new(0.18), {
-			BackgroundTransparency = active and 0.08 or 1,
-			BackgroundColor3 = active and currentTheme.accent or currentTheme.tertiary,
-			TextColor3 = active and Color3.new(1, 1, 1) or currentTheme.textDim
-		}):Play()
+	movementNav.Visible = true
+	SetGradient(mainNavButtonStyle, true)
+	for name, data in pairs(tabBtns) do
+		SetGradient(data, currentTab == name)
 	end
 end
 
@@ -583,10 +589,7 @@ UpdateTabData = function()
 	if shouldRefresh then Refresh(true) end
 end
 
-mainNavBtns["movements"].MouseButton1Click:Connect(function()
-	if currentTab ~= "emotes" and currentTab ~= "animations" and currentTab ~= "favorites" and currentTab ~= "recent" then currentTab = "emotes" end
-	UpdateTabData()
-end)
+mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
 

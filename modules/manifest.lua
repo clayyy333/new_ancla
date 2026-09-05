@@ -156,6 +156,7 @@ return {
 		"mainNav",
 		"movementNav",
 		"mainNavBtns",
+		"mainNavButtonStyle",
 		"CreateTabBtn",
 		"_indS",
 		"_tabIndicator",

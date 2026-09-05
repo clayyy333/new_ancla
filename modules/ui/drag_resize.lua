@@ -61,7 +61,7 @@ end)
 UserInputService.InputChanged:Connect(function(input)
 	if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 		local delta = input.Position - resizeStart
-		local minH = topNavH + 260
+		local minH = topNavH + (isMobile and 245 or 330)
 		local newW = math.clamp(sizeStart.X + delta.X, 400, 1200)
 		local newH = math.clamp(sizeStart.Y + delta.Y, minH, 800)
 		main.Size = UDim2.new(0, newW, 0, newH)

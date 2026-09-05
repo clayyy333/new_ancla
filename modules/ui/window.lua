@@ -9,7 +9,7 @@ function GetDefaultSize()
 	local PAD = isMobile and 4 or 6
 	local targetCard = isMobile and TARGET_MOBILE_CARD or TARGET_PC_CARD
 	
-	local perfectWidth = (targetCard * 7) + (PAD * 6) + 20
+	local perfectWidth = (targetCard * 7) + (PAD * 6) + sideBarW + 20
 	
 	local vp = workspace.CurrentCamera.ViewportSize
 	local finalW = math.clamp(perfectWidth * 1.12, math.min(400, vp.X * 0.95), vp.X * 0.95)
@@ -17,7 +17,7 @@ function GetDefaultSize()
 	local cardH = targetCard + (targetCard * 0.3 * 2) + PAD
 	local perfectHeight = (cardH * 2) + 60 + bottomBarH + topNavH + 20
 	
-	local minH = topNavH + 260
+	local minH = topNavH + (isMobile and 245 or 330)
 	local finalH = math.min(math.max(perfectHeight, minH) * 1.12, vp.Y * 0.95)
 	
 	return UDim2.new(0, finalW, 0, finalH)
