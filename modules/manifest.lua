@@ -92,7 +92,6 @@ return {
 		"ReloadLocal",
 		"ApplyTheme",
 		"selectedLang",
-		"rememberLang",
 		"isTR",
 		"isES",
 		"isAR",

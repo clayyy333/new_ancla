@@ -449,7 +449,7 @@ do
 	local row = MakeRow("76975628127992", L.resetLangLbl, L.resetLangDesc, 20)
 
 	local resetBtn = Instance.new("TextButton")
-	resetBtn.Size = UDim2.new(0, 62, 0, 30)
+	resetBtn.Size = UDim2.new(0, isMobile and 68 or 78, 0, 30)
 	resetBtn.AnchorPoint = Vector2.new(1, 0.5)
 	resetBtn.Position = UDim2.new(1, -12, 0.5, 0)
 	resetBtn.BackgroundColor3 = currentTheme.critical

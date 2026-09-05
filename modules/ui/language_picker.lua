@@ -15,7 +15,6 @@ gui.Parent = playerGui
 -- ===============================================================
 
 selectedLang = nil
-rememberLang = false
 
 if Settings.language and Settings.language ~= "" then
 	selectedLang = Settings.language
@@ -31,27 +30,6 @@ langScreen.Size = UDim2.fromScale(1, 1)
 langScreen.BackgroundColor3 = langTheme.primary
 langScreen.ZIndex = 20000
 langScreen.Parent = gui
-
-for i = 1, 15 do
-	local particle = Instance.new("Frame")
-	local s = math.random(3, 8)
-	particle.Size = UDim2.new(0, s, 0, s)
-	particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
-	particle.BackgroundColor3 = langTheme.accent
-	particle.BackgroundTransparency = math.random(5, 8) / 10
-	particle.ZIndex = 20000
-	particle.Parent = langScreen
-	Instance.new("UICorner", particle).CornerRadius = UDim.new(1, 0)
-	
-	task.spawn(function()
-		while particle.Parent do
-			TweenService:Create(particle, TweenInfo.new(math.random(3, 6), Enum.EasingStyle.Sine), {
-				Position = UDim2.new(math.random(), 0, math.random(), 0)
-			}):Play()
-			task.wait(math.random(3, 6))
-		end
-	end)
-end
 
 langBox = Instance.new("Frame")
 langBox.Size = UDim2.new(0, 0, 0, 0)
@@ -80,8 +58,8 @@ task.spawn(function()
 	local rot = 0
 	while langBoxStroke.Parent do
 		rot = rot + 360
-		TweenService:Create(langStrokeGrad, TweenInfo.new(2, Enum.EasingStyle.Linear), {Rotation = rot}):Play()
-		task.wait(2)
+		TweenService:Create(langStrokeGrad, TweenInfo.new(8, Enum.EasingStyle.Linear), {Rotation = rot}):Play()
+		task.wait(8)
 	end
 end)
 
@@ -89,14 +67,14 @@ langTitle = Instance.new("TextLabel")
 langTitle.Size = UDim2.new(1, 0, 0, 45)
 langTitle.Position = UDim2.new(0, 0, 0, 20)
 langTitle.BackgroundTransparency = 1
-langTitle.Text = "🌐 Select Language"
+langTitle.Text = "Idioma"
 langTitle.TextColor3 = Color3.new(1, 1, 1)
 langTitle.Font = Enum.Font.GothamBold
 langTitle.TextScaled = true
 langTitle.ZIndex = 20002
 langTitle.Parent = langBox
 
-local function MakeLangBtn(txt, index, lang)
+local function MakeLangBtn(txt, flag, index, lang)
 	local col = index <= 4 and 0 or 1
 	local row = (index - 1) % 4
 	local x = col == 0 and 0.04 or 0.52
@@ -107,12 +85,27 @@ local function MakeLangBtn(txt, index, lang)
 	btn.Position = UDim2.new(x, 0, 0, y)
 	btn.BackgroundColor3 = langTheme.tertiary
 	btn.Text = txt
+	btn.TextXAlignment = Enum.TextXAlignment.Left
 	btn.TextColor3 = langTheme.text
 	btn.Font = Enum.Font.GothamBold
 	btn.TextSize = isMobile and 14 or 16
 	btn.ZIndex = 20003
 	btn.Parent = langBox
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+
+	local textPadding = Instance.new("UIPadding")
+	textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
+	textPadding.PaddingRight = UDim.new(0, 44)
+	textPadding.Parent = btn
+
+	local flagLabel = Instance.new("TextLabel")
+	flagLabel.Size = UDim2.new(0, 36, 1, 0)
+	flagLabel.Position = UDim2.new(1, -42, 0, 0)
+	flagLabel.BackgroundTransparency = 1
+	flagLabel.Text = flag
+	flagLabel.TextSize = isMobile and 16 or 18
+	flagLabel.ZIndex = 20005
+	flagLabel.Parent = btn
 
 	local btnStroke = Instance.new("UIStroke")
 	btnStroke.Color = langTheme.stroke
@@ -156,56 +149,22 @@ local function MakeLangBtn(txt, index, lang)
 	end)
 end
 
-MakeLangBtn("🇹🇷  Türkçe",   1, "TR")
-MakeLangBtn("🇬🇧  English",  2, "EN")
-MakeLangBtn("🇪🇸  Español",  3, "ES")
-MakeLangBtn("🇸🇦  العربية",  4, "AR")
-MakeLangBtn("🇫🇷  Français", 5, "FR")
-MakeLangBtn("🇮🇳  हिन्दी",   6, "HI")
-MakeLangBtn("🇵🇹  Português",7, "PT")
-MakeLangBtn("🇷🇺  Русский",  8, "RU")
+MakeLangBtn("Türkçe", "🇹🇷", 1, "TR")
+MakeLangBtn("English", "🇬🇧", 2, "EN")
+MakeLangBtn("Español", "🇪🇸", 3, "ES")
+MakeLangBtn("العربية", "🇸🇦", 4, "AR")
+MakeLangBtn("Français", "🇫🇷", 5, "FR")
+MakeLangBtn("हिन्दी", "🇮🇳", 6, "HI")
+MakeLangBtn("Português", "🇵🇹", 7, "PT")
+MakeLangBtn("Русский", "🇷🇺", 8, "RU")
 
-rememberBtn = Instance.new("TextButton")
-rememberBtn.Size = UDim2.new(0.92, 0, 0, 40)
-rememberBtn.Position = UDim2.new(0.04, 0, 1, -50)
-rememberBtn.BackgroundColor3 = langTheme.tertiary
-rememberBtn.Text = "💾  Remember Language"
-rememberBtn.TextColor3 = langTheme.textDim
-rememberBtn.Font = Enum.Font.GothamBold
-rememberBtn.TextSize = isMobile and 13 or 15
-rememberBtn.ZIndex = 20003
-rememberBtn.Parent = langBox
-Instance.new("UICorner", rememberBtn).CornerRadius = UDim.new(0, 12)
-
-rememberStroke = Instance.new("UIStroke")
-rememberStroke.Color = langTheme.stroke
-rememberStroke.Transparency = 0.5
-rememberStroke.Parent = rememberBtn
-
-rememberBtn.MouseButton1Click:Connect(function()
-	rememberLang = not rememberLang
-	if rememberLang then
-		TweenService:Create(rememberBtn, TweenInfo.new(0.2),
-			{BackgroundColor3 = langTheme.success}):Play()
-		rememberBtn.Text       = "✅  Remember Language"
-		rememberBtn.TextColor3 = Color3.new(1, 1, 1)
-	else
-		TweenService:Create(rememberBtn, TweenInfo.new(0.2),
-			{BackgroundColor3 = langTheme.tertiary}):Play()
-		rememberBtn.Text       = "💾  Remember Language"
-		rememberBtn.TextColor3 = langTheme.textDim
-	end
-end)
-
-local targetSize = isMobile and UDim2.new(0, 380, 0, 410) or UDim2.new(0, 480, 0, 410)
+local targetSize = isMobile and UDim2.new(0, 380, 0, 350) or UDim2.new(0, 480, 0, 350)
 TweenService:Create(langBox, TweenInfo.new(0.6, Enum.EasingStyle.Back), {Size = targetSize, Rotation = 0}):Play()
 
 repeat task.wait(0.1) until selectedLang
 
-if rememberLang then
-	Settings.language = selectedLang
-	SaveData()
-end
+Settings.language = selectedLang
+SaveData()
 
 TweenService:Create(langBox, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0), Rotation = 360}):Play()
 TweenService:Create(langScreen, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
