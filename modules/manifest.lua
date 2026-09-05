@@ -32,7 +32,6 @@ return {
 		"core/initialize",
 		"player/combos",
 		"ui/hud",
-		"ui/emote_info",
 		"ui/hud_tracking",
 		"player/hud_integration",
 		"ui/combo_queue",

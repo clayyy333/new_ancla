@@ -268,36 +268,6 @@ task.spawn(function()
 	end
 end)
 
-bgParticles = Instance.new("Frame")
-bgParticles.Name = "BgParticles"
-bgParticles.Size = UDim2.new(1, 0, 1, 0)
-bgParticles.BackgroundTransparency = 1
-bgParticles.ZIndex = 1
-bgParticles.Parent = main
-
-for i = 1, 20 do
-	local particle = Instance.new("Frame")
-	local s = math.random(5, 12)
-	particle.Size = UDim2.new(0, s, 0, s)
-	particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
-	particle.BackgroundColor3 = currentTheme.accent
-	particle.BackgroundTransparency = math.random(4, 8) / 10
-	particle.ZIndex = 1
-	particle.Parent = bgParticles
-	Instance.new("UICorner", particle).CornerRadius = UDim.new(1, 0)
-	
-	RegisterTheme(particle, "BackgroundColor3", "accent")
-	
-	task.spawn(function()
-		while particle.Parent do
-			TweenService:Create(particle, TweenInfo.new(math.random(4, 8), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				Position = UDim2.new(math.random(), 0, math.random(), 0)
-			}):Play()
-			task.wait(math.random(4, 8))
-		end
-	end)
-end
-
 -- ===============================================================
 -- SIDEBAR
 -- ===============================================================

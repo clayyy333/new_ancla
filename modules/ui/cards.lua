@@ -5,6 +5,8 @@ return function(context)
 function MakeCard(emote, ci, animate)
 	local CARD = currentCardSize
 	local PAD = isMobile and 4 or 6
+	local INSET = isMobile and 2 or 3
+	local IMAGE_H = CARD - (INSET * 2)
 
 	local NAME_H = math.clamp(CARD * 0.35, 18, 28)
 	local FAV_H = math.clamp(CARD * 0.3, 18, 24)
@@ -13,9 +15,12 @@ function MakeCard(emote, ci, animate)
 
 	local cardContainer = Instance.new("Frame")
 	cardContainer.Size = UDim2.new(0, CARD, 0, CARD_TOTAL_H)
-	cardContainer.BackgroundTransparency = 1
+	cardContainer.BackgroundColor3 = currentTheme.secondary
+	cardContainer.BackgroundTransparency = 0.35
 	cardContainer.ZIndex = 2
 	cardContainer.Parent = scroll
+	Instance.new("UICorner", cardContainer).CornerRadius = UDim.new(0, 10)
+	RegisterTheme(cardContainer, "BackgroundColor3", "secondary")
 	
 	local col = ci % cols
 	local row = math.floor(ci / cols)
@@ -25,7 +30,8 @@ function MakeCard(emote, ci, animate)
 	
 	if animate then
 		cardContainer.Position = UDim2.new(0, targetX, 0, targetY + 30)
-		cardContainer.BackgroundTransparency = 1
+		cardContainer.BackgroundColor3 = currentTheme.secondary
+		cardContainer.BackgroundTransparency = 0.35
 		
 		task.delay(ci * 0.02, function()
 			if cardContainer.Parent then
@@ -39,13 +45,14 @@ function MakeCard(emote, ci, animate)
 	end
 	
 	local card = Instance.new("ImageButton")
-	card.Size = UDim2.new(1, 0, 0, CARD)
-	card.Position = UDim2.new(0, 0, 0, KB_H)
+	card.Size = UDim2.new(1, -(INSET * 2), 0, IMAGE_H)
+	card.Position = UDim2.new(0, INSET, 0, KB_H + INSET)
 	card.BackgroundColor3 = currentTheme.tertiary
 	card.ScaleType = Enum.ScaleType.Fit
+	card.AutoButtonColor = false
 	card.ZIndex = 3
 	card.Parent = cardContainer
-	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 9)
 	
 	if emote.isAnimationPack then
 		local packId = tostring(emote.id):gsub("anim_", "")
@@ -86,38 +93,24 @@ function MakeCard(emote, ci, animate)
 	
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = currentTheme.accent
-	stroke.Thickness = 2
-	stroke.Transparency = 0.6
+	stroke.Thickness = 1
+	stroke.Transparency = 0.72
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = card
 	
 	local nameLbl = Instance.new("TextLabel")
 	nameLbl.Size = UDim2.new(1, -4, 0, NAME_H - 2) 
 	nameLbl.Position = UDim2.new(0, 2, 0, KB_H + CARD)
-	nameLbl.BackgroundColor3 = currentTheme.secondary
+	nameLbl.BackgroundTransparency = 1
 	nameLbl.Text = #emote.name > 20 and emote.name:sub(1, 19) .. "…" or emote.name
 	nameLbl.TextColor3 = currentTheme.text
-	nameLbl.Font = Enum.Font.GothamBold
+	nameLbl.Font = Enum.Font.GothamMedium
 	nameLbl.TextScaled = true
 	nameLbl.TextWrapped = true 
 	nameLbl.Active = true 
 	nameLbl.ZIndex = 3
 	nameLbl.Parent = cardContainer
 	Instance.new("UICorner", nameLbl).CornerRadius = UDim.new(0, 4)
-	_AddTextGrad(nameLbl)
-
-	nameLbl.MouseEnter:Connect(function()
-		TweenService:Create(nameLbl, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-			Size = UDim2.new(1, 4, 0, NAME_H + 4),
-			Rotation = 0
-		}):Play()
-	end)
-	
-	nameLbl.MouseLeave:Connect(function()
-		TweenService:Create(nameLbl, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(1, -4, 0, NAME_H - 2),
-			Rotation = 0
-		}):Play()
-	end)
 	
 	
 	local isFav = IsFavorite(emote.id)
@@ -125,14 +118,14 @@ function MakeCard(emote, ci, animate)
 	favBtn.Size = UDim2.new(1, 0, 0, FAV_H)
 	favBtn.Position = UDim2.new(0, 0, 0, KB_H + CARD + NAME_H)
 	favBtn.BackgroundColor3 = currentTheme.accent
-	favBtn.BackgroundTransparency = 1
+	favBtn.BackgroundTransparency = 0.92
 	favBtn.Text = ""
 	favBtn.ZIndex = 4
 	favBtn.Parent = cardContainer
 	Instance.new("UICorner", favBtn).CornerRadius = UDim.new(0, 4)
 
 	local favIcon = Instance.new("TextLabel")
-	local iconSize = isMobile and 28 or 34
+	local iconSize = isMobile and 22 or 26
 	favIcon.Size = UDim2.new(0, iconSize, 0, iconSize)
 	favIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
 	favIcon.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -140,7 +133,7 @@ function MakeCard(emote, ci, animate)
 	favIcon.Text = isFav and SafeUtf8Char(0x2605) or SafeUtf8Char(0x2606)
 	favIcon.TextColor3 = isFav and Color3.fromRGB(255, 215, 0) or currentTheme.accent
 	favIcon.Font = Enum.Font.SourceSansLight
-	favIcon.TextSize = isMobile and 26 or 32
+	favIcon.TextSize = isMobile and 22 or 26
 	favIcon.TextScaled = false
 	favIcon.ZIndex = 50
 	favIcon.Parent = favBtn
@@ -148,7 +141,7 @@ function MakeCard(emote, ci, animate)
 	favBtn.MouseEnter:Connect(function()
 		TweenService:Create(favBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back), {
 			BackgroundColor3 = isFav and currentTheme.tertiary or currentTheme.accent,
-			Size = UDim2.new(1, 6, 0, FAV_H + 6),
+			Size = UDim2.new(1, 0, 0, FAV_H),
 			Rotation = 0
 		}):Play()
 	end)
@@ -391,30 +384,36 @@ function MakeCard(emote, ci, animate)
 	end
 
 	card.MouseEnter:Connect(function()
-		TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-			Size = UDim2.new(1, 6, 0, CARD + 6),
-			Rotation = 0
-		}):Play()
 		local hoverColor = currentTheme.strokeHover or currentTheme.accent
-		TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0, Thickness = 2.5, Color = hoverColor}):Play()
+		TweenService:Create(card, TweenInfo.new(0.18), {
+			BackgroundColor3 = currentTheme.secondary,
+			ImageTransparency = 0.04
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.18), {
+			Transparency = 0.08,
+			Thickness = 1.25,
+			Color = hoverColor
+		}):Play()
 	end)
 
 	card.MouseLeave:Connect(function()
-		TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(1, 0, 0, CARD),
-			Rotation = 0
+		TweenService:Create(card, TweenInfo.new(0.18), {
+			BackgroundColor3 = currentTheme.tertiary,
+			ImageTransparency = 0
 		}):Play()
-		TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.6, Thickness = 2, Color = currentTheme.accent}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.18), {
+			Transparency = 0.72,
+			Thickness = 1,
+			Color = currentTheme.accent
+		}):Play()
 	end)
-	
-	
 	card.MouseButton1Click:Connect(function()
-		TweenService:Create(card, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {Size = UDim2.new(0.9, 0, 0, CARD * 0.9)}):Play()
-		
-		task.delay(0.1, function()
-			TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Elastic), {Size = UDim2.new(1, 0, 0, CARD)}):Play()
+		TweenService:Create(card, TweenInfo.new(0.1), {ImageTransparency = 0.16}):Play()
+		task.delay(0.15, function()
+			if card.Parent then
+				TweenService:Create(card, TweenInfo.new(0.15), {ImageTransparency = 0}):Play()
+			end
 		end)
-		
 		TweenService:Create(stroke, TweenInfo.new(0.1), {Color = Color3.fromRGB(80, 220, 120)}):Play()
 		task.delay(0.3, function()
 			if card.Parent then

@@ -66,18 +66,6 @@ hudFavBtn.MouseButton1Click:Connect(function()
 	RefreshHUDFavBtn()
 end)
 
-hudInfoBtn = Instance.new("TextButton")
-hudInfoBtn.Size                   = UDim2.new(0, 22, 0, 22)
-hudInfoBtn.Position               = UDim2.new(0, 9, 0, 32)
-hudInfoBtn.BackgroundColor3       = currentTheme.accent
-hudInfoBtn.BackgroundTransparency = 0.40
-hudInfoBtn.Text                   = "i"
-hudInfoBtn.TextColor3             = Color3.new(1, 1, 1)
-hudInfoBtn.Font                   = Enum.Font.GothamBold
-hudInfoBtn.TextSize               = 12
-hudInfoBtn.ZIndex                 = 502
-hudInfoBtn.Parent                 = HUD
-Instance.new("UICorner", hudInfoBtn).CornerRadius = UDim.new(1, 0)
 
 hudName = Instance.new("TextLabel")
 hudName.Size                   = UDim2.new(1, -130, 0, 22)

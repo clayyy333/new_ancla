@@ -59,8 +59,6 @@ function StartHUDTracking()
 
 		hudFill.BackgroundColor3    = currentTheme.accent
 		hudStroke.Color             = currentTheme.stroke
-		hudInfoBtn.BackgroundColor3 = currentTheme.accent
-		infoPanelStroke.Color       = currentTheme.accent
 	end)
 end
 
@@ -84,10 +82,6 @@ ShowEmoteHUD = function(emoteId, emoteName)
 
 	_isPaused = false
 	RefreshHudPauseBtn()
-
-	if infoPanelOpen then
-		OpenInfoPanel(emoteId, emoteName)
-	end
 	
 	local hasSync = false
 	if FriendData and FriendData.syncEmote and FriendData.friends then
@@ -137,7 +131,6 @@ HideEmoteHUD = function()
 			HUD.Visible = false
 		end
 	end)
-	if infoPanelOpen then CloseInfoPanel() end
 end
 
 -- ----------------------------------------------------------------
