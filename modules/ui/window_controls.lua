@@ -24,6 +24,7 @@ Instance.new("UICorner", miniIcon).CornerRadius = UDim.new(0, isMobile and 11 or
 local miniIconStroke = Instance.new("UIStroke")
 miniIconStroke.Color = Color3.new(1, 1, 1)
 miniIconStroke.Thickness = 3
+miniIconStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 miniIconStroke.Parent = miniIcon
 
 miniIconGrad = Instance.new("UIGradient")

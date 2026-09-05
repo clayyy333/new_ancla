@@ -80,7 +80,7 @@ return function(context)
 			if name ~= "movements" and currentTab ~= name then
 				TweenService:Create(btn, TweenInfo.new(0.15), {
 					BackgroundTransparency = 0.55,
-					BackgroundColor3 = currentTheme.stroke
+					BackgroundColor3 = currentTheme.tertiary
 				}):Play()
 			end
 		end)

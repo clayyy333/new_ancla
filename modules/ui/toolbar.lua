@@ -189,13 +189,19 @@ function MakeBtn(icon, px, colorKey, customSize)
 	return b
 end
 
-copyEmoteBtn = MakeBtn("rbxassetid://77508802666652", -(btnS*6 + 30), "critical")
-stopBtn = MakeBtn("STOP_SHAPE", -(btnS*5 + 24), "critical")
-randBtn = MakeBtn(Icons.Sort, -(btnS*4 + 18), "accent")
+copyEmoteBtn = MakeBtn("rbxassetid://77508802666652", -(btnS*3 + 14), "critical")
+stopBtn = MakeBtn("STOP_SHAPE", -(btnS*2 + 8), "critical")
+randBtn = MakeBtn(Icons.Sort, -(btnS + 2), "accent")
 notifBtn = MakeBtn("rbxassetid://102189770974908", -(btnS*3 + 12), "tertiary")
 notifBtn.Visible = false
 minBtn = MakeBtn("-", -(btnS*2 + 6), "textDim")
 closeBtn = MakeBtn("CLOSE_SHAPE", -(btnS + 2), "critical")
+
+-- Controles de ventana separados del contenido, alineados con la navegacion superior.
+minBtn.Parent = topNav
+closeBtn.Parent = topNav
+minBtn.ZIndex = 30
+closeBtn.ZIndex = 30
 
 notifIcon = notifBtn:FindFirstChildWhichIsA("ImageLabel")
 if notifIcon then
