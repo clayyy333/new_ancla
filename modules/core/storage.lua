@@ -148,5 +148,8 @@ _emoteMetaCache = {}
 -- UTILITIES
 -- ===============================================================
 
+    -- Recuperar ajustes y favoritos antes de mostrar el selector de idioma.
+    LoadData()
+
 	return true
 end

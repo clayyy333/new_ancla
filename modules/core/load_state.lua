@@ -2,7 +2,6 @@
 return function(context)
 	setfenv(1, context)
 
-LoadData()
 LoadEmotes()
 LoadAnimations()
 

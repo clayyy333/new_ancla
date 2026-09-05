@@ -12,7 +12,8 @@ pcall(function()
 	local f = workspace:FindFirstChild("VexroGlassBlurFolder")
 	if f then f:Destroy() end
 end)
-_genv = (type(getgenv) == "function") and getgenv or function() return {} end
+local runtimeGlobals = {}
+_genv = (type(getgenv) == "function") and getgenv or function() return runtimeGlobals end
 if _genv().VexroEmotesCleanup then
 	pcall(_genv().VexroEmotesCleanup)
 	_genv().VexroEmotesCleanup = nil
