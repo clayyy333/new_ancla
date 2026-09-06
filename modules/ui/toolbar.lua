@@ -189,7 +189,6 @@ function MakeBtn(icon, px, colorKey, customSize)
 	return b
 end
 
-copyEmoteBtn = MakeBtn("rbxassetid://77508802666652", -(btnS*3 + 14), "critical")
 stopBtn = MakeBtn("STOP_SHAPE", -(btnS*2 + 8), "critical")
 randBtn = MakeBtn(Icons.Sort, -(btnS + 2), "accent")
 notifBtn = MakeBtn("rbxassetid://102189770974908", -(btnS*3 + 12), "tertiary")
@@ -211,11 +210,6 @@ if notifIcon then
 end
 
 
-if Settings.copyEmoteEnabled then
-	RegisterTheme(copyEmoteBtn, "BackgroundColor3", "success")
-else
-	RegisterTheme(copyEmoteBtn, "BackgroundColor3", "tertiary")
-end
 RegisterTheme(stopBtn, "BackgroundColor3", "tertiary")
 RegisterTheme(randBtn, "BackgroundColor3", "accent")
 RegisterTheme(notifBtn, "BackgroundColor3", "tertiary")

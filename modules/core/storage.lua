@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1, context)
 
 DATA_FILE = "VexroEmotes_Data_" .. tostring(player.UserId) .. ".json"
-Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, copyEmoteEnabled = false, stopOnWalk = true, showHUD = true}
+Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true}
 
 FriendData = {
 	friends        = {},
@@ -92,7 +92,6 @@ function LoadData()
 					Settings.language = data.settings.language or nil
 					Settings.stopOnWalk = data.settings.stopOnWalk ~= false
 					Settings.showHUD = data.settings.showHUD ~= false
-					Settings.copyEmoteEnabled = data.settings.copyEmoteEnabled == true
 					Settings.searchHistory = data.settings.searchHistory or {}
 				end
 				if data.friendSettings then

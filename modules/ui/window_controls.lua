@@ -112,7 +112,6 @@ local function _CleanupScript()
 	pcall(function() _heartbeatConn:Disconnect() end)
 	pcall(function() _charAddedConn:Disconnect() end)
 	pcall(function() if _keybindInputConn then _keybindInputConn:Disconnect() end end)
-	pcall(function() DisableCopyEmotePrompts() end)
 	pcall(function() StopHUDTracking() end)
 	pcall(function() VexroAcrylic.Stop() end)
 	-- Oynanan emote'u durdur
