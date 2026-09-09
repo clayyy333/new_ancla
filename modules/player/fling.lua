@@ -261,6 +261,7 @@ function VR7Core:Start()
 	end
 
 	if self.Running then return true end
+	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 
 	local attackerCharacter = self.Provider:GetLocalCharacter()
 	local targetCharacter = self.Provider:GetCharacterFromTarget(self.SelectedTarget)

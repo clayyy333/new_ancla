@@ -19,11 +19,14 @@ UpdateTabStyles = function()
 	end
 
 	local isFling = currentTab == "fling"
-	movementNav.Visible = not isFling
-	content.Position = isFling and UDim2.new(0, 0, 0, topNavH) or UDim2.new(0, sideBarW, 0, topNavH)
-	content.Size = isFling and UDim2.new(1, 0, 1, -topNavH) or UDim2.new(1, -sideBarW, 1, -topNavH)
-	SetButtonStyle(mainNavButtonStyle, not isFling)
+	local isFling2 = currentTab == "fling2"
+	local isFlingView = isFling or isFling2
+	movementNav.Visible = not isFlingView
+	content.Position = isFlingView and UDim2.new(0, 0, 0, topNavH) or UDim2.new(0, sideBarW, 0, topNavH)
+	content.Size = isFlingView and UDim2.new(1, 0, 1, -topNavH) or UDim2.new(1, -sideBarW, 1, -topNavH)
+	SetButtonStyle(mainNavButtonStyle, not isFlingView)
 	SetButtonStyle(flingNavButtonStyle, isFling)
+	SetButtonStyle(fling2NavButtonStyle, isFling2)
 	for name, data in pairs(tabBtns) do
 		SetButtonStyle(data, currentTab == name)
 	end
@@ -400,17 +403,20 @@ UpdateTabData = function()
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
 	local isFling = currentTab == "fling"
+	local isFling2 = currentTab == "fling2"
+	local isFlingView = isFling or isFling2
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
 	flingPanel.Visible = isFling
+	fling2Panel.Visible = isFling2
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
 	if isPlaylists and not viewingPlaylist then
 		if RefreshPlaylistsList then RefreshPlaylistsList() end
 	end
 	playlistsPanel.Visible = isPlaylists and not viewingPlaylist
-	local hideNormal = isSettings or isFriends or isKeybinds or isFling or (isPlaylists and not viewingPlaylist)
+	local hideNormal = isSettings or isFriends or isKeybinds or isFlingView or (isPlaylists and not viewingPlaylist)
 	scroll.Visible  = not hideNormal
 	search.Visible  = not hideNormal
 	if playlistBackBtn then
@@ -488,6 +494,9 @@ UpdateTabData = function()
 	elseif currentTab == "fling" then
 		title.Text = "Fling"
 		if UpdateFlingPanel then UpdateFlingPanel() end
+	elseif currentTab == "fling2" then
+		title.Text = "Fling 2"
+		if UpdateFling2Panel then UpdateFling2Panel() end
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
@@ -496,10 +505,11 @@ UpdateTabData = function()
 	title.Position = UDim2.new(0, 12, 0, 0)
 
 	UpdateTabStyles()
-	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and not isFling and (not isPlaylists or viewingPlaylist)
+	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and not isFlingView and (not isPlaylists or viewingPlaylist)
 	if shouldRefresh then Refresh(true) end
 end
 
+mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 mainNavBtns["fling"].MouseButton1Click:Connect(function() currentTab = "fling"; UpdateTabData() end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
@@ -519,7 +529,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "fling" then return end
+	if currentTab == "settings" or currentTab == "fling" or currentTab == "fling2" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)
