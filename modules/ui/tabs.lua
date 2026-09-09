@@ -18,8 +18,12 @@ UpdateTabStyles = function()
 		}):Play()
 	end
 
-	movementNav.Visible = true
-	SetButtonStyle(mainNavButtonStyle, true)
+	local isFling = currentTab == "fling"
+	movementNav.Visible = not isFling
+	content.Position = isFling and UDim2.new(0, 0, 0, topNavH) or UDim2.new(0, sideBarW, 0, topNavH)
+	content.Size = isFling and UDim2.new(1, 0, 1, -topNavH) or UDim2.new(1, -sideBarW, 1, -topNavH)
+	SetButtonStyle(mainNavButtonStyle, not isFling)
+	SetButtonStyle(flingNavButtonStyle, isFling)
 	for name, data in pairs(tabBtns) do
 		SetButtonStyle(data, currentTab == name)
 	end
@@ -395,16 +399,18 @@ UpdateTabData = function()
 	local isFriends   = currentTab == "friends"
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
+	local isFling = currentTab == "fling"
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
+	flingPanel.Visible = isFling
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
 	if isPlaylists and not viewingPlaylist then
 		if RefreshPlaylistsList then RefreshPlaylistsList() end
 	end
 	playlistsPanel.Visible = isPlaylists and not viewingPlaylist
-	local hideNormal = isSettings or isFriends or isKeybinds or (isPlaylists and not viewingPlaylist)
+	local hideNormal = isSettings or isFriends or isKeybinds or isFling or (isPlaylists and not viewingPlaylist)
 	scroll.Visible  = not hideNormal
 	search.Visible  = not hideNormal
 	if playlistBackBtn then
@@ -479,6 +485,9 @@ UpdateTabData = function()
 		title.Text = L.friendTab
 	elseif currentTab == "keybinds" then
 		title.Text = L.keybinds
+	elseif currentTab == "fling" then
+		title.Text = "Fling"
+		if UpdateFlingPanel then UpdateFlingPanel() end
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
@@ -487,10 +496,11 @@ UpdateTabData = function()
 	title.Position = UDim2.new(0, 12, 0, 0)
 
 	UpdateTabStyles()
-	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and (not isPlaylists or viewingPlaylist)
+	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and not isFling and (not isPlaylists or viewingPlaylist)
 	if shouldRefresh then Refresh(true) end
 end
 
+mainNavBtns["fling"].MouseButton1Click:Connect(function() currentTab = "fling"; UpdateTabData() end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
@@ -509,7 +519,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" then return end
+	if currentTab == "settings" or currentTab == "fling" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

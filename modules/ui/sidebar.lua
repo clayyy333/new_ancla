@@ -100,6 +100,16 @@ return function(context)
 	mainNavBtns.movements = topBtn
 	mainNavButtonStyle = {btn = topBtn, stroke = topStroke, gradient = topGradient}
 
+	local flingBtn, flingStroke, flingGradient = CreateTextButton(
+		mainNav, "Fling", "fling",
+		UDim2.new(0, isMobile and 86 or 105, 1, 0),
+		UDim2.new(0, isMobile and 126 or 158, 0, 0)
+	)
+	flingBtn.Font = Enum.Font.GothamBold
+	flingBtn.TextSize = isMobile and 14 or 16
+	mainNavBtns.fling = flingBtn
+	flingNavButtonStyle = {btn = flingBtn, stroke = flingStroke, gradient = flingGradient}
+
 	local labels = {
 		{"emotes", L.emotes},
 		{"animations", L.animations},
