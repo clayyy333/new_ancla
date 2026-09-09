@@ -201,7 +201,7 @@ function VR7Core:CreateFlinger(root)
 	bodyVelocity.Name = "VR7VerticalFlinger"
 	bodyVelocity.P = CONFIG.P
 	bodyVelocity.MaxForce = CONFIG.MAX_FORCE
-	bodyVelocity.Velocity = CONFIG.FLINGER_VELOCITY
+	bodyVelocity.Velocity = Vector3.zero
 	bodyVelocity.Parent = root
 	self.Flinger = bodyVelocity
 end
@@ -342,7 +342,7 @@ function VR7Core:Start()
 				self:CreateFlinger(currentRoot)
 			end
 			if self.Flinger and self.Flinger.Parent then
-				self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
+				self.Flinger.Velocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
 				self.Flinger.MaxForce = CONFIG.MAX_FORCE
 				self.Flinger.P = CONFIG.P
 			end
@@ -387,17 +387,13 @@ function VR7Core:Start()
 			0
 		)
 
-		currentRoot.AssemblyAngularVelocity = Vector3.new(
-			CONFIG.ANGULAR_SPEED,
-			CONFIG.ANGULAR_SPEED,
-			CONFIG.ANGULAR_SPEED
-		)
+		currentRoot.AssemblyAngularVelocity = Vector3.zero
 
 		if self.Flinger and self.Flinger.Parent ~= currentRoot then
 			self:CreateFlinger(currentRoot)
 		end
 		if self.Flinger and self.Flinger.Parent then
-			self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
+			self.Flinger.Velocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
 			self.Flinger.MaxForce = CONFIG.MAX_FORCE
 			self.Flinger.P = CONFIG.P
 		end
