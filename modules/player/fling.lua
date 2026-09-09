@@ -387,7 +387,9 @@ function VR7Core:Start()
 			0
 		)
 
-		currentRoot.AssemblyAngularVelocity = Vector3.zero
+		if not self.FrontFlipEnabled then
+			currentRoot.AssemblyAngularVelocity = Vector3.zero
+		end
 
 		if self.Flinger and self.Flinger.Parent ~= currentRoot then
 			self:CreateFlinger(currentRoot)
