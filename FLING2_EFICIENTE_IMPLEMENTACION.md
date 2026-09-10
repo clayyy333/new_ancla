@@ -1,4 +1,34 @@
--- Motor Fling 2 eficiente independiente. Este modulo no crea ninguna GUI independiente.
+# Fling 2 eficiente — implementación actual
+
+Este documento conserva la implementación que resultó efectiva durante las pruebas. El motor es independiente de `Fling` y `Fling 2`; no modifica sus parámetros internos.
+
+## Flujo
+
+```text
+NEAR (±1.5 studs durante 0.040–0.085 s)
+→ FAR
+→ RETURN_DIRECT hacia la posición actual del objetivo
+→ VERIFY_RETURN
+   ├─ éxito → NEAR
+   └─ fallo → RETURN_16 (±16 studs) → RETURN_NEAR → NEAR
+```
+
+El objetivo se vuelve a consultar en cada `Heartbeat`. Si su personaje falta temporalmente, el ciclo espera y no utiliza una posición antigua.
+
+## Parámetros principales
+
+- Fuerza: `900000000`; no fue aumentada.
+- `MaxForce`: infinito en X, Y y Z.
+- `P`: `1250`.
+- Contacto NEAR: `±1.5` studs.
+- Duración NEAR: `0.040–0.085` segundos.
+- Tolerancia del retorno directo: `4` studs.
+- Estabilización al detener: `2` segundos, limpiando las físicas en cada `Heartbeat`.
+- Los tres motores Fling son mutuamente excluyentes.
+
+## Módulo completo del motor
+
+```lua-- Motor Fling 2 eficiente independiente. Este modulo no crea ninguna GUI independiente.
 return function(context)
 	setfenv(1, context)
 
@@ -265,7 +295,6 @@ function VR7EfficientCore:Start()
 	end
 
 	if self.Running then return true end
-	if CarFling and CarFling.Running then CarFling:Stop() end
 	if FlingCore and FlingCore.Running then FlingCore:Stop() end
 	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 
@@ -519,4 +548,219 @@ end
 	end)
 
 	return true
-end
+end```
+
+## Vista y botón integrados
+
+El siguiente módulo contiene el selector compartido y los botones `Activar Fling 2` y `Activar Fling 2 eficiente`.
+
+```lua-- Vista de Fling 2 integrada en la GUI principal.
+return function(context)
+	setfenv(1, context)
+
+	fling2Panel = Instance.new("Frame")
+	fling2Panel.Name = "Fling2Panel"
+	fling2Panel.Size = UDim2.new(1, -16, 1, -(titleH + 20))
+	fling2Panel.Position = UDim2.new(0, 8, 0, titleH + 8)
+	fling2Panel.BackgroundTransparency = 1
+	fling2Panel.Visible = false
+	fling2Panel.ZIndex = 6
+	fling2Panel.Parent = content
+
+	local panelCard = Instance.new("Frame")
+	panelCard.Size = UDim2.new(1, 0, 0, isMobile and 230 or 250)
+	panelCard.BackgroundColor3 = currentTheme.secondary
+	panelCard.ZIndex = 7
+	panelCard.Parent = fling2Panel
+	Instance.new("UICorner", panelCard).CornerRadius = UDim.new(0, 14)
+	RegisterTheme(panelCard, "BackgroundColor3", "secondary")
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 14)
+	padding.PaddingRight = UDim.new(0, 14)
+	padding.PaddingTop = UDim.new(0, 14)
+	padding.PaddingBottom = UDim.new(0, 14)
+	padding.Parent = panelCard
+
+	local targetLabel = Instance.new("TextLabel")
+	targetLabel.Size = UDim2.new(1, 0, 0, 20)
+	targetLabel.BackgroundTransparency = 1
+	targetLabel.Text = L.flingTarget
+	targetLabel.TextColor3 = currentTheme.textDim
+	targetLabel.Font = Enum.Font.GothamMedium
+	targetLabel.TextSize = isMobile and 12 or 13
+	targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+	targetLabel.ZIndex = 8
+	targetLabel.Parent = panelCard
+	RegisterTheme(targetLabel, "TextColor3", "textDim")
+
+	local targetButton = Instance.new("TextButton")
+	targetButton.Size = UDim2.new(1, 0, 0, 40)
+	targetButton.Position = UDim2.new(0, 0, 0, 26)
+	targetButton.BackgroundColor3 = currentTheme.tertiary
+	targetButton.Text = L.selectPlayer
+	targetButton.TextColor3 = currentTheme.text
+	targetButton.Font = Enum.Font.GothamMedium
+	targetButton.TextSize = isMobile and 12 or 14
+	targetButton.TextXAlignment = Enum.TextXAlignment.Left
+	targetButton.AutoButtonColor = false
+	targetButton.ZIndex = 10
+	targetButton.Parent = panelCard
+	Instance.new("UICorner", targetButton).CornerRadius = UDim.new(0, 10)
+	Instance.new("UIPadding", targetButton).PaddingLeft = UDim.new(0, 12)
+	RegisterTheme(targetButton, "BackgroundColor3", "tertiary")
+	RegisterTheme(targetButton, "TextColor3", "text")
+
+	local targetList = Instance.new("ScrollingFrame")
+	targetList.Size = UDim2.new(1, 0, 0, 120)
+	targetList.Position = UDim2.new(0, 0, 0, 70)
+	targetList.BackgroundColor3 = currentTheme.tertiary
+	targetList.ScrollBarThickness = 4
+	targetList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	targetList.CanvasSize = UDim2.new()
+	targetList.Visible = false
+	targetList.ZIndex = 30
+	targetList.Parent = panelCard
+	Instance.new("UICorner", targetList).CornerRadius = UDim.new(0, 10)
+	RegisterTheme(targetList, "BackgroundColor3", "tertiary")
+	local targetLayout = Instance.new("UIListLayout")
+	targetLayout.Padding = UDim.new(0, 3)
+	targetLayout.Parent = targetList
+
+	local function MakeActionButton(y, text)
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.new(1, 0, 0, 44)
+		button.Position = UDim2.new(0, 0, 0, y)
+		button.BackgroundColor3 = currentTheme.tertiary
+		button.Text = text
+		button.TextColor3 = currentTheme.text
+		button.Font = Enum.Font.GothamBold
+		button.TextSize = isMobile and 13 or 14
+		button.AutoButtonColor = false
+		button.ZIndex = 8
+		button.Parent = panelCard
+		Instance.new("UICorner", button).CornerRadius = UDim.new(0, 10)
+		RegisterTheme(button, "BackgroundColor3", "tertiary")
+		RegisterTheme(button, "TextColor3", "text")
+		return button
+	end
+
+	local flingButton = MakeActionButton(82, isES and "Activar Fling 2" or "Enable Fling 2")
+	local efficientButton = MakeActionButton(134, isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Size = UDim2.new(1, 0, 0, 24)
+	statusLabel.Position = UDim2.new(0, 0, 0, 140)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.TextColor3 = currentTheme.textDim
+	statusLabel.Font = Enum.Font.GothamMedium
+	statusLabel.TextSize = isMobile and 11 or 12
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.ZIndex = 8
+	statusLabel.Parent = panelCard
+	RegisterTheme(statusLabel, "TextColor3", "textDim")
+
+	UpdateFling2Panel = function(message)
+		local target = Fling2Core:GetTarget()
+		targetButton.Text = target and (target.DisplayName .. "  (@" .. target.Name .. ")") or L.selectPlayer
+		flingButton.Text = Fling2Core.Running and (isES and "Desactivar Fling 2" or "Disable Fling 2") or (isES and "Activar Fling 2" or "Enable Fling 2")
+		efficientButton.Text = Fling2EfficientCore.Running and (isES and "Desactivar Fling 2 eficiente" or "Disable Efficient Fling 2") or (isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
+		flingButton.BackgroundColor3 = Fling2Core.Running and currentTheme.critical or currentTheme.tertiary
+		efficientButton.BackgroundColor3 = Fling2EfficientCore.Running and currentTheme.accent or currentTheme.tertiary
+		statusLabel.Text = message or ((Fling2Core.Running or Fling2EfficientCore.Running) and L.flingActive or L.flingStopped)
+	end
+
+	local function RefreshTargets()
+		for _, child in ipairs(targetList:GetChildren()) do
+			if child:IsA("TextButton") then child:Destroy() end
+		end
+		for _, targetPlayer in ipairs(Fling2Core.Provider:GetTargetOptions()) do
+			local option = Instance.new("TextButton")
+			option.Size = UDim2.new(1, -4, 0, 34)
+			option.BackgroundColor3 = currentTheme.secondary
+			option.Text = targetPlayer.DisplayName .. "  (@" .. targetPlayer.Name .. ")"
+			option.TextColor3 = currentTheme.text
+			option.Font = Enum.Font.GothamMedium
+			option.TextSize = isMobile and 11 or 12
+			option.ZIndex = 31
+			option.Parent = targetList
+			Instance.new("UICorner", option).CornerRadius = UDim.new(0, 8)
+			RegisterTheme(option, "BackgroundColor3", "secondary")
+			RegisterTheme(option, "TextColor3", "text")
+			option.MouseButton1Click:Connect(function()
+				Fling2Core:SetTarget(targetPlayer)
+				Fling2EfficientCore:SetTarget(targetPlayer)
+				targetList.Visible = false
+				UpdateFling2Panel()
+			end)
+		end
+	end
+
+	targetButton.MouseButton1Click:Connect(function()
+		targetList.Visible = not targetList.Visible
+		if targetList.Visible then RefreshTargets() end
+	end)
+
+	flingButton.MouseButton1Click:Connect(function()
+		if Fling2Core.Running then
+			Fling2Core:Stop()
+			UpdateFling2Panel()
+			return
+		end
+		if not Fling2Core:GetTarget() then
+			UpdateFling2Panel(L.selectPlayerFirst)
+			return
+		end
+		local ok, err = Fling2Core:Start()
+		UpdateFling2Panel(ok and nil or (err or L.flingStartFailed))
+	end)
+
+	efficientButton.MouseButton1Click:Connect(function()
+		if Fling2EfficientCore.Running then
+			Fling2EfficientCore:Stop()
+		else
+			if not Fling2EfficientCore:GetTarget() then UpdateFling2Panel(L.selectPlayerFirst); return end
+			local ok, err = Fling2EfficientCore:Start()
+			if not ok then UpdateFling2Panel(err or L.flingStartFailed); return end
+		end
+		UpdateFling2Panel()
+	end)
+
+	UpdateFling2Panel()
+	return true
+end```
+
+## Registro necesario en `modules/manifest.lua`
+
+El orden de carga incluye:
+
+```lua
+"player/fling2_efficient",
+```
+
+Los nombres compartidos correspondientes son:
+
+```lua
+"Fling2EfficientCore",
+"_fling2EfficientPlayerRemovingConn",
+"_fling2EfficientCharacterAddedConn",
+```
+
+## Limpieza al cerrar
+
+```lua
+pcall(function() if Fling2EfficientCore then Fling2EfficientCore:Stop() end end)
+pcall(function() if _fling2EfficientPlayerRemovingConn then _fling2EfficientPlayerRemovingConn:Disconnect() end end)
+pcall(function() if _fling2EfficientCharacterAddedConn then _fling2EfficientCharacterAddedConn:Disconnect() end end)
+```
+
+## Archivos de la implementación
+
+- `modules/player/fling2_efficient.lua`: motor físico.
+- `modules/ui/fling2.lua`: selector, estado y botones.
+- `modules/manifest.lua`: carga y variables compartidas.
+- `modules/ui/window_controls.lua`: limpieza al cerrar.
+
+## Nota
+
+Esta es una reproducción experimental basada en observaciones y pruebas, no el código fuente de VR7 ORIGINAL. Los desplazamientos FAR pueden comportarse de forma diferente según FPS, latencia, propiedad de red y físicas del juego.

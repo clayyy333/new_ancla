@@ -261,6 +261,7 @@ function VR7Core:Start()
 	end
 
 	if self.Running then return true end
+	if CarFling and CarFling.Running then CarFling:Stop() end
 	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 	if Fling2EfficientCore and Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
 

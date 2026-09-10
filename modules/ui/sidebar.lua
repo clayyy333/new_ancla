@@ -40,7 +40,27 @@ return function(context)
 	sideOverlay.Parent = movementNav
 	RegisterTheme(sideOverlay, "BackgroundColor3", "sidebar")
 
-	mainNavBtns, tabBtns = {}, {}
+	fling2Nav = Instance.new("Frame")
+	fling2Nav.Name = "Fling2Navigation"
+	fling2Nav.Size = UDim2.new(0, sideBarW, 1, -topNavH)
+	fling2Nav.Position = UDim2.new(0, 0, 0, topNavH)
+	fling2Nav.BackgroundColor3 = currentTheme.sidebar
+	fling2Nav.ClipsDescendants = true
+	fling2Nav.Visible = false
+	fling2Nav.ZIndex = 18
+	fling2Nav.Parent = main
+	Instance.new("UICorner", fling2Nav).CornerRadius = UDim.new(0, 14)
+	RegisterTheme(fling2Nav, "BackgroundColor3", "sidebar")
+	local fling2Overlay = Instance.new("Frame")
+	fling2Overlay.Size = UDim2.new(0, 10, 1, 0)
+	fling2Overlay.Position = UDim2.new(1, -10, 0, 0)
+	fling2Overlay.BackgroundColor3 = currentTheme.sidebar
+	fling2Overlay.BorderSizePixel = 0
+	fling2Overlay.ZIndex = 17
+	fling2Overlay.Parent = fling2Nav
+	RegisterTheme(fling2Overlay, "BackgroundColor3", "sidebar")
+
+	mainNavBtns, tabBtns, fling2TabBtns = {}, {}, {}
 
 	local function CreateTextButton(parent, text, name, size, position)
 		local btn = Instance.new("TextButton")
@@ -58,7 +78,7 @@ return function(context)
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-		if parent == movementNav then
+		if parent == movementNav or parent == fling2Nav then
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			local textPadding = Instance.new("UIPadding")
 			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
@@ -140,6 +160,19 @@ return function(context)
 			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
 		)
 		tabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
+	end
+
+	local flingLabels = {
+		{"fling2", "Fling"},
+		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
+	}
+	for index, item in ipairs(flingLabels) do
+		local btn, stroke, gradient = CreateTextButton(
+			fling2Nav, item[2], item[1],
+			UDim2.new(1, -(pad * 2), 0, buttonH),
+			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
+		)
+		fling2TabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
 
 	return true
