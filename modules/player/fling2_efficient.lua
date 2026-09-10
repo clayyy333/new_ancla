@@ -19,6 +19,10 @@ local CONFIG = {
 
 	-- Front Flip
 	FRONT_FLIP_SPEED = 60,        -- rad/s
+	NEAR_MIN_TIME = 0.040,
+	NEAR_MAX_TIME = 0.085,
+	DIRECT_RETURN_TOLERANCE = 4,
+	FAR_DISTANCES = {4487425, 7554477, 9193601, 11000000, 12572022, 15000000, 17003482, 21098414},
 }
 
 --------------------------------------------------
@@ -286,6 +290,9 @@ function VR7EfficientCore:Start()
 	self.RecoveryConsecutiveNear = 0
 	self.LastTargetCFrame = targetRoot.CFrame
 	self.DistanceFromTarget = 0
+	self.EfficientPhase = "NEAR"
+	self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
+	self.ReturnSide = 1
 
 	attackerHumanoid.PlatformStand = false
 	attackerHumanoid.AutoRotate = true
@@ -313,43 +320,56 @@ function VR7EfficientCore:Start()
 			return
 		end
 
-		------------------------------------------
-		-- 1) Actualizar última posición del target
-		------------------------------------------
+		-- El objetivo se recalcula en cada Heartbeat; si falta temporalmente,
+		-- se espera sin regresar a un CFrame antiguo.
+		if not currentTargetRoot then return end
 		self:UpdateLastTarget(currentTargetRoot)
-		self:UpdateDistance(currentRoot)
 
-		-- Si no hay ninguna referencia válida, no se puede seguir
-		if not self.LastTargetCFrame then
-			self:Stop()
-			return
+		if self.Flinger and self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
+		if self.Flinger and self.Flinger.Parent then
+			self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
+			self.Flinger.MaxForce = CONFIG.MAX_FORCE
+			self.Flinger.P = CONFIG.P
 		end
 
-		------------------------------------------
-		-- 2) Detectar separación excesiva → RECOVERY
-		------------------------------------------
-		if self.State == "NORMAL" and self.DistanceFromTarget > CONFIG.RECOVERY_DISTANCE then
-			self.State = "RECOVERY"
-			self.RecoveryConsecutiveNear = 0
+		local function placeNear()
+			self.Direction = -self.Direction
+			local desired = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)
+			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
+			currentRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
+			currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
 		end
 
-		------------------------------------------
-		-- 3) RECOVERY: volver usando LastTargetCFrame
-		------------------------------------------
-		if self.State == "RECOVERY" then
-			self:GoNearLastTarget(currentRoot)
-
-			-- Mantener flinger / flip
-			if self.Flinger and self.Flinger.Parent ~= currentRoot then
-				self:CreateFlinger(currentRoot)
+		if self.EfficientPhase == "NEAR" then
+			placeNear()
+			if os.clock() >= self.NearUntil then self.EfficientPhase = "FAR" end
+		elseif self.EfficientPhase == "FAR" then
+			local far = CONFIG.FAR_DISTANCES[math.random(1, #CONFIG.FAR_DISTANCES)]
+			local sx = math.random(0, 1) == 0 and -1 or 1
+			local sz = math.random(0, 1) == 0 and -1 or 1
+			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz))
+			currentRoot.AssemblyLinearVelocity = CONFIG.FLINGER_VELOCITY
+			self.EfficientPhase = "RETURN_DIRECT"
+		elseif self.EfficientPhase == "RETURN_DIRECT" then
+			placeNear()
+			self.EfficientPhase = "VERIFY_RETURN"
+		elseif self.EfficientPhase == "VERIFY_RETURN" then
+			local distance = (currentRoot.Position - currentTargetRoot.Position).Magnitude
+			if distance <= CONFIG.DIRECT_RETURN_TOLERANCE then
+				self.EfficientPhase = "NEAR"
+				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+			else
+				self.ReturnSide = -self.ReturnSide
+				self.EfficientPhase = "RETURN_16"
 			end
-			if self.Flinger and self.Flinger.Parent then
-				self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
-				self.Flinger.MaxForce = CONFIG.MAX_FORCE
-				self.Flinger.P = CONFIG.P
-			end
-			self:EnsureFrontFlip(currentRoot)
-
+		elseif self.EfficientPhase == "RETURN_16" then
+			currentRoot.CFrame = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide)
+			self.EfficientPhase = "RETURN_NEAR"
+		else
+			placeNear()
+			self.EfficientPhase = "NEAR"
+			self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+		end
 			-- Comprobar DESPUÉS de este frame en el próximo Heartbeat
 			-- (aquí medimos la distancia ya actualizada)
 			self:UpdateDistance(currentRoot)
