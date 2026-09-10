@@ -1,10 +1,10 @@
--- Nucleo de Fling integrado. Este modulo no crea ninguna GUI independiente.
+-- Motor Fling 2 eficiente independiente. Este modulo no crea ninguna GUI independiente.
 return function(context)
 	setfenv(1, context)
 
 	local LocalPlayer = player
 local CONFIG = {
-	VERTICAL_DISTANCE = 3.4,
+	VERTICAL_DISTANCE = 1.5,
 	LINEAR_SPEED = 900000000,
 	ANGULAR_SPEED = 900000000,
 	FLINGER_VELOCITY = Vector3.new(900000000, 900000000, 900000000),
@@ -63,11 +63,11 @@ end
 -- CORE
 --------------------------------------------------
 
-local VR7Core = {}
-VR7Core.__index = VR7Core
+local VR7EfficientCore = {}
+VR7EfficientCore.__index = VR7EfficientCore
 
-function VR7Core.new(provider)
-	local self = setmetatable({}, VR7Core)
+function VR7EfficientCore.new(provider)
+	local self = setmetatable({}, VR7EfficientCore)
 	self.Provider = provider
 	self.Running = false
 	self.Stopping = false
@@ -102,13 +102,13 @@ local function getParts(character)
 	return humanoid, root
 end
 
-function VR7Core:SetTarget(option)
+function VR7EfficientCore:SetTarget(option)
 	local resolved = self.Provider:ResolveTarget(option)
 	self.SelectedTarget = resolved
 	return resolved ~= nil
 end
 
-function VR7Core:GetTarget()
+function VR7EfficientCore:GetTarget()
 	return self.SelectedTarget
 end
 
@@ -116,7 +116,7 @@ end
 -- FRONT FLIP
 --------------------------------------------------
 
-function VR7Core:DestroyFrontFlip()
+function VR7EfficientCore:DestroyFrontFlip()
 	if self.FrontFlipAngular then
 		pcall(function() self.FrontFlipAngular:Destroy() end)
 		self.FrontFlipAngular = nil
@@ -127,7 +127,7 @@ function VR7Core:DestroyFrontFlip()
 	end
 end
 
-function VR7Core:ActivateFrontFlip(root)
+function VR7EfficientCore:ActivateFrontFlip(root)
 	self:DestroyFrontFlip()
 	if not root then return end
 
@@ -147,7 +147,7 @@ function VR7Core:ActivateFrontFlip(root)
 	self.FrontFlipAngular = angular
 end
 
-function VR7Core:SetFrontFlipEnabled(enabled)
+function VR7EfficientCore:SetFrontFlipEnabled(enabled)
 	self.FrontFlipEnabled = enabled and true or false
 
 	if not self.Running then
@@ -163,7 +163,7 @@ function VR7Core:SetFrontFlipEnabled(enabled)
 	end
 end
 
-function VR7Core:EnsureFrontFlip(root)
+function VR7EfficientCore:EnsureFrontFlip(root)
 	if not self.FrontFlipEnabled or not root then
 		return
 	end
@@ -179,14 +179,14 @@ end
 -- FLINGER
 --------------------------------------------------
 
-function VR7Core:DestroyFlinger()
+function VR7EfficientCore:DestroyFlinger()
 	if self.Flinger then
 		pcall(function() self.Flinger:Destroy() end)
 		self.Flinger = nil
 	end
 end
 
-function VR7Core:Disconnect()
+function VR7EfficientCore:Disconnect()
 	if self.Connection then
 		self.Connection:Disconnect()
 		self.Connection = nil
@@ -195,13 +195,13 @@ function VR7Core:Disconnect()
 	self:DestroyFrontFlip()
 end
 
-function VR7Core:CreateFlinger(root)
+function VR7EfficientCore:CreateFlinger(root)
 	self:DestroyFlinger()
 	local bodyVelocity = Instance.new("BodyVelocity")
 	bodyVelocity.Name = "VR7VerticalFlinger"
 	bodyVelocity.P = CONFIG.P
 	bodyVelocity.MaxForce = CONFIG.MAX_FORCE
-	bodyVelocity.Velocity = Vector3.zero
+	bodyVelocity.Velocity = CONFIG.FLINGER_VELOCITY
 	bodyVelocity.Parent = root
 	self.Flinger = bodyVelocity
 end
@@ -210,14 +210,14 @@ end
 -- FORCE TARGET / RECOVERY
 --------------------------------------------------
 
-function VR7Core:UpdateLastTarget(currentTargetRoot)
+function VR7EfficientCore:UpdateLastTarget(currentTargetRoot)
 	if currentTargetRoot then
 		self.LastTargetCFrame = currentTargetRoot.CFrame
 	end
 	-- Si desaparece temporalmente, se conserva el último CFrame válido
 end
 
-function VR7Core:UpdateDistance(currentRoot)
+function VR7EfficientCore:UpdateDistance(currentRoot)
 	if currentRoot and self.LastTargetCFrame then
 		self.DistanceFromTarget = (currentRoot.Position - self.LastTargetCFrame.Position).Magnitude
 	else
@@ -225,7 +225,7 @@ function VR7Core:UpdateDistance(currentRoot)
 	end
 end
 
-function VR7Core:GoNearLastTarget(currentRoot)
+function VR7EfficientCore:GoNearLastTarget(currentRoot)
 	if not currentRoot or not self.LastTargetCFrame then
 		return
 	end
@@ -234,7 +234,7 @@ function VR7Core:GoNearLastTarget(currentRoot)
 	currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
 end
 
-function VR7Core:IsNearLastTarget(currentRoot)
+function VR7EfficientCore:IsNearLastTarget(currentRoot)
 	if not currentRoot or not self.LastTargetCFrame then
 		return false
 	end
@@ -245,7 +245,7 @@ end
 -- START / STOP
 --------------------------------------------------
 
-function VR7Core:Start()
+function VR7EfficientCore:Start()
 	-- Si INICIAR se pulsa durante la estabilización del Stop anterior,
 	-- cancelar inmediatamente ese ciclo y liberar nuestro HumanoidRootPart.
 	if self.Stopping then
@@ -261,8 +261,8 @@ function VR7Core:Start()
 	end
 
 	if self.Running then return true end
+	if FlingCore and FlingCore.Running then FlingCore:Stop() end
 	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
-	if Fling2EfficientCore and Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
 
 	local attackerCharacter = self.Provider:GetLocalCharacter()
 	local targetCharacter = self.Provider:GetCharacterFromTarget(self.SelectedTarget)
@@ -344,7 +344,7 @@ function VR7Core:Start()
 				self:CreateFlinger(currentRoot)
 			end
 			if self.Flinger and self.Flinger.Parent then
-				self.Flinger.Velocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
+				self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
 				self.Flinger.MaxForce = CONFIG.MAX_FORCE
 				self.Flinger.P = CONFIG.P
 			end
@@ -389,15 +389,13 @@ function VR7Core:Start()
 			0
 		)
 
-		if not self.FrontFlipEnabled then
-			currentRoot.AssemblyAngularVelocity = Vector3.zero
-		end
+		currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
 
 		if self.Flinger and self.Flinger.Parent ~= currentRoot then
 			self:CreateFlinger(currentRoot)
 		end
 		if self.Flinger and self.Flinger.Parent then
-			self.Flinger.Velocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
+			self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
 			self.Flinger.MaxForce = CONFIG.MAX_FORCE
 			self.Flinger.P = CONFIG.P
 		end
@@ -408,7 +406,7 @@ function VR7Core:Start()
 	return true
 end
 
-function VR7Core:Stop()
+function VR7EfficientCore:Stop()
 	local wasRunning = self.Running
 
 	-- Si ya existe un Stop estabilizando, no iniciar otro encima.
@@ -548,19 +546,19 @@ function VR7Core:Stop()
 end
 
 
-	FlingCore = VR7Core.new(Provider)
+	Fling2EfficientCore = VR7EfficientCore.new(Provider)
 
-	_flingPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leavingPlayer)
-		if FlingCore:GetTarget() == leavingPlayer then
-			if FlingCore.Running then FlingCore:Stop() end
-			FlingCore:SetTarget(nil)
-			if UpdateFlingPanel then UpdateFlingPanel() end
+	_fling2EfficientPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leavingPlayer)
+		if Fling2EfficientCore:GetTarget() == leavingPlayer then
+			if Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
+			Fling2EfficientCore:SetTarget(nil)
+			if UpdateFling2Panel then UpdateFling2Panel() end
 		end
 	end)
 
-	_flingCharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-		if FlingCore.Running then FlingCore:Stop() end
-		if UpdateFlingPanel then UpdateFlingPanel() end
+	_fling2EfficientCharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
+		if Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
+		if UpdateFling2Panel then UpdateFling2Panel() end
 	end)
 
 	return true

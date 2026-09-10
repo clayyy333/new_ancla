@@ -90,8 +90,7 @@ return function(context)
 	end
 
 	local flingButton = MakeActionButton(82, isES and "Activar Fling 2" or "Enable Fling 2")
-	local flipButton = MakeActionButton(134, L.enableFrontFlip)
-	flipButton.Visible = false
+	local efficientButton = MakeActionButton(134, isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, 0, 0, 24)
@@ -109,10 +108,10 @@ return function(context)
 		local target = Fling2Core:GetTarget()
 		targetButton.Text = target and (target.DisplayName .. "  (@" .. target.Name .. ")") or L.selectPlayer
 		flingButton.Text = Fling2Core.Running and (isES and "Desactivar Fling 2" or "Disable Fling 2") or (isES and "Activar Fling 2" or "Enable Fling 2")
-		flipButton.Text = Fling2Core.FrontFlipEnabled and L.disableFrontFlip or L.enableFrontFlip
+		efficientButton.Text = Fling2EfficientCore.Running and (isES and "Desactivar Fling 2 eficiente" or "Disable Efficient Fling 2") or (isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
 		flingButton.BackgroundColor3 = Fling2Core.Running and currentTheme.critical or currentTheme.tertiary
-		flipButton.BackgroundColor3 = Fling2Core.FrontFlipEnabled and currentTheme.accent or currentTheme.tertiary
-		statusLabel.Text = message or (Fling2Core.Running and L.flingActive or L.flingStopped)
+		efficientButton.BackgroundColor3 = Fling2EfficientCore.Running and currentTheme.accent or currentTheme.tertiary
+		statusLabel.Text = message or ((Fling2Core.Running or Fling2EfficientCore.Running) and L.flingActive or L.flingStopped)
 	end
 
 	local function RefreshTargets()
@@ -134,6 +133,7 @@ return function(context)
 			RegisterTheme(option, "TextColor3", "text")
 			option.MouseButton1Click:Connect(function()
 				Fling2Core:SetTarget(targetPlayer)
+				Fling2EfficientCore:SetTarget(targetPlayer)
 				targetList.Visible = false
 				UpdateFling2Panel()
 			end)
@@ -159,8 +159,14 @@ return function(context)
 		UpdateFling2Panel(ok and nil or (err or L.flingStartFailed))
 	end)
 
-	flipButton.MouseButton1Click:Connect(function()
-		Fling2Core:SetFrontFlipEnabled(not Fling2Core.FrontFlipEnabled)
+	efficientButton.MouseButton1Click:Connect(function()
+		if Fling2EfficientCore.Running then
+			Fling2EfficientCore:Stop()
+		else
+			if not Fling2EfficientCore:GetTarget() then UpdateFling2Panel(L.selectPlayerFirst); return end
+			local ok, err = Fling2EfficientCore:Start()
+			if not ok then UpdateFling2Panel(err or L.flingStartFailed); return end
+		end
 		UpdateFling2Panel()
 	end)
 
