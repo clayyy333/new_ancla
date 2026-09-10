@@ -308,29 +308,17 @@ function VR7EfficientCore:Start()
 
 	self.Connection = RunService.Heartbeat:Connect(function()
 		if not self.Running then return end
+		local currentHumanoid, currentRoot = getParts(self.Provider:GetLocalCharacter())
+		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
+		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
-		local currentAttacker = self.Provider:GetLocalCharacter()
-		local currentTargetChar = self.Provider:GetCharacterFromTarget(self.SelectedTarget)
-
-		local currentHumanoid, currentRoot = getParts(currentAttacker)
-		local _, currentTargetRoot = getParts(currentTargetChar)
-
-		if not currentRoot then
-			self:Stop()
-			return
-		end
-
-		-- El objetivo se recalcula en cada Heartbeat; si falta temporalmente,
-		-- se espera sin regresar a un CFrame antiguo.
+		-- Esperar si el objetivo reaparece; nunca regresar a una posición antigua.
 		if not currentTargetRoot then return end
 		self:UpdateLastTarget(currentTargetRoot)
-
-		if self.Flinger and self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
-		if self.Flinger and self.Flinger.Parent then
-			self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
-			self.Flinger.MaxForce = CONFIG.MAX_FORCE
-			self.Flinger.P = CONFIG.P
-		end
+		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
+		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
+		self.Flinger.MaxForce = CONFIG.MAX_FORCE
+		self.Flinger.P = CONFIG.P
 
 		local function placeNear()
 			self.Direction = -self.Direction
@@ -354,8 +342,7 @@ function VR7EfficientCore:Start()
 			placeNear()
 			self.EfficientPhase = "VERIFY_RETURN"
 		elseif self.EfficientPhase == "VERIFY_RETURN" then
-			local distance = (currentRoot.Position - currentTargetRoot.Position).Magnitude
-			if distance <= CONFIG.DIRECT_RETURN_TOLERANCE then
+			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.DIRECT_RETURN_TOLERANCE then
 				self.EfficientPhase = "NEAR"
 				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
 			else
@@ -370,57 +357,6 @@ function VR7EfficientCore:Start()
 			self.EfficientPhase = "NEAR"
 			self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
 		end
-			-- Comprobar DESPUÉS de este frame en el próximo Heartbeat
-			-- (aquí medimos la distancia ya actualizada)
-			self:UpdateDistance(currentRoot)
-
-			if self:IsNearLastTarget(currentRoot) then
-				self.RecoveryConsecutiveNear = self.RecoveryConsecutiveNear + 1
-			else
-				self.RecoveryConsecutiveNear = 0
-			end
-
-			if self.RecoveryConsecutiveNear >= CONFIG.REQUIRED_NEAR_FRAMES then
-				self.State = "NORMAL"
-				self.RecoveryConsecutiveNear = 0
-			end
-
-			return -- en recovery no hacemos el fling vertical normal
-		end
-
-		------------------------------------------
-		-- 4) NORMAL: fling vertical ±3.4
-		------------------------------------------
-		if not currentTargetRoot then
-			-- Target temporalmente ausente: no spamear TP con CFrame viejo en NORMAL;
-			-- solo conservar LastTargetCFrame y esperar.
-			return
-		end
-
-		self.Direction = -self.Direction
-		local offsetY = CONFIG.VERTICAL_DISTANCE * self.Direction
-
-		local desired = currentTargetRoot.CFrame * CFrame.new(0, offsetY, 0)
-		currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
-
-		currentRoot.AssemblyLinearVelocity = Vector3.new(
-			0,
-			CONFIG.LINEAR_SPEED * self.Direction,
-			0
-		)
-
-		currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
-
-		if self.Flinger and self.Flinger.Parent ~= currentRoot then
-			self:CreateFlinger(currentRoot)
-		end
-		if self.Flinger and self.Flinger.Parent then
-			self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
-			self.Flinger.MaxForce = CONFIG.MAX_FORCE
-			self.Flinger.P = CONFIG.P
-		end
-
-		self:EnsureFrontFlip(currentRoot)
 	end)
 
 	return true
