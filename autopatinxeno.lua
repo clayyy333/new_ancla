@@ -24,6 +24,14 @@ return function(context)
 			if isMine(vehicle) then Core.LastPatin=vehicle; return vehicle end
 		end
 	end
+	local function getOwnedVehicle()
+		local cars=getCars()
+		if not cars then return nil end
+		for _,vehicle in ipairs(cars:GetChildren()) do
+			local owner=vehicle:FindFirstChild("VehicleOwner")
+			if owner and owner:IsA("ObjectValue") and owner.Value==player then return vehicle end
+		end
+	end
 	local function showParents(obj)
 		local current=obj
 		while current and current~=playerGui do
@@ -166,6 +174,22 @@ return function(context)
 		update(isES and "Buscando mi patín..." or "Finding my skateboard...")
 		startWorker()
 		return true
+	end
+	function Core:RemoveOwnedVehicle()
+		local vehicle=getOwnedVehicle()
+		if not vehicle or vehicle.Name==TARGET_NAME then return true end
+		self.Busy=true
+		local _,scroll,err=initializeVehicleMenu()
+		if not scroll then self.Busy=false; return false,err or "No se pudo abrir Vehículos" end
+		local item=scroll:FindFirstChild(vehicle.Name)
+		local button=item and item:FindFirstChild("Button")
+		if not button or not button:IsA("GuiButton") then self.Busy=false; return false,"No apareció el botón del vehículo actual" end
+		showParents(button); scrollTo(scroll,button)
+		if not click(button) then self.Busy=false; return false,"No se pudo retirar el vehículo actual" end
+		local deadline=os.clock()+SPAWN_CONFIRM_TIMEOUT
+		while os.clock()<deadline and vehicle.Parent do task.wait(0.03) end
+		self.Busy=false
+		return not vehicle.Parent,vehicle.Parent and "El servidor no confirmó la retirada del vehículo" or nil
 	end
 	function Core:StopAndRemove()
 		self.Enabled=false; self.Generation+=1

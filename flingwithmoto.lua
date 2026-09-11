@@ -227,6 +227,10 @@ return function(context)
 		return mode~=nil
 	end
 	function Core:Start(mode)
+	if AutoAnchorCore then
+		local anchorOK,anchorErr=AutoAnchorCore:PrepareForFling()
+		if not anchorOK then return false,anchorErr end
+	end
 		if self.Busy then return false,isES and "La preparación ya está en curso." or "Preparation is already running." end
 		if self:IsRunning() then return true end
 		if mode~="normal" and mode~="efficient" then return false,"Modo inválido" end

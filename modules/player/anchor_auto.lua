@@ -24,6 +24,9 @@ return function(context)
 		local engine=mode=="delta" and AutoSkateDelta or mode=="xeno" and AutoSkateXeno or nil
 		if not engine then return false,"Modo inválido" end
 		self.Busy=true
+		update(isES and "Retirando el vehículo actual..." or "Removing current vehicle...")
+		local removed,removeErr=engine:RemoveOwnedVehicle()
+		if not removed then self.Busy=false; update(removeErr); return false,removeErr end
 		update(isES and "Activando Ancla, AntiSeat y Heartbeat..." or "Enabling Anchor, AntiSeat and Heartbeat...")
 		local ok,err=enableAnchorSuite()
 		if not ok then self.Busy=false; update(err); return false,err end
@@ -33,6 +36,22 @@ return function(context)
 		self.Busy=false
 		update(mode=="delta" and (isES and "Ancla con asiento Delta activa." or "Delta Seat Anchor active.") or (isES and "Ancla con asiento Xeno activa." or "Xeno Seat Anchor active."))
 		return true
+	end
+	function Core:PrepareForFling()
+		if self.Busy then return false,isES and "Ancla automática está procesando una operación." or "Automatic Anchor is processing an operation." end
+		local mode=self.Mode
+		if not mode then return true end
+		self.Busy=true
+		update(isES and "Retirando el patín y conservando Ancla..." or "Removing skateboard and keeping Anchor...")
+		local engine=mode=="delta" and AutoSkateDelta or AutoSkateXeno
+		local removed,warning=engine:StopAndRemove()
+		self.Mode=nil
+		self.Busy=false
+		if UpdateAnchorPanel then UpdateAnchorPanel() end
+		local readyMessage=isES and "Ancla normal activa. Presiona nuevamente para iniciar el fling." or "Normal Anchor active. Press again to start the fling."
+		update(readyMessage)
+		if not removed then return false,warning or readyMessage end
+		return false,readyMessage
 	end
 	function Core:Stop()
 		if self.Busy then return false,isES and "Hay una operación en curso." or "An operation is in progress." end

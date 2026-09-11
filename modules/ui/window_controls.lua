@@ -156,14 +156,36 @@ end
 
 _genv().VexroEmotesCleanup = _CleanupScript
 
+local _closing = false
+local function _ReleaseAnchorBeforeClose()
+	if AutoAnchorCore then
+		local deadline = os.clock() + 7
+		while AutoAnchorCore.Busy and os.clock() < deadline do task.wait() end
+		pcall(function() AutoAnchorCore:Stop() end)
+	end
+	-- Garantia final para Ancla manual y cualquier operacion automatica interrumpida.
+	if AnchorCore then
+		pcall(function() AnchorCore:SetHeartbeat(false) end)
+		pcall(function() AnchorCore:SetAntiSeat(false) end)
+		pcall(function() AnchorCore:SetAncla(false) end)
+	end
+end
+
 closeBtn.MouseButton1Click:Connect(function()
-	gui.Enabled = false
-	main.ClipsDescendants = true
-	TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-		Size = UDim2.new(0, 0, 0, 0),
-		BackgroundTransparency = 1
-	}):Play()
-	task.delay(0.22, _CleanupScript)
+	if _closing then return end
+	_closing = true
+	closeBtn.Active = false
+	task.spawn(function()
+		_ReleaseAnchorBeforeClose()
+		gui.Enabled = false
+		main.ClipsDescendants = true
+		TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, 0, 0, 0),
+			BackgroundTransparency = 1
+		}):Play()
+		task.wait(0.22)
+		_CleanupScript()
+	end)
 end)
 end
 end

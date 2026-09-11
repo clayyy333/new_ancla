@@ -185,6 +185,10 @@ function CarFling2DeltaCore:CreateFlinger(root)
 end
 
 function CarFling2DeltaCore:Start()
+	if AutoAnchorCore then
+		local anchorOK,anchorErr=AutoAnchorCore:PrepareForFling()
+		if not anchorOK then return false,anchorErr end
+	end
 	if self.Stopping then
 		self.StopCycle = self.StopCycle + 1
 		self.Stopping = false
