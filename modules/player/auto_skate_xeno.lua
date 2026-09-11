@@ -31,6 +31,16 @@ return function(context)
 			local owner=vehicle:FindFirstChild("VehicleOwner")
 			if owner and owner:IsA("ObjectValue") and owner.Value==player then return vehicle end
 		end
+		local spawnPoints=workspace:FindFirstChild("CarSpawnPoints")
+		if not spawnPoints then return nil end
+		local prefix=player.Name.."_"
+		for _,spawnPoint in ipairs(spawnPoints:GetChildren()) do
+			local owner=spawnPoint:FindFirstChild("Owner")
+			if owner and owner:IsA("StringValue") and owner.Value==player.Name and spawnPoint.Name:sub(1,#prefix)==prefix then
+				local vehicle=cars:FindFirstChild(spawnPoint.Name:sub(#prefix+1))
+				if vehicle then return vehicle end
+			end
+		end
 	end
 	local function showParents(obj)
 		local current=obj

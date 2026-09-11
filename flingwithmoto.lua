@@ -228,7 +228,7 @@ return function(context)
 	end
 	function Core:Start(mode)
 	if AutoAnchorCore then
-		local anchorOK,anchorErr=AutoAnchorCore:PrepareForFling()
+		local anchorOK,anchorErr=AutoAnchorCore:PrepareForMotoFling()
 		if not anchorOK then return false,anchorErr end
 	end
 		if self.Busy then return false,isES and "La preparación ya está en curso." or "Preparation is already running." end

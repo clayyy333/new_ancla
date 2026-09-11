@@ -114,6 +114,40 @@ return function(context)
 		if not button then return nil,nil,"No apareció "..MOTO_NAME..".Button" end
 		return button,scroll
 	end
+	local function getOwnedVehicle()
+		local cars=workspace:FindFirstChild("Cars")
+		if not cars then return nil end
+		for _,vehicle in ipairs(cars:GetChildren()) do
+			local vehicleOwner=vehicle:FindFirstChild("VehicleOwner")
+			if vehicleOwner and vehicleOwner:IsA("ObjectValue") and vehicleOwner.Value==player then return vehicle end
+		end
+		local spawnPoints=workspace:FindFirstChild("CarSpawnPoints")
+		if not spawnPoints then return nil end
+		local prefix=player.Name.."_"
+		for _,spawnPoint in ipairs(spawnPoints:GetChildren()) do
+			local owner=spawnPoint:FindFirstChild("Owner")
+			if owner and owner:IsA("StringValue") and owner.Value==player.Name and spawnPoint.Name:sub(1,#prefix)==prefix then
+				local vehicle=cars:FindFirstChild(spawnPoint.Name:sub(#prefix+1))
+				if vehicle then return vehicle end
+			end
+		end
+	end
+	local function removeOwnedVehicle()
+		local vehicle=getOwnedVehicle()
+		if not vehicle or vehicle.Name==MOTO_NAME then return true end
+		update(isES and "Retirando el vehículo actual..." or "Removing current vehicle...")
+		local _,scroll,err=initializeVehicleMenu()
+		if not scroll then return false,err or "No se pudo abrir Vehículos" end
+		local item=scroll:FindFirstChild(vehicle.Name)
+		local button=item and item:FindFirstChild("Button")
+		if not button or not button:IsA("GuiButton") then return false,"No apareció el botón del vehículo actual" end
+		showGuiParents(button); scrollDirect(scroll,button); task.wait(0.10)
+		local clicked,clickErr=physicalClick(button)
+		if not clicked then return false,clickErr or "No se pudo retirar el vehículo actual" end
+		local deadline=os.clock()+MOTO_TIMEOUT
+		while os.clock()<deadline and vehicle.Parent do task.wait(0.04) end
+		return not vehicle.Parent,vehicle.Parent and "El servidor no confirmó la retirada del vehículo" or nil
+	end
 	local function isMyMoto(vehicle)
 		if not vehicle or not vehicle.Parent or vehicle.Name~=MOTO_NAME then return false end
 		local owner=vehicle:FindFirstChild("VehicleOwner")
@@ -160,6 +194,8 @@ return function(context)
 	local function generateMoto()
 		local existing=getMyMoto()
 		if existing then return existing end
+		local removed,removeErr=removeOwnedVehicle()
+		if not removed then return nil,removeErr end
 		local button,scroll,err=initializeVehicleMenu()
 		if not button then return nil,err or "No pude preparar Vehicle" end
 		showGuiParents(button); scrollDirect(scroll,button); task.wait(0.10)
@@ -235,7 +271,7 @@ return function(context)
 	end
 	function Core:Start(mode)
 	if AutoAnchorCore then
-		local anchorOK,anchorErr=AutoAnchorCore:PrepareForFling()
+		local anchorOK,anchorErr=AutoAnchorCore:PrepareForMotoFling()
 		if not anchorOK then return false,anchorErr end
 	end
 		if self.Busy then return false,isES and "La preparación ya está en curso." or "Preparation is already running." end

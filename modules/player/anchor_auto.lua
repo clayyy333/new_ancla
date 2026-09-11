@@ -53,6 +53,23 @@ return function(context)
 		if not removed then return false,warning or readyMessage end
 		return false,readyMessage
 	end
+	function Core:PrepareForMotoFling()
+		if self.Busy then return false,isES and "Ancla automática está procesando una operación." or "Automatic Anchor is processing an operation." end
+		local mode=self.Mode
+		local removed,warning=true,nil
+		if mode then
+			self.Busy=true
+			update(isES and "Retirando el patín antes del fling con moto..." or "Removing skateboard before motorcycle fling...")
+			local engine=mode=="delta" and AutoSkateDelta or AutoSkateXeno
+			removed,warning=engine:StopAndRemove()
+			self.Mode=nil
+			self.Busy=false
+		end
+		disableAnchorSuite()
+		if UpdateAnchorPanel then UpdateAnchorPanel() end
+		update(isES and "Ancla desactivada; iniciando fling con moto." or "Anchor disabled; starting motorcycle fling.")
+		return removed,warning
+	end
 	function Core:Stop()
 		if self.Busy then return false,isES and "Hay una operación en curso." or "An operation is in progress." end
 		local mode=self.Mode
