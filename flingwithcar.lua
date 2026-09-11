@@ -136,9 +136,25 @@ function CarFlingCore.new()
 	self.NearUntil = 0
 	self.ReturnSide = 1
 	self.State = "IDLE"
+	self.LastDiagnostic = "READY"
+	self.LastDiagnosticDetail = ""
+	self.LastDiagnosticAt = os.clock()
+	self.LastHeartbeatAt = 0
+	self.LastCarRoot = nil
 	return self
 end
 
+function CarFlingCore:SetDiagnostic(code, detail)
+	code, detail = tostring(code or "UNKNOWN"), tostring(detail or "")
+	if self.LastDiagnostic ~= code or self.LastDiagnosticDetail ~= detail then
+		self.LastDiagnostic, self.LastDiagnosticDetail, self.LastDiagnosticAt = code, detail, os.clock()
+		warn("[CarFlingDiag] " .. code .. (detail ~= "" and (" | " .. detail) or ""))
+	end
+end
+
+function CarFlingCore:GetDiagnostic()
+	return self.LastDiagnostic or "READY", self.LastDiagnosticDetail or "", self.LastDiagnosticAt or 0
+end
 function CarFlingCore:SetCar(car)
 	self.SelectedCar = car
 	return car ~= nil
@@ -219,17 +235,21 @@ function CarFlingCore:Start()
 	self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
 	self.ReturnSide = 1
 
-	pcall(function()
+	local ownerOk, ownerErr = pcall(function()
 		carRoot:SetNetworkOwner(LocalPlayer)
 	end)
-
+	self:SetDiagnostic(ownerOk and "NETWORK_OWNER_REQUESTED" or "NETWORK_OWNER_DENIED", ownerOk and carRoot:GetFullName() or tostring(ownerErr))
+	self.LastCarRoot, self.LastHeartbeatAt = carRoot, os.clock()
 	self:CreateFlinger(carRoot)
+	self:SetDiagnostic("STARTED", (ownerOk and "NETWORK_OWNER_REQUESTED" or "NETWORK_OWNER_DENIED") .. " | " .. carRoot:GetFullName())
 
 	self.Connection = RunService.Heartbeat:Connect(function()
 		if not self.Running then return end
+		self.LastHeartbeatAt = os.clock()
 
 		local currentCar = self.SelectedCar
 		if not currentCar or not currentCar.Parent then
+			self:SetDiagnostic("CAR_REMOVED", currentCar and currentCar.Name or "nil")
 			self:Stop()
 			return
 		end
@@ -238,15 +258,22 @@ function CarFlingCore:Start()
 		local currentTargetRoot = getPlayerRoot(self.SelectedPlayer)
 
 		if not currentCarRoot then
+			self:SetDiagnostic("CAR_ROOT_MISSING", currentCar:GetFullName())
 			self:Stop()
 			return
 		end
 
 		if not currentTargetRoot then
+			self:SetDiagnostic("TARGET_ROOT_MISSING", self.SelectedPlayer and self.SelectedPlayer.Name or "nil")
 			return
 		end
 
+		if self.LastCarRoot ~= currentCarRoot then
+			self:SetDiagnostic("CAR_ROOT_CHANGED", currentCarRoot:GetFullName())
+			self.LastCarRoot = currentCarRoot
+		end
 		if not self.Flinger or self.Flinger.Parent ~= currentCarRoot then
+			self:SetDiagnostic("FLINGER_RECREATED", currentCarRoot:GetFullName())
 			self:CreateFlinger(currentCarRoot)
 		end
 		if self.Flinger and self.Flinger.Parent then

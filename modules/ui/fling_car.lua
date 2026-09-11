@@ -78,7 +78,9 @@ return function(context)
 
 	local info = makeLabel(isES and "El vehículo realiza el Fling; tu personaje no se mueve." or "The vehicle performs the Fling; your character does not move.", 200)
 	info.TextWrapped, info.Size = true, UDim2.new(1,0,0,34)
-	local status = makeLabel("", 240)
+	local status = makeLabel("", 236)
+	status.Size = UDim2.new(1, 0, 0, 42)
+	status.TextWrapped = true
 
 	UpdateCarFlingPanel = function(message)
 		local car, target = CarFling:GetCar(), CarFling:GetPlayer()
@@ -86,7 +88,9 @@ return function(context)
 		playerButton.Text = target and (target.DisplayName.."  (@"..target.Name..")") or L.selectPlayer
 		action.Text = CarFling.Running and (isES and "Desactivar Fling con vehículo" or "Disable Fling with Car") or (isES and "Activar Fling con vehículo" or "Enable Fling with Car")
 		action.BackgroundColor3 = CarFling.Running and currentTheme.critical or currentTheme.tertiary
-		status.Text = message or (CarFling.Running and ((isES and "Estado: " or "State: ")..tostring(CarFling.EfficientPhase)) or (isES and "Estado: detenido" or "State: stopped"))
+		local code, detail = CarFling:GetDiagnostic()
+		local diagnostic = code .. (detail ~= "" and (" | " .. detail) or "")
+		status.Text = message or (CarFling.Running and ((isES and "Estado: " or "State: ")..tostring(CarFling.EfficientPhase).." | "..diagnostic) or ((isES and "Estado: detenido" or "State: stopped").." | "..diagnostic))
 	end
 	local function clearOptions(list)
 		for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
@@ -120,7 +124,12 @@ return function(context)
 		local ok, err = CarFling:Start(); UpdateCarFlingPanel(ok and nil or (err or L.flingStartFailed))
 	end)
 	_carFlingUiConn = RunService.Heartbeat:Connect(function()
-		if carFlingPanel.Visible and CarFling.Running then status.Text=(isES and "Estado: " or "State: ")..tostring(CarFling.EfficientPhase) end
+		if not carFlingPanel.Visible or not CarFling.Running then return end
+		local code, detail = CarFling:GetDiagnostic()
+		if CarFling.LastHeartbeatAt > 0 and os.clock() - CarFling.LastHeartbeatAt > 0.5 then
+			code, detail = "HEARTBEAT_STALLED", string.format("%.2fs", os.clock() - CarFling.LastHeartbeatAt)
+		end
+		status.Text = (isES and "Estado: " or "State: ") .. tostring(CarFling.EfficientPhase) .. " | " .. code .. (detail ~= "" and (" | " .. detail) or "")
 	end)
 	UpdateCarFlingPanel()
 	return true
