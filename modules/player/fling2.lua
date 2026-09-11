@@ -76,6 +76,7 @@ function VR7OriginalCore.new(provider)
 	self.Connection = nil
 	self.Flinger = nil
 	self.AttackerCheckpoint = nil
+	self.LastReturnCheckpoint = nil
 	self.Direction = 1
 	self.SelectedTarget = nil
 
@@ -282,6 +283,7 @@ function VR7OriginalCore:Start()
 	self:Disconnect()
 
 	self.AttackerCheckpoint = attackerRoot.CFrame
+	self.LastReturnCheckpoint = self.AttackerCheckpoint
 	self.Direction = 1
 	self.Running = true
 	self.State = "NORMAL"
@@ -572,6 +574,33 @@ function VR7OriginalCore:Stop()
 	return wasRunning
 end
 
+function VR7OriginalCore:ForceReturn()
+	if self.Running then return false, "Desactiva Fling 2 antes de forzar el regreso." end
+	local checkpoint = self.AttackerCheckpoint or self.LastReturnCheckpoint
+	local humanoid, root = getParts(self.Provider:GetLocalCharacter())
+	if not checkpoint then return false, "No hay un checkpoint guardado." end
+	if not root then return false, "Tu personaje no está disponible." end
+	local previousAnchored = root.Anchored
+	root.Anchored = true
+	local holdStarted = os.clock()
+	while os.clock() - holdStarted < 0.35 do
+		RunService.Heartbeat:Wait()
+		if not root.Parent then return false, "Tu personaje ya no está disponible." end
+		root.CFrame = checkpoint
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	root.CFrame = checkpoint
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	root.Anchored = previousAnchored
+	if humanoid and humanoid.Parent then
+		humanoid.PlatformStand = false
+		humanoid.AutoRotate = true
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+	end
+	return true
+end
 
 	Fling2Core = VR7OriginalCore.new(Provider)
 
@@ -585,6 +614,7 @@ end
 
 	_fling2CharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
 		if Fling2Core.Running then Fling2Core:Stop() end
+		Fling2Core.LastReturnCheckpoint = nil
 		if UpdateFling2Panel then UpdateFling2Panel() end
 	end)
 

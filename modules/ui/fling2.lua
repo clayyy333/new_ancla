@@ -12,7 +12,7 @@ return function(context)
 	fling2Panel.Parent = content
 
 	local panelCard = Instance.new("Frame")
-	panelCard.Size = UDim2.new(1, 0, 0, isMobile and 230 or 250)
+	panelCard.Size = UDim2.new(1, 0, 0, isMobile and 282 or 302)
 	panelCard.BackgroundColor3 = currentTheme.secondary
 	panelCard.ZIndex = 7
 	panelCard.Parent = fling2Panel
@@ -91,10 +91,12 @@ return function(context)
 
 	local flingButton = MakeActionButton(82, isES and "Activar Fling 2" or "Enable Fling 2")
 	local efficientButton = MakeActionButton(134, isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
+	local forceReturnButton = MakeActionButton(186, isES and "Forzar regreso" or "Force return")
+	local lastStartedCore = Fling2Core
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, 0, 0, 24)
-	statusLabel.Position = UDim2.new(0, 0, 0, 140)
+	statusLabel.Position = UDim2.new(0, 0, 0, 238)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = currentTheme.textDim
 	statusLabel.Font = Enum.Font.GothamMedium
@@ -156,6 +158,7 @@ return function(context)
 			return
 		end
 		local ok, err = Fling2Core:Start()
+		if ok then lastStartedCore = Fling2Core end
 		UpdateFling2Panel(ok and nil or (err or L.flingStartFailed))
 	end)
 
@@ -166,8 +169,18 @@ return function(context)
 			if not Fling2EfficientCore:GetTarget() then UpdateFling2Panel(L.selectPlayerFirst); return end
 			local ok, err = Fling2EfficientCore:Start()
 			if not ok then UpdateFling2Panel(err or L.flingStartFailed); return end
+			lastStartedCore = Fling2EfficientCore
 		end
 		UpdateFling2Panel()
+	end)
+
+	forceReturnButton.MouseButton1Click:Connect(function()
+		if Fling2Core.Running or Fling2EfficientCore.Running then
+			UpdateFling2Panel(isES and "Desactiva el fling antes de forzar el regreso." or "Disable the fling before forcing the return.")
+			return
+		end
+		local ok, err = lastStartedCore:ForceReturn()
+		UpdateFling2Panel(ok and (isES and "Regreso forzado al checkpoint." or "Returned to checkpoint.") or err)
 	end)
 
 	UpdateFling2Panel()

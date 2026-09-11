@@ -1,0 +1,280 @@
+-- Preparacion de moto integrada. No crea ninguna GUI independiente.
+return function(context)
+	setfenv(1, context)
+	local VirtualInputManager = game:GetService("VirtualInputManager")
+	local MOTO_NAME = "ltp2_car_7"
+	local GUI_INIT_TIMEOUT, MOTO_TIMEOUT, DRIVE_TIMEOUT = 6, 4, 6
+	local Core = {Busy=false, RunningMode=nil, SelectedTarget=nil, WatchedMoto=nil, WatchId=0,
+		Status=isES and "Listo para preparar la moto." or "Ready to prepare the motorcycle."}
+
+	local function update(message)
+		Core.Status = message or Core.Status
+		if UpdateMotoFlingPanel then UpdateMotoFlingPanel(Core.Status) end
+	end
+	local function hasFireSignal() return typeof(firesignal) == "function" end
+	local function deltaClick(button)
+		if not button or not button.Parent then return false, "Botón inválido" end
+		if not hasFireSignal() then return false, "firesignal no existe en este executor" end
+		local ok, err = pcall(function() firesignal(button.MouseButton1Click) end)
+		return ok, ok and nil or tostring(err)
+	end
+	local function showGuiParents(obj)
+		local current = obj
+		while current and current ~= playerGui do
+			if current:IsA("GuiObject") then pcall(function() current.Visible = true end) end
+			if current:IsA("ScreenGui") then pcall(function() current.Enabled = true end) end
+			current = current.Parent
+		end
+	end
+	local function pressE()
+		return pcall(function()
+			VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+			task.wait(0.10)
+			VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+		end)
+	end
+	local function scrollDirect(scroll, target)
+		if not scroll or not target then return false end
+		RunService.RenderStepped:Wait()
+		local targetCenter = target.AbsolutePosition.Y + target.AbsoluteSize.Y / 2
+		local scrollCenter = scroll.AbsolutePosition.Y + scroll.AbsoluteSize.Y / 2
+		local maxY = math.max(0, scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y)
+		scroll.CanvasPosition = Vector2.new(scroll.CanvasPosition.X, math.clamp(scroll.CanvasPosition.Y + targetCenter - scrollCenter, 0, maxY))
+		RunService.RenderStepped:Wait()
+		return true
+	end
+	local function getPhoneParts()
+		local screen = playerGui:FindFirstChild("ScreenGeneral")
+		local role = screen and screen:FindFirstChild("FrameRoleInfo")
+		return role and role:FindFirstChild("TelescopicBtn"), role and role:FindFirstChild("Buttons")
+	end
+	local function isPhoneOpen()
+		local _, buttons = getPhoneParts()
+		return buttons and buttons.Visible and buttons.Size.X.Scale >= 0.9 and buttons.Size.Y.Scale >= 0.9
+	end
+	local function ensurePhoneOpen()
+		if isPhoneOpen() then return true end
+		update(isES and "1/5 Abriendo el teléfono..." or "1/5 Opening phone...")
+		local telescopic, buttons = getPhoneParts()
+		if not telescopic then return false, "No encontré TelescopicBtn" end
+		if not buttons then return false, "No encontré Buttons" end
+		telescopic.Position = UDim2.new(-0.159039438,0,0.146093443,0)
+		buttons.Visible, buttons.Size = true, UDim2.new(1,0,1,0)
+		for _=1,3 do RunService.RenderStepped:Wait() end
+		task.wait(0.10)
+		if not isPhoneOpen() then return false, "No pude establecer el teléfono abierto" end
+		return true
+	end
+	local function getVehicleMenuButton()
+		local _, buttons = getPhoneParts()
+		local vehicle = buttons and buttons:FindFirstChild("VehicleBtn")
+		local button = vehicle and vehicle:FindFirstChild("Button")
+		return button and button:IsA("GuiButton") and button or nil
+	end
+	local function getMotoButton()
+		local dialog=playerGui:FindFirstChild("DialogVehicle")
+		local root=dialog and dialog:FindFirstChild("root")
+		local frame=root and root:FindFirstChild("Frame")
+		local itemsFrame=frame and frame:FindFirstChild("ItemsFrame")
+		local items=itemsFrame and itemsFrame:FindFirstChild("Items")
+		local scroll=items and items:FindFirstChild("ScrollFrame")
+		local item=scroll and scroll:FindFirstChild(MOTO_NAME)
+		local button=item and item:FindFirstChild("Button")
+		return button and button:IsA("GuiButton") and button or nil, scroll
+	end
+	local function waitForMotoButton(timeout)
+		local deadline=os.clock()+timeout
+		while os.clock()<deadline do
+			local button,scroll=getMotoButton()
+			if button then return button,scroll end
+			task.wait(0.05)
+		end
+		return getMotoButton()
+	end
+	local function initializeVehicleMenu()
+		local button,scroll=getMotoButton()
+		if button then return button,scroll end
+		local ok,err=ensurePhoneOpen()
+		if not ok then return nil,nil,err end
+		local vehicleButton=getVehicleMenuButton()
+		if not vehicleButton then return nil,nil,"No encontré VehicleBtn.Button" end
+		RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait(); task.wait(0.10)
+		update(isES and "1/5 Abriendo Vehículos..." or "1/5 Opening Vehicles...")
+		ok,err=deltaClick(vehicleButton)
+		if not ok then return nil,nil,"Vehicle: "..tostring(err) end
+		update("1/5 Esperando "..MOTO_NAME.."...")
+		button,scroll=waitForMotoButton(GUI_INIT_TIMEOUT)
+		if not button then return nil,nil,"No apareció "..MOTO_NAME..".Button" end
+		return button,scroll
+	end
+	local function isMyMoto(vehicle)
+		if not vehicle or not vehicle.Parent or vehicle.Name~=MOTO_NAME then return false end
+		local owner=vehicle:FindFirstChild("VehicleOwner")
+		return owner and owner:IsA("ObjectValue") and owner.Value==player
+	end
+	local function getMyMoto()
+		local cars=workspace:FindFirstChild("Cars")
+		if not cars then return nil end
+		for _,vehicle in ipairs(cars:GetChildren()) do if isMyMoto(vehicle) then return vehicle end end
+	end
+	local function waitForMyMoto(timeout)
+		local deadline=os.clock()+timeout
+		while os.clock()<deadline do
+			local moto=getMyMoto()
+			if moto then return moto end
+			task.wait(0.04)
+		end
+		return getMyMoto()
+	end
+	local function motoStillValid(moto)
+		local cars=workspace:FindFirstChild("Cars")
+		return isMyMoto(moto) and cars and moto:IsDescendantOf(cars)
+	end
+	local function getWeldToPlayer(moto)
+		return moto and moto.Parent and moto:FindFirstChild("WeldToPlayer",true) or nil
+	end
+	local function watchMoto(moto)
+		Core.WatchId+=1
+		local id=Core.WatchId
+		Core.WatchedMoto=moto
+		task.spawn(function()
+			while id==Core.WatchId do
+				if not motoStillValid(moto) then
+					if id~=Core.WatchId then return end
+					Core.WatchedMoto,Core.Busy=nil,false
+					if Core.RunningMode then Core:Stop() end
+					update(isES and "Moto eliminada. Listo para generar nuevamente." or "Motorcycle removed. Ready to generate again.")
+					return
+				end
+				task.wait(0.20)
+			end
+		end)
+	end
+	local function generateMoto()
+		local existing=getMyMoto()
+		if existing then return existing end
+		local button,scroll,err=initializeVehicleMenu()
+		if not button then return nil,err or "No pude preparar Vehicle" end
+		showGuiParents(button); scrollDirect(scroll,button); task.wait(0.10)
+		update("2/5 Generando "..MOTO_NAME.."...")
+		local clicked
+		clicked,err=deltaClick(button)
+		if not clicked then return nil,"Error en "..MOTO_NAME..": "..tostring(err) end
+		local moto=waitForMyMoto(MOTO_TIMEOUT)
+		if not moto then return nil,"La moto se activó pero no apareció como propia" end
+		return moto
+	end
+	local function getDriveButton()
+		local interact=playerGui:FindFirstChild("InteractGUI")
+		local normal=interact and interact:FindFirstChild("NormalInteract")
+		local root=normal and normal:FindFirstChild("Root")
+		local button=root and root:FindFirstChild("Button")
+		return button and button:IsA("GuiButton") and button or nil
+	end
+	local function waitForDriveButton(timeout)
+		local deadline=os.clock()+timeout
+		while os.clock()<deadline do
+			local button=getDriveButton()
+			if button then return button end
+			task.wait(0.04)
+		end
+	end
+	local function driveMoto(moto)
+		if getWeldToPlayer(moto) then return true end
+		update(isES and "4/5 Esperando Conducir..." or "4/5 Waiting for Drive...")
+		if not waitForDriveButton(DRIVE_TIMEOUT) then return false,"No apareció Conducir" end
+		task.wait(0.15)
+		local deadline,attempt=os.clock()+DRIVE_TIMEOUT,0
+		while os.clock()<deadline do
+			if not motoStillValid(moto) then return false,"La moto desapareció durante el proceso" end
+			if getWeldToPlayer(moto) then return true end
+			attempt+=1
+			update((isES and "5/5 Subiendo a la moto, intento #" or "5/5 Mounting motorcycle, attempt #")..tostring(attempt))
+			pressE()
+			local check=os.clock()+0.35
+			while os.clock()<check do
+				if not motoStillValid(moto) then return false,"La moto desapareció durante el proceso" end
+				if getWeldToPlayer(moto) then return true end
+				task.wait(0.02)
+			end
+			task.wait(0.08)
+		end
+		return false,"No apareció WeldToPlayer"
+	end
+
+	function Core:GetTargetOptions()
+		local result={}
+		for _,target in ipairs(Players:GetPlayers()) do if target~=player then result[#result+1]=target end end
+		return result
+	end
+	function Core:SetTarget(target)
+		self.SelectedTarget=typeof(target)=="Instance" and target:IsA("Player") and target or nil
+		return self.SelectedTarget~=nil
+	end
+	function Core:GetTarget() return self.SelectedTarget end
+	function Core:GetStatus() return self.Status end
+	function Core:IsRunning()
+		if self.RunningMode=="normal" then return Fling2Core.Running end
+		if self.RunningMode=="efficient" then return Fling2EfficientCore.Running end
+		return false
+	end
+	function Core:Stop()
+		local mode=self.RunningMode
+		self.RunningMode=nil
+		if mode=="normal" and Fling2Core.Running then Fling2Core:Stop() end
+		if mode=="efficient" and Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
+		update(isES and "Fling con moto detenido." or "Motorcycle fling stopped.")
+		return mode~=nil
+	end
+	function Core:Start(mode)
+		if self.Busy then return false,isES and "La preparación ya está en curso." or "Preparation is already running." end
+		if self:IsRunning() then return true end
+		if mode~="normal" and mode~="efficient" then return false,"Modo inválido" end
+		if not self.SelectedTarget or self.SelectedTarget.Parent~=Players then return false,L.selectPlayerFirst end
+		if not hasFireSignal() then return false,"firesignal no existe en este executor" end
+		if Fling2Core.Running or Fling2EfficientCore.Running then
+			return false,isES and "Desactiva primero el Fling 2 que está activo." or "Disable the active Fling 2 first."
+		end
+		self.Busy=true
+		update(isES and "1/5 Preparando Vehículos..." or "1/5 Preparing Vehicles...")
+		local moto,err=generateMoto()
+		if not moto then self.Busy=false; update("ERROR: "..tostring(err)); return false,err end
+		watchMoto(moto)
+		update(isES and "3/5 Moto propia confirmada." or "3/5 Owned motorcycle confirmed.")
+		task.wait(0.15)
+		local driven
+		driven,err=driveMoto(moto)
+		if not driven then self.Busy=false; update("ERROR: "..tostring(err)); return false,err end
+		if not getWeldToPlayer(moto) then self.Busy=false; return false,"No se confirmó WeldToPlayer" end
+		local engine=mode=="efficient" and Fling2EfficientCore or Fling2Core
+		engine:SetTarget(self.SelectedTarget)
+		local ok
+		ok,err=engine:Start()
+		self.Busy=false
+		if not ok then update("ERROR: "..tostring(err)); return false,err end
+		self.RunningMode=mode
+		update(mode=="efficient" and (isES and "Fling con moto eficiente activo." or "Efficient motorcycle fling active.") or (isES and "Fling con moto activo." or "Motorcycle fling active."))
+		return true
+	end
+	function Core:Destroy()
+		self.WatchId+=1
+		self:Stop()
+		self.WatchedMoto=nil
+	end
+
+	MotoFlingCore=Core
+	_motoFlingPlayerRemovingConn=Players.PlayerRemoving:Connect(function(leaving)
+		if Core.SelectedTarget==leaving then
+			if Core:IsRunning() then Core:Stop() end
+			Core:SetTarget(nil)
+			update(isES and "El jugador objetivo salió." or "The target player left.")
+		end
+	end)
+	_motoFlingMonitorConn=RunService.Heartbeat:Connect(function()
+		if Core.RunningMode and not Core:IsRunning() then
+			Core.RunningMode=nil
+			update(isES and "Fling con moto detenido." or "Motorcycle fling stopped.")
+		end
+	end)
+	return true
+end

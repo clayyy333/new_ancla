@@ -22,7 +22,8 @@ UpdateTabStyles = function()
 	local isFling2 = currentTab == "fling2"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
-	local isFling2Category = isFling2 or isFlingCar or isFlingCar2
+	local isFlingMoto = currentTab == "fling_moto"
+	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
 	local isFlingView = isFling or isFling2Category
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
@@ -411,7 +412,8 @@ UpdateTabData = function()
 	local isFling2 = currentTab == "fling2"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
-	local isFling2Category = isFling2 or isFlingCar or isFlingCar2
+	local isFlingMoto = currentTab == "fling_moto"
+	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
 	local isFlingView = isFling or isFling2Category
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
@@ -420,6 +422,7 @@ UpdateTabData = function()
 	fling2Panel.Visible = isFling2
 	carFlingPanel.Visible = isFlingCar
 	carFling2Panel.Visible = isFlingCar2
+	motoFlingPanel.Visible = isFlingMoto
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
 	if isPlaylists and not viewingPlaylist then
@@ -513,6 +516,9 @@ UpdateTabData = function()
 	elseif currentTab == "fling_car2" then
 		title.Text = isES and "Fling con vehículo 2" or "Fling with Car 2"
 		if UpdateCarFling2Panel then UpdateCarFling2Panel() end
+	elseif currentTab == "fling_moto" then
+		title.Text = isES and "Fling con moto" or "Motorcycle Fling"
+		if UpdateMotoFlingPanel then UpdateMotoFlingPanel() end
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
@@ -529,6 +535,7 @@ mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
+fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
 mainNavBtns["fling"].MouseButton1Click:Connect(function() currentTab = "fling"; UpdateTabData() end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
@@ -548,7 +555,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "fling" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" then return end
+	if currentTab == "settings" or currentTab == "fling" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)
