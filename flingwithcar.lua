@@ -424,7 +424,6 @@ end
 		if FlingCore and FlingCore.Running then FlingCore:Stop() end
 		if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 		if Fling2EfficientCore and Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
-		if CarFlingXeno and CarFlingXeno.Running then CarFlingXeno:Stop() end
 		return originalStart(self)
 	end
 

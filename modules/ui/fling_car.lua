@@ -129,6 +129,7 @@ return function(context)
 	end)
 	action.MouseButton1Click:Connect(function()
 		if CarFling.Running then CarFling:Stop(); UpdateCarFlingPanel(); return end
+		if CarFlingXeno.Running then UpdateCarFlingPanel(isES and "Desactiva Xeno primero" or "Disable Xeno first"); return end
 		if not CarFling:GetCar() then UpdateCarFlingPanel(isES and "Selecciona un vehículo propio" or "Select an owned vehicle"); return end
 		if not CarFling:GetPlayer() then UpdateCarFlingPanel(L.selectPlayerFirst); return end
 		local ok, err = CarFling:Start(); UpdateCarFlingPanel(ok and nil or (err or L.flingStartFailed))
