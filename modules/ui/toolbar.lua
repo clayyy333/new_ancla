@@ -46,9 +46,12 @@ _textGrads = {}
 function _ApplyTextGrad(grad)
 	local name = Settings.theme
 	local topColor, botColor
-	if name == "Dark" or name == "DarkGlass" then
+	if name == "Dark" then
 		topColor = Color3.fromRGB(20, 20, 28)
 		botColor = Color3.new(1, 1, 1)
+	elseif name == "GTAMode" then
+		topColor = Color3.fromRGB(255, 224, 244)
+		botColor = currentTheme.accent
 	elseif name == "Light" or name == "FrostedGlass" then
 		topColor = Color3.fromRGB(20, 20, 30)
 		botColor = currentTheme.accent

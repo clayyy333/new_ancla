@@ -108,21 +108,23 @@ Themes = {
 		critical    = Color3.fromRGB(210, 45, 55),
 		success     = Color3.fromRGB(35, 175, 95)
 	},
-	DarkGlass = {
-		primary     = Color3.fromRGB(13, 13, 17),
-		sidebar     = Color3.fromRGB(17, 17, 22),
-		secondary   = Color3.fromRGB(22, 22, 28),
-		tertiary    = Color3.fromRGB(28, 28, 36),
-		accent      = Color3.fromRGB(175, 196, 255),
-		text        = Color3.fromRGB(228, 233, 255),
-		textDim     = Color3.fromRGB(128, 138, 168),
-		stroke      = Color3.fromRGB(52, 56, 88),
-		strokeHover = Color3.fromRGB(118, 138, 220),
-		critical    = Color3.fromRGB(255, 75, 85),
-		success     = Color3.fromRGB(75, 218, 128)
+	GTAMode = {
+		primary     = Color3.fromRGB(18, 12, 20),
+		sidebar     = Color3.fromRGB(24, 15, 27),
+		secondary   = Color3.fromRGB(31, 20, 34),
+		tertiary    = Color3.fromRGB(43, 27, 46),
+		accent      = Color3.fromRGB(238, 142, 196),
+		text        = Color3.fromRGB(255, 241, 250),
+		textDim     = Color3.fromRGB(195, 158, 183),
+		stroke      = Color3.fromRGB(112, 55, 91),
+		strokeHover = Color3.fromRGB(226, 112, 179),
+		critical    = Color3.fromRGB(239, 92, 125),
+		success     = Color3.fromRGB(106, 220, 164)
 	}
 }
 
+-- Migra la seleccion anterior sin alterar las preferencias guardadas restantes.
+if Settings.theme == "DarkGlass" then Settings.theme = "GTAMode" end
 currentTheme = Themes[Settings.theme] or Themes.Dark
 themeElements = {}
 mainStrokeGrad, miniIconGrad = nil, nil

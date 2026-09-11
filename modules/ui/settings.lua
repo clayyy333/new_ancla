@@ -291,14 +291,15 @@ MakeSectionHeader(isTR and "Görünüm" or (isES and "Apariencia" or (isAR and "
 
 do
 	local themeRow = MakeRow("110192525313214", L.theme, "", 2)
-	local themeNames = {"Dark", "Purple", "Blue", "Green", "Red", "Light", "MaterialYou", "FrostedGlass", "DarkGlass"}
+	local themeNames = {"Dark", "Purple", "Blue", "Green", "Red", "Light", "MaterialYou", "FrostedGlass", "GTAMode"}
+	local function DisplayThemeName(name) return name == "GTAMode" and "GTA Mode" or name end
 
 	local chip = Instance.new("TextButton")
 	chip.Size = UDim2.new(0, 80, 0, 30)
 	chip.AnchorPoint = Vector2.new(1, 0.5)
 	chip.Position = UDim2.new(1, -12, 0.5, 0)
 	chip.BackgroundColor3 = currentTheme.accent
-	chip.Text = Settings.theme
+	chip.Text = DisplayThemeName(Settings.theme)
 	chip.TextColor3 = Color3.new(1, 1, 1)
 	chip.Font = Enum.Font.GothamBold
 	chip.TextSize = isMobile and 10 or 11
@@ -313,7 +314,7 @@ do
 	chip.MouseButton1Click:Connect(function()
 		themeIdx = themeIdx % #themeNames + 1
 		Settings.theme = themeNames[themeIdx]
-		chip.Text = Settings.theme
+		chip.Text = DisplayThemeName(Settings.theme)
 		ApplyTheme(Settings.theme)
 		SaveData()
 	end)

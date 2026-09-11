@@ -44,7 +44,7 @@ ThemeGradients = {
 	Light       = {Color3.fromRGB(255, 255, 255), Color3.fromRGB(228, 228, 238), 135},
 	MaterialYou = {Color3.fromRGB(30, 34, 50),  Color3.fromRGB(12, 14, 20),  135},
 	FrostedGlass= {Color3.fromRGB(230, 238, 255), Color3.fromRGB(190, 205, 235), 135},
-	DarkGlass   = {Color3.fromRGB(24, 24, 34),  Color3.fromRGB(8, 8, 12),    135},
+	GTAMode     = {Color3.fromRGB(76, 30, 62),  Color3.fromRGB(17, 10, 21),  135},
 }
 
 VexroAcrylic = (function()
@@ -193,7 +193,7 @@ end)()
 _glassApplyBase = ApplyTheme
 ApplyTheme = function(name)
 	_glassApplyBase(name)
-	local isGlass = name == "FrostedGlass" or name == "DarkGlass"
+	local isGlass = name == "FrostedGlass" or name == "GTAMode"
 	if isGlass then
 		VexroAcrylic.Start(name)
 	else
@@ -213,7 +213,7 @@ ApplyTheme = function(name)
 			noiseOverlay.ZIndex = 1
 			noiseOverlay.Parent = main
 		end
-		noiseOverlay.ImageTransparency = name == "FrostedGlass" and 0.82 or 0.88
+		noiseOverlay.ImageTransparency = name == "FrostedGlass" and 0.82 or 0.9
 	elseif noiseOverlay then
 		noiseOverlay:Destroy()
 	end
