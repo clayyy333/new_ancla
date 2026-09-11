@@ -98,7 +98,8 @@ return function(context)
 		action.BackgroundColor3 = CarFling.Running and currentTheme.critical or currentTheme.tertiary
 		xenoAction.BackgroundColor3 = CarFlingXeno.Running and currentTheme.critical or currentTheme.tertiary
 		local activeCore = CarFlingXeno.Running and CarFlingXeno or CarFling
-		local code, detail = activeCore:GetDiagnostic()
+		local code, detail = "DELTA_ORIGINAL", ""
+		if CarFlingXeno.Running then code, detail = CarFlingXeno:GetDiagnostic() end
 		local diagnostic = code .. (detail ~= "" and (" | " .. detail) or "")
 		status.Text = message or ((CarFling.Running or CarFlingXeno.Running) and ((isES and "Estado: " or "State: ")..tostring(activeCore.EfficientPhase).." | "..diagnostic) or ((isES and "Estado: detenido" or "State: stopped").." | "..diagnostic))
 	end
@@ -143,9 +144,12 @@ return function(context)
 	_carFlingUiConn = RunService.Heartbeat:Connect(function()
 		if not carFlingPanel.Visible or (not CarFling.Running and not CarFlingXeno.Running) then return end
 		local activeCore = CarFlingXeno.Running and CarFlingXeno or CarFling
-		local code, detail = activeCore:GetDiagnostic()
-		if activeCore.LastHeartbeatAt > 0 and os.clock() - activeCore.LastHeartbeatAt > 0.5 then
-			code, detail = "HEARTBEAT_STALLED", string.format("%.2fs", os.clock() - activeCore.LastHeartbeatAt)
+		local code, detail = "DELTA_ORIGINAL", ""
+		if CarFlingXeno.Running then
+			code, detail = CarFlingXeno:GetDiagnostic()
+			if CarFlingXeno.LastHeartbeatAt > 0 and os.clock() - CarFlingXeno.LastHeartbeatAt > 0.5 then
+				code, detail = "HEARTBEAT_STALLED", string.format("%.2fs", os.clock() - CarFlingXeno.LastHeartbeatAt)
+			end
 		end
 		status.Text = (isES and "Estado: " or "State: ") .. tostring(activeCore.EfficientPhase) .. " | " .. code .. (detail ~= "" and (" | " .. detail) or "")
 	end)
