@@ -2,8 +2,11 @@
 return function(context)
 	setfenv(1, context)
 
-	local LocalPlayer = player
-	local Workspace = workspace
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local Workspace = game:GetService("Workspace")
+	local LocalPlayer = Players.LocalPlayer
+	if not LocalPlayer then return false end
 local CONFIG = {
 	VERTICAL_DISTANCE = 1.5,
 	LINEAR_SPEED = 900000000,
