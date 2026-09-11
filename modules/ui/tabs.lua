@@ -18,20 +18,24 @@ UpdateTabStyles = function()
 		}):Play()
 	end
 
-	local isFling = currentTab == "fling"
 	local isFling2 = currentTab == "fling2"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
 	local isFlingMoto = currentTab == "fling_moto"
+	local isAnchorBasic = currentTab == "anchor"
+	local isAnchorAuto = currentTab == "anchor_auto"
+	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
-	local isFlingView = isFling or isFling2Category
+	local isFlingView = isFling2Category or isAnchor
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
-	content.Position = isFling and UDim2.new(0, 0, 0, topNavH) or UDim2.new(0, sideBarW, 0, topNavH)
-	content.Size = isFling and UDim2.new(1, 0, 1, -topNavH) or UDim2.new(1, -sideBarW, 1, -topNavH)
+	anchorNav.Visible = isAnchor
+	content.Position = UDim2.new(0, sideBarW, 0, topNavH)
+	content.Size = UDim2.new(1, -sideBarW, 1, -topNavH)
 	SetButtonStyle(mainNavButtonStyle, not isFlingView)
-	SetButtonStyle(flingNavButtonStyle, isFling)
 	SetButtonStyle(fling2NavButtonStyle, isFling2Category)
+	SetButtonStyle(anchorNavButtonStyle, isAnchor)
+	for name, data in pairs(anchorTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(fling2TabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(tabBtns) do
 		SetButtonStyle(data, currentTab == name)
@@ -408,21 +412,24 @@ UpdateTabData = function()
 	local isFriends   = currentTab == "friends"
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
-	local isFling = currentTab == "fling"
 	local isFling2 = currentTab == "fling2"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
 	local isFlingMoto = currentTab == "fling_moto"
+	local isAnchorBasic = currentTab == "anchor"
+	local isAnchorAuto = currentTab == "anchor_auto"
+	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
-	local isFlingView = isFling or isFling2Category
+	local isFlingView = isFling2Category or isAnchor
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
-	flingPanel.Visible = isFling
 	fling2Panel.Visible = isFling2
 	carFlingPanel.Visible = isFlingCar
 	carFling2Panel.Visible = isFlingCar2
 	motoFlingPanel.Visible = isFlingMoto
+	anchorPanel.Visible = isAnchorBasic
+	autoAnchorPanel.Visible = isAnchorAuto
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
 	if isPlaylists and not viewingPlaylist then
@@ -504,9 +511,12 @@ UpdateTabData = function()
 		title.Text = L.friendTab
 	elseif currentTab == "keybinds" then
 		title.Text = L.keybinds
-	elseif currentTab == "fling" then
-		title.Text = "Fling"
-		if UpdateFlingPanel then UpdateFlingPanel() end
+	elseif currentTab == "anchor" then
+		title.Text = isES and "Ancla" or "Anchor"
+		if UpdateAnchorPanel then UpdateAnchorPanel() end
+	elseif currentTab == "anchor_auto" then
+		title.Text = isES and "Ancla automática" or "Automatic Anchor"
+		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
 	elseif currentTab == "fling2" then
 		title.Text = "Fling 2"
 		if UpdateFling2Panel then UpdateFling2Panel() end
@@ -532,11 +542,13 @@ UpdateTabData = function()
 end
 
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
+mainNavBtns["anchor"].MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
+anchorTabBtns["anchor"].btn.MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
+anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_auto"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
-mainNavBtns["fling"].MouseButton1Click:Connect(function() currentTab = "fling"; UpdateTabData() end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
@@ -555,7 +567,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "fling" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

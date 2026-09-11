@@ -1,0 +1,138 @@
+-- Auto patin XENO integrado. Sin GUI independiente.
+return function(context)
+	setfenv(1,context)
+	local VirtualInputManager=game:GetService("VirtualInputManager")
+	local TARGET_NAME="ltp2_car_57"
+	local WATCH_INTERVAL,SPAWN_CONFIRM_TIMEOUT=0.04,1.5
+	local Core={Enabled=false,Busy=false,Generation=0,LastPatin=nil,Failures=0,Status="AUTO desactivado"}
+	local function update(text) Core.Status=text; if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end end
+	local function getCars() return workspace:FindFirstChild("Cars") end
+	local function isMine(vehicle)
+		if not vehicle or not vehicle.Parent or vehicle.Name~=TARGET_NAME then return false end
+		local owner=vehicle:FindFirstChild("VehicleOwner")
+		return owner and owner:IsA("ObjectValue") and owner.Value==player
+	end
+	local function getMine()
+		local cars=getCars()
+		if not cars then return nil end
+		for _,vehicle in ipairs(cars:GetChildren()) do if isMine(vehicle) then Core.LastPatin=vehicle; return vehicle end end
+	end
+	local function showParents(obj)
+		local current=obj
+		while current and current~=playerGui do
+			if current:IsA("GuiObject") then pcall(function() current.Visible=true end) end
+			if current:IsA("ScreenGui") then pcall(function() current.Enabled=true end) end
+			current=current.Parent
+		end
+	end
+	local function findButton()
+		local dialog=playerGui:FindFirstChild("DialogVehicle")
+		local root=dialog and dialog:FindFirstChild("root")
+		local frame=root and root:FindFirstChild("Frame")
+		local itemsFrame=frame and frame:FindFirstChild("ItemsFrame")
+		local items=itemsFrame and itemsFrame:FindFirstChild("Items")
+		local scroll=items and items:FindFirstChild("ScrollFrame")
+		local item=scroll and scroll:FindFirstChild(TARGET_NAME)
+		local button=item and item:FindFirstChild("Button")
+		if not button or not button:IsA("GuiButton") then return nil,scroll,TARGET_NAME.." no disponible" end
+		return button,scroll
+	end
+	local function scrollTo(scroll,button)
+		RunService.RenderStepped:Wait()
+		local targetY=button.AbsolutePosition.Y+button.AbsoluteSize.Y/2
+		local centerY=scroll.AbsolutePosition.Y+scroll.AbsoluteSize.Y/2
+		local maxY=math.max(0,scroll.AbsoluteCanvasSize.Y-scroll.AbsoluteWindowSize.Y)
+		scroll.CanvasPosition=Vector2.new(scroll.CanvasPosition.X,math.clamp(scroll.CanvasPosition.Y+targetY-centerY,0,maxY))
+		RunService.RenderStepped:Wait()
+	end
+	local function click(button)
+		if not button or not button.Parent then return false end
+		RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait()
+		local x=button.AbsolutePosition.X+button.AbsoluteSize.X/2
+		local y=button.AbsolutePosition.Y+button.AbsoluteSize.Y/2
+		return pcall(function()
+			VirtualInputManager:SendMouseButtonEvent(x,y,0,true,game,0)
+			task.wait(0.08)
+			VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,0)
+		end)
+	end
+	local function waitForMine(timeout,generation)
+		local started=os.clock()
+		while os.clock()-started<timeout do
+			if generation and generation~=Core.Generation then return nil end
+			local vehicle=getMine()
+			if vehicle then return vehicle end
+			task.wait(0.02)
+		end
+		return getMine()
+	end
+	local function spawnPatin(generation)
+		if Core.Busy then return false,"busy" end
+		if getMine() then return true,"already_exists" end
+		Core.Busy=true
+		local button,scroll,err=findButton()
+		if not button then Core.Busy=false; return false,err end
+		showParents(button); scrollTo(scroll,button)
+		if generation and generation~=Core.Generation then Core.Busy=false; return false,"cancelled" end
+		if not click(button) then Core.Busy=false; Core.Failures+=1; return false,"click_error" end
+		local vehicle=waitForMine(SPAWN_CONFIRM_TIMEOUT,generation)
+		Core.Busy=false
+		if vehicle then Core.LastPatin=vehicle; Core.Failures=0; return true,"spawned" end
+		Core.Failures+=1
+		return false,"spawn_no_confirmado"
+	end
+	local function retryDelay()
+		if Core.Failures<=2 then return 0.08 end
+		if Core.Failures<=5 then return 0.12 end
+		if Core.Failures<=10 then return 0.18 end
+		return 0.25
+	end
+	local function startWorker()
+		if Core.WorkerRunning then return end
+		Core.WorkerRunning=true
+		local generation=Core.Generation
+		task.spawn(function()
+			while Core.Enabled and generation==Core.Generation do
+				local vehicle=getMine()
+				if vehicle then
+					Core.LastPatin=vehicle; Core.Failures=0
+					update((isES and "Mi patín activo" or "My skateboard is active").." | XENO")
+					task.wait(WATCH_INTERVAL)
+				else
+					Core.LastPatin=nil
+					update(isES and "Patín ausente; recuperando..." or "Skateboard missing; recovering...")
+					local ok,reason=spawnPatin(generation)
+					if not ok and reason~="busy" and reason~="cancelled" then update((isES and "Reintentando: " or "Retrying: ")..tostring(reason)); task.wait(retryDelay()) end
+				end
+			end
+			Core.WorkerRunning=false
+			if Core.Enabled then task.defer(startWorker) end
+		end)
+	end
+	function Core:Start()
+		if self.Enabled then return true end
+		self.Enabled=true; self.Generation+=1; self.Failures=0
+		update(isES and "Buscando mi patín..." or "Finding my skateboard...")
+		startWorker()
+		return true
+	end
+	function Core:StopAndRemove()
+		self.Enabled=false; self.Generation+=1
+		while self.Busy do task.wait() end
+		local vehicle=getMine()
+		if not vehicle then self.LastPatin=nil; update("AUTO desactivado"); return true end
+		update(isES and "Retirando patín..." or "Removing skateboard...")
+		local button,scroll=findButton()
+		local clicked=false
+		if button then showParents(button); scrollTo(scroll,button); clicked=click(button) end
+		local deadline=os.clock()+SPAWN_CONFIRM_TIMEOUT
+		while clicked and os.clock()<deadline and getMine() do task.wait(0.03) end
+		vehicle=getMine()
+		if vehicle then pcall(function() vehicle:Destroy() end) end
+		self.LastPatin=nil; update("AUTO desactivado")
+		return not getMine(),clicked and nil or "No se confirmó el botón de retirada"
+	end
+	function Core:Destroy() self.Enabled=false; self.Generation+=1 end
+	AutoSkateXeno=Core
+	return true
+end

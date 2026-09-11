@@ -60,7 +60,27 @@ return function(context)
 	fling2Overlay.Parent = fling2Nav
 	RegisterTheme(fling2Overlay, "BackgroundColor3", "sidebar")
 
-	mainNavBtns, tabBtns, fling2TabBtns = {}, {}, {}
+	anchorNav = Instance.new("Frame")
+	anchorNav.Name = "AnchorNavigation"
+	anchorNav.Size = UDim2.new(0, sideBarW, 1, -topNavH)
+	anchorNav.Position = UDim2.new(0, 0, 0, topNavH)
+	anchorNav.BackgroundColor3 = currentTheme.sidebar
+	anchorNav.ClipsDescendants = true
+	anchorNav.Visible = false
+	anchorNav.ZIndex = 18
+	anchorNav.Parent = main
+	Instance.new("UICorner", anchorNav).CornerRadius = UDim.new(0, 14)
+	RegisterTheme(anchorNav, "BackgroundColor3", "sidebar")
+	local anchorOverlay = Instance.new("Frame")
+	anchorOverlay.Size = UDim2.new(0, 10, 1, 0)
+	anchorOverlay.Position = UDim2.new(1, -10, 0, 0)
+	anchorOverlay.BackgroundColor3 = currentTheme.sidebar
+	anchorOverlay.BorderSizePixel = 0
+	anchorOverlay.ZIndex = 17
+	anchorOverlay.Parent = anchorNav
+	RegisterTheme(anchorOverlay, "BackgroundColor3", "sidebar")
+
+	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns = {}, {}, {}, {}
 
 	local function CreateTextButton(parent, text, name, size, position)
 		local btn = Instance.new("TextButton")
@@ -78,7 +98,7 @@ return function(context)
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-		if parent == movementNav or parent == fling2Nav then
+		if parent == movementNav or parent == fling2Nav or parent == anchorNav then
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			local textPadding = Instance.new("UIPadding")
 			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
@@ -120,25 +140,25 @@ return function(context)
 	mainNavBtns.movements = topBtn
 	mainNavButtonStyle = {btn = topBtn, stroke = topStroke, gradient = topGradient}
 
-	local flingBtn, flingStroke, flingGradient = CreateTextButton(
-		mainNav, "Fling", "fling",
-		UDim2.new(0, isMobile and 86 or 105, 1, 0),
-		UDim2.new(0, isMobile and 126 or 158, 0, 0)
-	)
-	flingBtn.Font = Enum.Font.GothamBold
-	flingBtn.TextSize = isMobile and 14 or 16
-	mainNavBtns.fling = flingBtn
-	flingNavButtonStyle = {btn = flingBtn, stroke = flingStroke, gradient = flingGradient}
-
 	local fling2Btn, fling2Stroke, fling2Gradient = CreateTextButton(
 		mainNav, "Fling 2", "fling2",
 		UDim2.new(0, isMobile and 86 or 105, 1, 0),
-		UDim2.new(0, isMobile and 218 or 271, 0, 0)
+		UDim2.new(0, isMobile and 126 or 158, 0, 0)
 	)
 	fling2Btn.Font = Enum.Font.GothamBold
 	fling2Btn.TextSize = isMobile and 14 or 16
 	mainNavBtns.fling2 = fling2Btn
 	fling2NavButtonStyle = {btn = fling2Btn, stroke = fling2Stroke, gradient = fling2Gradient}
+
+	local anchorBtn, anchorStroke, anchorGradient = CreateTextButton(
+		mainNav, isES and "Ancla" or "Anchor", "anchor",
+		UDim2.new(0, isMobile and 86 or 105, 1, 0),
+		UDim2.new(0, isMobile and 218 or 271, 0, 0)
+	)
+	anchorBtn.Font = Enum.Font.GothamBold
+	anchorBtn.TextSize = isMobile and 14 or 16
+	mainNavBtns.anchor = anchorBtn
+	anchorNavButtonStyle = {btn = anchorBtn, stroke = anchorStroke, gradient = anchorGradient}
 
 	local labels = {
 		{"emotes", L.emotes},
@@ -175,6 +195,19 @@ return function(context)
 			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
 		)
 		fling2TabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
+	end
+
+	local anchorLabels = {
+		{"anchor", isES and "Ancla" or "Anchor"},
+		{"anchor_auto", isES and "Ancla automática" or "Automatic Anchor"},
+	}
+	for index, item in ipairs(anchorLabels) do
+		local btn, stroke, gradient = CreateTextButton(
+			anchorNav, item[2], item[1],
+			UDim2.new(1, -(pad * 2), 0, buttonH),
+			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
+		)
+		anchorTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
 
 	return true

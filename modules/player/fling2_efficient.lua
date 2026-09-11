@@ -267,7 +267,6 @@ function VR7EfficientCore:Start()
 
 	if self.Running then return true end
 	if CarFling and CarFling.Running then CarFling:Stop() end
-	if FlingCore and FlingCore.Running then FlingCore:Stop() end
 	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 
 	local attackerCharacter = self.Provider:GetLocalCharacter()
