@@ -12,7 +12,7 @@ return function(context)
 	carFlingPanel.Parent = content
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, isMobile and 338 or 352)
+	card.Size = UDim2.new(1, 0, 0, isMobile and 398 or 412)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = carFlingPanel
@@ -69,7 +69,7 @@ return function(context)
 	local carList, playerList = makeList(64), makeList(134)
 
 	local action = Instance.new("TextButton")
-	action.Size, action.Position = UDim2.new(1,0,0,44), UDim2.new(0,0,0,146)
+	action.Size, action.Position = UDim2.new(1,0,0,44), UDim2.new(0,0,0,194)
 	action.BackgroundColor3, action.Text = currentTheme.tertiary, isES and "Activar Delta" or "Enable Delta"
 	action.TextColor3, action.Font, action.TextSize = currentTheme.text, Enum.Font.GothamBold, isMobile and 12 or 14
 	action.AutoButtonColor, action.ZIndex, action.Parent = false, 8, card
@@ -78,14 +78,27 @@ return function(context)
 
 	local xenoAction = action:Clone()
 	xenoAction.Name = "XenoCarFlingButton"
-	xenoAction.Position = UDim2.new(0,0,0,198)
+	xenoAction.Position = UDim2.new(0,0,0,246)
 	xenoAction.Text = isES and "Activar Xeno" or "Enable Xeno"
 	xenoAction.Parent = card
 	RegisterTheme(xenoAction, "BackgroundColor3", "tertiary"); RegisterTheme(xenoAction, "TextColor3", "text")
+	local autoDelta, autoXeno, autoStarting = false, false, false
+	local autoDeltaButton = action:Clone()
+	autoDeltaButton.Name = "AutoDeltaButton"
+	autoDeltaButton.Size = UDim2.new(0.5, -4, 0, 40)
+	autoDeltaButton.Position = UDim2.new(0, 0, 0, 146)
+	autoDeltaButton.TextSize = isMobile and 10 or 11
+	autoDeltaButton.Parent = card
+	local autoXenoButton = action:Clone()
+	autoXenoButton.Name = "AutoXenoButton"
+	autoXenoButton.Size = UDim2.new(0.5, -4, 0, 40)
+	autoXenoButton.Position = UDim2.new(0.5, 4, 0, 146)
+	autoXenoButton.TextSize = isMobile and 10 or 11
+	autoXenoButton.Parent = card
 
-	local info = makeLabel(isES and "El vehículo realiza el Fling; tu personaje no se mueve." or "The vehicle performs the Fling; your character does not move.", 250)
+	local info = makeLabel(isES and "El vehículo realiza el Fling; tu personaje no se mueve." or "The vehicle performs the Fling; your character does not move.", 298)
 	info.TextWrapped, info.Size = true, UDim2.new(1,0,0,34)
-	local status = makeLabel("", 286)
+	local status = makeLabel("", 334)
 	status.Size = UDim2.new(1, 0, 0, 42)
 	status.TextWrapped = true
 
@@ -102,7 +115,47 @@ return function(context)
 		if CarFlingXeno.Running then code, detail = CarFlingXeno:GetDiagnostic() end
 		local diagnostic = code .. (detail ~= "" and (" | " .. detail) or "")
 		status.Text = message or ((CarFling.Running or CarFlingXeno.Running) and ((isES and "Estado: " or "State: ")..tostring(activeCore.EfficientPhase).." | "..diagnostic) or ((isES and "Estado: detenido" or "State: stopped").." | "..diagnostic))
+		autoDeltaButton.Text = (autoDelta and "[x] " or "[ ] ") .. (isES and "Activación automática Delta" or "Automatic Delta activation")
+		autoXenoButton.Text = (autoXeno and "[x] " or "[ ] ") .. (isES and "Activación automática Xeno" or "Automatic Xeno activation")
+		autoDeltaButton.BackgroundColor3 = autoDelta and currentTheme.accent or currentTheme.tertiary
+		autoXenoButton.BackgroundColor3 = autoXeno and currentTheme.accent or currentTheme.tertiary
 	end
+	local tryAutomaticStart
+	local function syncSpawnedCar()
+		if CarFling.Running or CarFlingXeno.Running then return false end
+		local cars = CarFling:GetCarOptions()
+		local detected = #cars > 0 and cars[#cars] or nil
+		local changed = CarFling:GetCar() ~= detected or CarFlingXeno:GetCar() ~= detected
+		if changed then
+			CarFling:SetCar(detected)
+			CarFlingXeno:SetCar(detected)
+			task.defer(tryAutomaticStart)
+		end
+		return changed
+	end
+	tryAutomaticStart = function()
+		if autoStarting or CarFling.Running or CarFlingXeno.Running then return end
+		local selected = autoDelta and CarFling or (autoXeno and CarFlingXeno or nil)
+		if not selected or not selected:GetCar() or not selected:GetPlayer() then return end
+		autoStarting = true
+		local ok, err = selected:Start()
+		autoStarting = false
+		UpdateCarFlingPanel(ok and nil or (err or L.flingStartFailed))
+	end
+
+	autoDeltaButton.MouseButton1Click:Connect(function()
+		autoDelta = not autoDelta
+		if autoDelta then autoXeno = false end
+		UpdateCarFlingPanel()
+		tryAutomaticStart()
+	end)
+	autoXenoButton.MouseButton1Click:Connect(function()
+		autoXeno = not autoXeno
+		if autoXeno then autoDelta = false end
+		UpdateCarFlingPanel()
+		tryAutomaticStart()
+	end)
+
 	local function clearOptions(list)
 		for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
 	end
@@ -117,7 +170,7 @@ return function(context)
 	local function refreshPlayers()
 		clearOptions(playerList)
 		for _, target in ipairs(Players:GetPlayers()) do if target ~= player then makeOption(playerList, target.DisplayName.."  (@"..target.Name..")", function()
-			CarFling:SetPlayer(target); CarFlingXeno:SetPlayer(target); playerList.Visible=false; UpdateCarFlingPanel()
+			CarFling:SetPlayer(target); CarFlingXeno:SetPlayer(target); playerList.Visible=false; UpdateCarFlingPanel(); task.defer(tryAutomaticStart)
 		end) end end
 	end
 	carButton.MouseButton1Click:Connect(function()
@@ -129,20 +182,27 @@ return function(context)
 		if playerList.Visible then refreshPlayers() end
 	end)
 	action.MouseButton1Click:Connect(function()
-		if CarFling.Running then CarFling:Stop(); UpdateCarFlingPanel(); return end
+		if CarFling.Running then autoDelta = false; CarFling:Stop(); UpdateCarFlingPanel(); return end
 		if CarFlingXeno.Running then UpdateCarFlingPanel(isES and "Desactiva Xeno primero" or "Disable Xeno first"); return end
 		if not CarFling:GetCar() then UpdateCarFlingPanel(isES and "Selecciona un vehículo propio" or "Select an owned vehicle"); return end
 		if not CarFling:GetPlayer() then UpdateCarFlingPanel(L.selectPlayerFirst); return end
 		local ok, err = CarFling:Start(); UpdateCarFlingPanel(ok and nil or (err or L.flingStartFailed))
 	end)
 	xenoAction.MouseButton1Click:Connect(function()
-		if CarFlingXeno.Running then CarFlingXeno:Stop(); UpdateCarFlingPanel(); return end
+		if CarFlingXeno.Running then autoXeno = false; CarFlingXeno:Stop(); UpdateCarFlingPanel(); return end
 		if not CarFlingXeno:GetCar() then UpdateCarFlingPanel(isES and "Selecciona un vehículo propio" or "Select an owned vehicle"); return end
 		if not CarFlingXeno:GetPlayer() then UpdateCarFlingPanel(L.selectPlayerFirst); return end
 		local ok, err = CarFlingXeno:Start(); UpdateCarFlingPanel(ok and nil or (err or L.flingStartFailed))
 	end)
-	_carFlingUiConn = RunService.Heartbeat:Connect(function()
-		if not carFlingPanel.Visible or (not CarFling.Running and not CarFlingXeno.Running) then return end
+	local carDiscoveryElapsed = 0
+	_carFlingUiConn = RunService.Heartbeat:Connect(function(dt)
+		if not carFlingPanel.Visible then return end
+		carDiscoveryElapsed = carDiscoveryElapsed + dt
+		if carDiscoveryElapsed >= 0.25 then
+			carDiscoveryElapsed = 0
+			if syncSpawnedCar() then UpdateCarFlingPanel() end
+		end
+		if (not CarFling.Running and not CarFlingXeno.Running) then return end
 		local activeCore = CarFlingXeno.Running and CarFlingXeno or CarFling
 		local code, detail = "DELTA_ORIGINAL", ""
 		if CarFlingXeno.Running then

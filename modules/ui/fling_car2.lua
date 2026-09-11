@@ -12,7 +12,7 @@ return function(context)
 	carFling2Panel.Parent = content
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, isMobile and 338 or 352)
+	card.Size = UDim2.new(1, 0, 0, isMobile and 398 or 412)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = carFling2Panel
@@ -69,7 +69,7 @@ return function(context)
 	local carList, playerList = makeList(64), makeList(134)
 
 	local action = Instance.new("TextButton")
-	action.Size, action.Position = UDim2.new(1,0,0,44), UDim2.new(0,0,0,146)
+	action.Size, action.Position = UDim2.new(1,0,0,44), UDim2.new(0,0,0,194)
 	action.BackgroundColor3, action.Text = currentTheme.tertiary, isES and "Activar Delta estable" or "Enable Stable Delta"
 	action.TextColor3, action.Font, action.TextSize = currentTheme.text, Enum.Font.GothamBold, isMobile and 12 or 14
 	action.AutoButtonColor, action.ZIndex, action.Parent = false, 8, card
@@ -78,14 +78,27 @@ return function(context)
 
 	local xenoAction = action:Clone()
 	xenoAction.Name = "XenoCarFling2Button"
-	xenoAction.Position = UDim2.new(0,0,0,198)
+	xenoAction.Position = UDim2.new(0,0,0,246)
 	xenoAction.Text = isES and "Activar Xeno estable" or "Enable Stable Xeno"
 	xenoAction.Parent = card
 	RegisterTheme(xenoAction, "BackgroundColor3", "tertiary"); RegisterTheme(xenoAction, "TextColor3", "text")
+	local autoDelta, autoXeno, autoStarting = false, false, false
+	local autoDeltaButton = action:Clone()
+	autoDeltaButton.Name = "AutoDeltaButton"
+	autoDeltaButton.Size = UDim2.new(0.5, -4, 0, 40)
+	autoDeltaButton.Position = UDim2.new(0, 0, 0, 146)
+	autoDeltaButton.TextSize = isMobile and 10 or 11
+	autoDeltaButton.Parent = card
+	local autoXenoButton = action:Clone()
+	autoXenoButton.Name = "AutoXenoButton"
+	autoXenoButton.Size = UDim2.new(0.5, -4, 0, 40)
+	autoXenoButton.Position = UDim2.new(0.5, 4, 0, 146)
+	autoXenoButton.TextSize = isMobile and 10 or 11
+	autoXenoButton.Parent = card
 
-	local info = makeLabel(isES and "Modo estable: FAR moderado de 50 a 200 studs." or "Stable mode: moderate FAR from 50 to 200 studs.", 250)
+	local info = makeLabel(isES and "Modo estable: FAR moderado de 50 a 200 studs." or "Stable mode: moderate FAR from 50 to 200 studs.", 298)
 	info.TextWrapped, info.Size = true, UDim2.new(1,0,0,34)
-	local status = makeLabel("", 286)
+	local status = makeLabel("", 334)
 	status.Size = UDim2.new(1, 0, 0, 42)
 	status.TextWrapped = true
 
@@ -102,7 +115,47 @@ return function(context)
 		if CarFling2Xeno.Running then code, detail = CarFling2Xeno:GetDiagnostic() end
 		local diagnostic = code .. (detail ~= "" and (" | " .. detail) or "")
 		status.Text = message or ((CarFling2Delta.Running or CarFling2Xeno.Running) and ((isES and "Estado: " or "State: ")..tostring(activeCore.EfficientPhase).." | "..diagnostic) or ((isES and "Estado: detenido" or "State: stopped").." | "..diagnostic))
+		autoDeltaButton.Text = (autoDelta and "[x] " or "[ ] ") .. (isES and "Activación automática Delta" or "Automatic Delta activation")
+		autoXenoButton.Text = (autoXeno and "[x] " or "[ ] ") .. (isES and "Activación automática Xeno" or "Automatic Xeno activation")
+		autoDeltaButton.BackgroundColor3 = autoDelta and currentTheme.accent or currentTheme.tertiary
+		autoXenoButton.BackgroundColor3 = autoXeno and currentTheme.accent or currentTheme.tertiary
 	end
+	local tryAutomaticStart
+	local function syncSpawnedCar()
+		if CarFling2Delta.Running or CarFling2Xeno.Running then return false end
+		local cars = CarFling2Delta:GetCarOptions()
+		local detected = #cars > 0 and cars[#cars] or nil
+		local changed = CarFling2Delta:GetCar() ~= detected or CarFling2Xeno:GetCar() ~= detected
+		if changed then
+			CarFling2Delta:SetCar(detected)
+			CarFling2Xeno:SetCar(detected)
+			task.defer(tryAutomaticStart)
+		end
+		return changed
+	end
+	tryAutomaticStart = function()
+		if autoStarting or CarFling2Delta.Running or CarFling2Xeno.Running then return end
+		local selected = autoDelta and CarFling2Delta or (autoXeno and CarFling2Xeno or nil)
+		if not selected or not selected:GetCar() or not selected:GetPlayer() then return end
+		autoStarting = true
+		local ok, err = selected:Start()
+		autoStarting = false
+		UpdateCarFling2Panel(ok and nil or (err or L.flingStartFailed))
+	end
+
+	autoDeltaButton.MouseButton1Click:Connect(function()
+		autoDelta = not autoDelta
+		if autoDelta then autoXeno = false end
+		UpdateCarFling2Panel()
+		tryAutomaticStart()
+	end)
+	autoXenoButton.MouseButton1Click:Connect(function()
+		autoXeno = not autoXeno
+		if autoXeno then autoDelta = false end
+		UpdateCarFling2Panel()
+		tryAutomaticStart()
+	end)
+
 	local function clearOptions(list)
 		for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
 	end
@@ -117,7 +170,7 @@ return function(context)
 	local function refreshPlayers()
 		clearOptions(playerList)
 		for _, target in ipairs(Players:GetPlayers()) do if target ~= player then makeOption(playerList, target.DisplayName.."  (@"..target.Name..")", function()
-			CarFling2Delta:SetPlayer(target); CarFling2Xeno:SetPlayer(target); playerList.Visible=false; UpdateCarFling2Panel()
+			CarFling2Delta:SetPlayer(target); CarFling2Xeno:SetPlayer(target); playerList.Visible=false; UpdateCarFling2Panel(); task.defer(tryAutomaticStart)
 		end) end end
 	end
 	carButton.MouseButton1Click:Connect(function()
@@ -129,21 +182,28 @@ return function(context)
 		if playerList.Visible then refreshPlayers() end
 	end)
 	action.MouseButton1Click:Connect(function()
-		if CarFling2Delta.Running then CarFling2Delta:Stop(); UpdateCarFling2Panel(); return end
+		if CarFling2Delta.Running then autoDelta = false; CarFling2Delta:Stop(); UpdateCarFling2Panel(); return end
 		if CarFling2Xeno.Running then UpdateCarFling2Panel(isES and "Desactiva Xeno primero" or "Disable Stable Xeno first"); return end
 		if not CarFling2Delta:GetCar() then UpdateCarFling2Panel(isES and "Selecciona un vehículo propio" or "Select an owned vehicle"); return end
 		if not CarFling2Delta:GetPlayer() then UpdateCarFling2Panel(L.selectPlayerFirst); return end
 		local ok, err = CarFling2Delta:Start(); UpdateCarFling2Panel(ok and nil or (err or L.flingStartFailed))
 	end)
 	xenoAction.MouseButton1Click:Connect(function()
-		if CarFling2Xeno.Running then CarFling2Xeno:Stop(); UpdateCarFling2Panel(); return end
+		if CarFling2Xeno.Running then autoXeno = false; CarFling2Xeno:Stop(); UpdateCarFling2Panel(); return end
 		if CarFling2Delta.Running then UpdateCarFling2Panel(isES and "Desactiva Delta estable primero" or "Disable Stable Delta first"); return end
 		if not CarFling2Xeno:GetCar() then UpdateCarFling2Panel(isES and "Selecciona un vehículo propio" or "Select an owned vehicle"); return end
 		if not CarFling2Xeno:GetPlayer() then UpdateCarFling2Panel(L.selectPlayerFirst); return end
 		local ok, err = CarFling2Xeno:Start(); UpdateCarFling2Panel(ok and nil or (err or L.flingStartFailed))
 	end)
-	_carFling2UiConn = RunService.Heartbeat:Connect(function()
-		if not carFling2Panel.Visible or (not CarFling2Delta.Running and not CarFling2Xeno.Running) then return end
+	local carDiscoveryElapsed = 0
+	_carFling2UiConn = RunService.Heartbeat:Connect(function(dt)
+		if not carFling2Panel.Visible then return end
+		carDiscoveryElapsed = carDiscoveryElapsed + dt
+		if carDiscoveryElapsed >= 0.25 then
+			carDiscoveryElapsed = 0
+			if syncSpawnedCar() then UpdateCarFling2Panel() end
+		end
+		if (not CarFling2Delta.Running and not CarFling2Xeno.Running) then return end
 		local activeCore = CarFling2Xeno.Running and CarFling2Xeno or CarFling2Delta
 		local code, detail = "DELTA_STABLE", ""
 		if CarFling2Xeno.Running then
