@@ -13,7 +13,8 @@ return function(context)
 	end
 	local function physicalClick(button)
 		if not button or not button.Parent then return false,"Botón inválido" end
-		RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait()
+		local restoreMain=main and main.Parent and main.Visible
+		if restoreMain then main.Visible=false; RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait() end
 		local x=button.AbsolutePosition.X+button.AbsoluteSize.X/2
 		local y=button.AbsolutePosition.Y+button.AbsoluteSize.Y/2
 		local ok,err=pcall(function()
@@ -21,6 +22,7 @@ return function(context)
 			task.wait(0.08)
 			VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,0)
 		end)
+		if restoreMain and main and main.Parent then RunService.RenderStepped:Wait(); main.Visible=true end
 		return ok,ok and nil or tostring(err)
 	end
 	local function showGuiParents(obj)

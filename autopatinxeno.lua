@@ -2,10 +2,15 @@
 return function(context)
 	setfenv(1,context)
 	local VirtualInputManager=game:GetService("VirtualInputManager")
+
 	local TARGET_NAME="ltp2_car_57"
 	local WATCH_INTERVAL,SPAWN_CONFIRM_TIMEOUT,GUI_INIT_TIMEOUT=0.04,1.5,6
 	local Core={Enabled=false,Busy=false,Generation=0,LastPatin=nil,Failures=0,Status="AUTO desactivado"}
-	local function update(text) Core.Status=text; if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end end
+	local connections={}
+	local function update(text)
+		Core.Status=text
+		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
+	end
 	local function getCars() return workspace:FindFirstChild("Cars") end
 	local function isMine(vehicle)
 		if not vehicle or not vehicle.Parent or vehicle.Name~=TARGET_NAME then return false end
@@ -15,7 +20,9 @@ return function(context)
 	local function getMine()
 		local cars=getCars()
 		if not cars then return nil end
-		for _,vehicle in ipairs(cars:GetChildren()) do if isMine(vehicle) then Core.LastPatin=vehicle; return vehicle end end
+		for _,vehicle in ipairs(cars:GetChildren()) do
+			if isMine(vehicle) then Core.LastPatin=vehicle; return vehicle end
+		end
 	end
 	local function showParents(obj)
 		local current=obj
@@ -47,14 +54,17 @@ return function(context)
 	end
 	local function click(button)
 		if not button or not button.Parent then return false end
-		RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait()
+		local restoreMain=main and main.Parent and main.Visible
+		if restoreMain then main.Visible=false; RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait() end
 		local x=button.AbsolutePosition.X+button.AbsoluteSize.X/2
 		local y=button.AbsolutePosition.Y+button.AbsoluteSize.Y/2
-		return pcall(function()
+		local ok=pcall(function()
 			VirtualInputManager:SendMouseButtonEvent(x,y,0,true,game,0)
 			task.wait(0.08)
 			VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,0)
 		end)
+		if restoreMain and main and main.Parent then RunService.RenderStepped:Wait(); main.Visible=true end
+		return ok
 	end
 	local function getPhoneParts()
 		local screen=playerGui:FindFirstChild("ScreenGeneral")
@@ -140,7 +150,10 @@ return function(context)
 					Core.LastPatin=nil
 					update(isES and "Patín ausente; recuperando..." or "Skateboard missing; recovering...")
 					local ok,reason=spawnPatin(generation)
-					if not ok and reason~="busy" and reason~="cancelled" then update((isES and "Reintentando: " or "Retrying: ")..tostring(reason)); task.wait(retryDelay()) end
+					if not ok and reason~="busy" and reason~="cancelled" then
+						update((isES and "Reintentando: " or "Retrying: ")..tostring(reason))
+						task.wait(retryDelay())
+					end
 				end
 			end
 			Core.WorkerRunning=false
@@ -170,7 +183,11 @@ return function(context)
 		self.LastPatin=nil; update("AUTO desactivado")
 		return not getMine(),clicked and nil or "No se confirmó el botón de retirada"
 	end
-	function Core:Destroy() self.Enabled=false; self.Generation+=1 end
+	function Core:Destroy()
+		self.Enabled=false; self.Generation+=1
+		for _,connection in ipairs(connections) do pcall(function() connection:Disconnect() end) end
+		table.clear(connections)
+	end
 	AutoSkateXeno=Core
 	return true
 end
