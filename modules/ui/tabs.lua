@@ -22,10 +22,11 @@ UpdateTabStyles = function()
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
 	local isFlingMoto = currentTab == "fling_moto"
+	local isFlingMotoXeno = currentTab == "fling_moto_xeno"
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isAnchorAuto
-	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
+	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
@@ -416,10 +417,11 @@ UpdateTabData = function()
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
 	local isFlingMoto = currentTab == "fling_moto"
+	local isFlingMotoXeno = currentTab == "fling_moto_xeno"
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isAnchorAuto
-	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto
+	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
@@ -428,6 +430,7 @@ UpdateTabData = function()
 	carFlingPanel.Visible = isFlingCar
 	carFling2Panel.Visible = isFlingCar2
 	motoFlingPanel.Visible = isFlingMoto
+	motoFlingXenoPanel.Visible = isFlingMotoXeno
 	anchorPanel.Visible = isAnchorBasic
 	autoAnchorPanel.Visible = isAnchorAuto
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
@@ -527,8 +530,11 @@ UpdateTabData = function()
 		title.Text = isES and "Fling con vehículo 2" or "Fling with Car 2"
 		if UpdateCarFling2Panel then UpdateCarFling2Panel() end
 	elseif currentTab == "fling_moto" then
-		title.Text = isES and "Fling con moto" or "Motorcycle Fling"
+		title.Text = isES and "Fling con moto Delta" or "Delta Motorcycle Fling"
 		if UpdateMotoFlingPanel then UpdateMotoFlingPanel() end
+	elseif currentTab == "fling_moto_xeno" then
+		title.Text = isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"
+		if UpdateMotoFlingXenoPanel then UpdateMotoFlingXenoPanel() end
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
@@ -549,6 +555,7 @@ fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "f
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
+fling2TabBtns["fling_moto_xeno"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto_xeno"; UpdateTabData() end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
@@ -567,7 +574,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1,context)
 	local VirtualInputManager=game:GetService("VirtualInputManager")
 	local TARGET_NAME="ltp2_car_57"
-	local WATCH_INTERVAL,SPAWN_CONFIRM_TIMEOUT=0.04,1.5
+	local WATCH_INTERVAL,SPAWN_CONFIRM_TIMEOUT,GUI_INIT_TIMEOUT=0.04,1.5,6
 	local Core={Enabled=false,Busy=false,Generation=0,LastPatin=nil,Failures=0,Status="AUTO desactivado"}
 	local function update(text) Core.Status=text; if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end end
 	local function getCars() return workspace:FindFirstChild("Cars") end
@@ -56,6 +56,44 @@ return function(context)
 			VirtualInputManager:SendMouseButtonEvent(x,y,0,false,game,0)
 		end)
 	end
+	local function getPhoneParts()
+		local screen=playerGui:FindFirstChild("ScreenGeneral")
+		local role=screen and screen:FindFirstChild("FrameRoleInfo")
+		return role and role:FindFirstChild("TelescopicBtn"),role and role:FindFirstChild("Buttons")
+	end
+	local function ensurePhoneOpen()
+		local telescopic,buttons=getPhoneParts()
+		if not telescopic then return false,"No encontré TelescopicBtn" end
+		if not buttons then return false,"No encontré Buttons" end
+		if not (buttons.Visible and buttons.Size.X.Scale>=0.9 and buttons.Size.Y.Scale>=0.9) then
+			update(isES and "Abriendo el teléfono..." or "Opening phone...")
+			telescopic.Position=UDim2.new(-0.159039438,0,0.146093443,0)
+			buttons.Visible,buttons.Size=true,UDim2.new(1,0,1,0)
+			for _=1,3 do RunService.RenderStepped:Wait() end
+			task.wait(0.10)
+		end
+		return true
+	end
+	local function initializeVehicleMenu()
+		local button,scroll=findButton()
+		if button then return button,scroll end
+		local ok,err=ensurePhoneOpen()
+		if not ok then return nil,nil,err end
+		local _,buttons=getPhoneParts()
+		local vehicle=buttons and buttons:FindFirstChild("VehicleBtn")
+		local vehicleButton=vehicle and vehicle:FindFirstChild("Button")
+		if not vehicleButton or not vehicleButton:IsA("GuiButton") then return nil,nil,"No encontré VehicleBtn.Button" end
+		update(isES and "Inicializando el selector de vehículos..." or "Initializing vehicle selector...")
+		RunService.RenderStepped:Wait(); RunService.RenderStepped:Wait(); task.wait(0.10)
+		if not click(vehicleButton) then return nil,nil,"No se pudo abrir Vehículos" end
+		local deadline=os.clock()+GUI_INIT_TIMEOUT
+		repeat
+			button,scroll=findButton()
+			if button then return button,scroll end
+			task.wait(0.05)
+		until os.clock()>=deadline
+		return nil,nil,TARGET_NAME.." no apareció en Vehículos"
+	end
 	local function waitForMine(timeout,generation)
 		local started=os.clock()
 		while os.clock()-started<timeout do
@@ -70,7 +108,7 @@ return function(context)
 		if Core.Busy then return false,"busy" end
 		if getMine() then return true,"already_exists" end
 		Core.Busy=true
-		local button,scroll,err=findButton()
+		local button,scroll,err=initializeVehicleMenu()
 		if not button then Core.Busy=false; return false,err end
 		showParents(button); scrollTo(scroll,button)
 		if generation and generation~=Core.Generation then Core.Busy=false; return false,"cancelled" end
