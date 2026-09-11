@@ -165,6 +165,7 @@ return function(context)
 	local flingLabels = {
 		{"fling2", "Fling"},
 		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
+		{"fling_car2", isES and "Fling con vehículo 2" or "Fling with Car 2"},
 	}
 	for index, item in ipairs(flingLabels) do
 		local btn, stroke, gradient = CreateTextButton(
