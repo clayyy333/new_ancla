@@ -118,11 +118,24 @@ end
 -- CORE
 --------------------------------------------------
 
-local CarFlingCore = {}
-CarFlingCore.__index = CarFlingCore
+local function moveVehicle(model, root, targetCFrame)
+	if not model or not root then return end
+	local moved = pcall(function()
+		if model:IsA("Model") then model:PivotTo(targetCFrame) else root.CFrame = targetCFrame end
+	end)
+	if not moved then pcall(function() root.CFrame = targetCFrame end) end
+	for _, part in ipairs(model:IsA("Model") and model:GetDescendants() or {root}) do
+		if part:IsA("BasePart") and not part.Anchored then
+			part.AssemblyLinearVelocity = Vector3.new(900000000, 900000000, 900000000)
+			part.AssemblyAngularVelocity = Vector3.new(900000000, 900000000, 900000000)
+		end
+	end
+end
+local CarFlingXenoCore = {}
+CarFlingXenoCore.__index = CarFlingXenoCore
 
-function CarFlingCore.new()
-	local self = setmetatable({}, CarFlingCore)
+function CarFlingXenoCore.new()
+	local self = setmetatable({}, CarFlingXenoCore)
 	self.Running = false
 	self.Stopping = false
 	self.StopCycle = 0
@@ -144,43 +157,43 @@ function CarFlingCore.new()
 	return self
 end
 
-function CarFlingCore:SetDiagnostic(code, detail)
+function CarFlingXenoCore:SetDiagnostic(code, detail)
 	code, detail = tostring(code or "UNKNOWN"), tostring(detail or "")
 	if self.LastDiagnostic ~= code or self.LastDiagnosticDetail ~= detail then
 		self.LastDiagnostic, self.LastDiagnosticDetail, self.LastDiagnosticAt = code, detail, os.clock()
-		warn("[CarFlingDiag] " .. code .. (detail ~= "" and (" | " .. detail) or ""))
+		warn("[CarFlingXenoDiag] " .. code .. (detail ~= "" and (" | " .. detail) or ""))
 	end
 end
 
-function CarFlingCore:GetDiagnostic()
+function CarFlingXenoCore:GetDiagnostic()
 	return self.LastDiagnostic or "READY", self.LastDiagnosticDetail or "", self.LastDiagnosticAt or 0
 end
-function CarFlingCore:SetCar(car)
+function CarFlingXenoCore:SetCar(car)
 	self.SelectedCar = car
 	return car ~= nil
 end
 
-function CarFlingCore:SetPlayer(player)
+function CarFlingXenoCore:SetPlayer(player)
 	self.SelectedPlayer = player
 	return player ~= nil
 end
 
-function CarFlingCore:GetCar()
+function CarFlingXenoCore:GetCar()
 	return self.SelectedCar
 end
 
-function CarFlingCore:GetPlayer()
+function CarFlingXenoCore:GetPlayer()
 	return self.SelectedPlayer
 end
 
-function CarFlingCore:DestroyFlinger()
+function CarFlingXenoCore:DestroyFlinger()
 	if self.Flinger then
 		pcall(function() self.Flinger:Destroy() end)
 		self.Flinger = nil
 	end
 end
 
-function CarFlingCore:Disconnect()
+function CarFlingXenoCore:Disconnect()
 	if self.Connection then
 		self.Connection:Disconnect()
 		self.Connection = nil
@@ -188,11 +201,11 @@ function CarFlingCore:Disconnect()
 	self:DestroyFlinger()
 end
 
-function CarFlingCore:CreateFlinger(root)
+function CarFlingXenoCore:CreateFlinger(root)
 	self:DestroyFlinger()
 	if not root then return end
 	local bv = Instance.new("BodyVelocity")
-	bv.Name = "VR7CarFlinger"
+	bv.Name = "VR7CarFlingXenoer"
 	bv.P = CONFIG.P
 	bv.MaxForce = CONFIG.MAX_FORCE
 	bv.Velocity = CONFIG.FLINGER_VELOCITY
@@ -200,7 +213,7 @@ function CarFlingCore:CreateFlinger(root)
 	self.Flinger = bv
 end
 
-function CarFlingCore:Start()
+function CarFlingXenoCore:Start()
 	if self.Stopping then
 		self.StopCycle = self.StopCycle + 1
 		self.Stopping = false
@@ -285,7 +298,7 @@ function CarFlingCore:Start()
 		local function placeNear()
 			self.Direction = -self.Direction
 			local desired = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)
-			currentCarRoot.CFrame = CFrame.new(desired.Position) * currentCarRoot.CFrame.Rotation
+			moveVehicle(currentCar, currentCarRoot, CFrame.new(desired.Position) * currentCarRoot.CFrame.Rotation)
 			currentCarRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
 			currentCarRoot.AssemblyAngularVelocity = Vector3.new(
 				CONFIG.ANGULAR_SPEED,
@@ -304,9 +317,7 @@ function CarFlingCore:Start()
 			local far = CONFIG.FAR_DISTANCES[math.random(1, #CONFIG.FAR_DISTANCES)]
 			local sx = math.random(0, 1) == 0 and -1 or 1
 			local sz = math.random(0, 1) == 0 and -1 or 1
-			currentCarRoot.CFrame = CFrame.new(
-				currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz)
-			)
+			moveVehicle(currentCar, currentCarRoot, CFrame.new(currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz)))
 			currentCarRoot.AssemblyLinearVelocity = CONFIG.FLINGER_VELOCITY
 			self.EfficientPhase = "RETURN_DIRECT"
 
@@ -327,8 +338,7 @@ function CarFlingCore:Start()
 			end
 
 		elseif self.EfficientPhase == "RETURN_16" then
-			currentCarRoot.CFrame = currentTargetRoot.CFrame
-				* CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide)
+			moveVehicle(currentCar, currentCarRoot, currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide))
 			self.EfficientPhase = "RETURN_NEAR"
 
 		else
@@ -343,7 +353,7 @@ function CarFlingCore:Start()
 	return true
 end
 
-function CarFlingCore:Stop()
+function CarFlingXenoCore:Stop()
 	local wasRunning = self.Running
 	if self.Stopping then return wasRunning end
 
@@ -415,37 +425,37 @@ function CarFlingCore:Stop()
 	return wasRunning
 end
 
-	function CarFlingCore:GetCarOptions()
+	function CarFlingXenoCore:GetCarOptions()
 		return listMyCars()
 	end
 
-	local originalStart = CarFlingCore.Start
-	function CarFlingCore:Start()
+	local originalStart = CarFlingXenoCore.Start
+	function CarFlingXenoCore:Start()
 		if FlingCore and FlingCore.Running then FlingCore:Stop() end
 		if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
 		if Fling2EfficientCore and Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
-		if CarFlingXeno and CarFlingXeno.Running then CarFlingXeno:Stop() end
+		if CarFling and CarFling.Running then CarFling:Stop() end
 		return originalStart(self)
 	end
 
-	CarFling = CarFlingCore.new()
-	_carFlingPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leaving)
-		if CarFling:GetPlayer() == leaving then
-			if CarFling.Running then CarFling:Stop() end
-			CarFling:SetPlayer(nil)
+	CarFlingXeno = CarFlingXenoCore.new()
+	_carFlingXenoPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leaving)
+		if CarFlingXeno:GetPlayer() == leaving then
+			if CarFlingXeno.Running then CarFlingXeno:Stop() end
+			CarFlingXeno:SetPlayer(nil)
 			if UpdateCarFlingPanel then UpdateCarFlingPanel() end
 		end
 	end)
 
 	local monitorElapsed = 0
-	_carFlingMonitorConn = RunService.Heartbeat:Connect(function(dt)
+	_carFlingXenoMonitorConn = RunService.Heartbeat:Connect(function(dt)
 		monitorElapsed = monitorElapsed + dt
 		if monitorElapsed < 0.5 then return end
 		monitorElapsed = 0
-		local car = CarFling:GetCar()
+		local car = CarFlingXeno:GetCar()
 		if car and (not car.Parent or not isMyCar(car)) then
-			if CarFling.Running then CarFling:Stop() end
-			CarFling:SetCar(nil)
+			if CarFlingXeno.Running then CarFlingXeno:Stop() end
+			CarFlingXeno:SetCar(nil)
 			if UpdateCarFlingPanel then UpdateCarFlingPanel() end
 		end
 	end)
