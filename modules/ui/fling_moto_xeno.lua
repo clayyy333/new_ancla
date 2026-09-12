@@ -83,9 +83,10 @@ return function(context)
 	end
 	local normalButton=makeAction(82,isES and "Activar Fling con moto Xeno" or "Enable Xeno Motorcycle Fling")
 	local efficientButton=makeAction(134,isES and "Activar Fling con moto Xeno eficiente" or "Enable Efficient Xeno Motorcycle Fling")
+	local forceReturnButton=makeAction(186,isES and "Forzar regreso" or "Force return")
 	local status=Instance.new("TextLabel")
-	status.Size=UDim2.new(1,0,0,54)
-	status.Position=UDim2.new(0,0,0,190)
+	status.Size=UDim2.new(1,0,0,42)
+	status.Position=UDim2.new(0,0,0,238)
 	status.BackgroundTransparency=1
 	status.TextColor3=currentTheme.textDim
 	status.Font=Enum.Font.GothamMedium
@@ -106,6 +107,7 @@ return function(context)
 		efficientButton.BackgroundColor3=mode=="efficient" and currentTheme.critical or currentTheme.tertiary
 		normalButton.Active=not MotoFlingXenoCore.Busy
 		efficientButton.Active=not MotoFlingXenoCore.Busy
+		forceReturnButton.Active=not MotoFlingXenoCore.Busy
 		status.Text=message or MotoFlingXenoCore:GetStatus()
 	end
 	local function refreshTargets()
@@ -152,6 +154,12 @@ return function(context)
 	end
 	normalButton.MouseButton1Click:Connect(function() toggle("normal") end)
 	efficientButton.MouseButton1Click:Connect(function() toggle("efficient") end)
+	forceReturnButton.MouseButton1Click:Connect(function()
+		task.spawn(function()
+			local ok,err=MotoFlingXenoCore:ForceReturn()
+			UpdateMotoFlingXenoPanel(ok and (isES and "Regreso forzado al checkpoint." or "Returned to checkpoint.") or err)
+		end)
+	end)
 	UpdateMotoFlingXenoPanel()
 	return true
 end

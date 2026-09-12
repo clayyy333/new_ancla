@@ -4,7 +4,7 @@ return function(context)
 	local VirtualInputManager = game:GetService("VirtualInputManager")
 	local MOTO_NAME = "ltp2_car_7"
 	local GUI_INIT_TIMEOUT, MOTO_TIMEOUT, DRIVE_TIMEOUT = 6, 4, 6
-	local Core = {Busy=false, RunningMode=nil, SelectedTarget=nil, WatchedMoto=nil, WatchId=0,
+	local Core = {Busy=false, RunningMode=nil, LastMode=nil, SelectedTarget=nil, WatchedMoto=nil, WatchId=0,
 		Status=isES and "Listo para preparar la moto." or "Ready to prepare the motorcycle."}
 
 	local function update(message)
@@ -226,6 +226,12 @@ return function(context)
 		update(isES and "Fling con moto detenido." or "Motorcycle fling stopped.")
 		return mode~=nil
 	end
+	function Core:ForceReturn()
+		if self.Busy then return false,isES and "Espera a que termine la preparación." or "Wait for preparation to finish." end
+		if self:IsRunning() then return false,isES and "Desactiva el fling con moto antes de forzar el regreso." or "Disable the motorcycle fling before forcing the return." end
+		local engine=self.LastMode=="efficient" and Fling2EfficientCore or Fling2Core
+		return engine:ForceReturn()
+	end
 	function Core:Start(mode)
 	if AutoAnchorCore then
 		local anchorOK,anchorErr=AutoAnchorCore:PrepareForMotoFling()
@@ -257,6 +263,7 @@ return function(context)
 		self.Busy=false
 		if not ok then update("ERROR: "..tostring(err)); return false,err end
 		self.RunningMode=mode
+		self.LastMode=mode
 		update(mode=="efficient" and (isES and "Fling con moto eficiente activo." or "Efficient motorcycle fling active.") or (isES and "Fling con moto activo." or "Motorcycle fling active."))
 		return true
 	end

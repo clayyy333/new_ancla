@@ -89,6 +89,21 @@ return function(context)
 		local role=screen and screen:FindFirstChild("FrameRoleInfo")
 		return role and role:FindFirstChild("TelescopicBtn"),role and role:FindFirstChild("Buttons")
 	end
+	local function isPhoneOpen()
+		local _,buttons=getPhoneParts()
+		return buttons and buttons.Visible and buttons.Size.X.Scale>=0.9 and buttons.Size.Y.Scale>=0.9
+	end
+	local function forcePhoneMinimized()
+		if not isPhoneOpen() then return true end
+		local telescopic=getPhoneParts()
+		if not telescopic or not telescopic:IsA("GuiButton") then return false,"No encontré TelescopicBtn para minimizar el teléfono" end
+		update(isES and "Reiniciando el teléfono..." or "Resetting phone...")
+		if not click(telescopic) then return false,isES and "No pude minimizar el teléfono." or "Could not minimize phone." end
+		local deadline=os.clock()+1.5
+		while os.clock()<deadline and isPhoneOpen() do task.wait(0.03) end
+		if isPhoneOpen() then return false,isES and "El teléfono no confirmó la minimización." or "The phone did not confirm minimization." end
+		return true
+	end
 	local function ensurePhoneOpen()
 		local telescopic,buttons=getPhoneParts()
 		if not telescopic then return false,"No encontré TelescopicBtn" end
@@ -180,6 +195,8 @@ return function(context)
 	end
 	function Core:Start()
 		if self.Enabled then return true end
+		local resetOK,resetErr=forcePhoneMinimized()
+		if not resetOK then update(resetErr); return false,resetErr end
 		self.Enabled=true; self.Generation+=1; self.Failures=0
 		update(isES and "Buscando mi patín..." or "Finding my skateboard...")
 		startWorker()
@@ -188,6 +205,8 @@ return function(context)
 	function Core:RemoveOwnedVehicle()
 		local vehicle=getOwnedVehicle()
 		if not vehicle or vehicle.Name==TARGET_NAME then return true end
+		local resetOK,resetErr=forcePhoneMinimized()
+		if not resetOK then update(resetErr); return false,resetErr end
 		self.Busy=true
 		local _,scroll,err=initializeVehicleMenu()
 		if not scroll then self.Busy=false; return false,err or "No se pudo abrir Vehículos" end

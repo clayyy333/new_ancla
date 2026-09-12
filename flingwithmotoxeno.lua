@@ -4,7 +4,7 @@ return function(context)
 	local VirtualInputManager = game:GetService("VirtualInputManager")
 	local MOTO_NAME = "ltp2_car_7"
 	local GUI_INIT_TIMEOUT, MOTO_TIMEOUT, DRIVE_TIMEOUT = 6, 4, 6
-	local Core = {Busy=false, RunningMode=nil, SelectedTarget=nil, WatchedMoto=nil, WatchId=0,
+	local Core = {Busy=false, RunningMode=nil, LastMode=nil, SelectedTarget=nil, WatchedMoto=nil, WatchId=0,
 		Status=isES and "Listo para preparar la moto." or "Ready to prepare the motorcycle."}
 
 	local function update(message)
@@ -58,6 +58,18 @@ return function(context)
 	local function isPhoneOpen()
 		local _, buttons = getPhoneParts()
 		return buttons and buttons.Visible and buttons.Size.X.Scale >= 0.9 and buttons.Size.Y.Scale >= 0.9
+	end
+	local function forcePhoneMinimized()
+		if not isPhoneOpen() then return true end
+		local telescopic=getPhoneParts()
+		if not telescopic or not telescopic:IsA("GuiButton") then return false,"No encontré TelescopicBtn para minimizar el teléfono" end
+		update(isES and "1/5 Reiniciando el teléfono..." or "1/5 Resetting phone...")
+		local ok,err=physicalClick(telescopic)
+		if not ok then return false,err or "No pude minimizar el teléfono" end
+		local deadline=os.clock()+1.5
+		while os.clock()<deadline and isPhoneOpen() do task.wait(0.03) end
+		if isPhoneOpen() then return false,isES and "El teléfono no confirmó la minimización." or "The phone did not confirm minimization." end
+		return true
 	end
 	local function ensurePhoneOpen()
 		if isPhoneOpen() then return true end
@@ -194,6 +206,8 @@ return function(context)
 	local function generateMoto()
 		local existing=getMyMoto()
 		if existing then return existing end
+		local resetOK,resetErr=forcePhoneMinimized()
+		if not resetOK then return nil,resetErr end
 		local removed,removeErr=removeOwnedVehicle()
 		if not removed then return nil,removeErr end
 		local button,scroll,err=initializeVehicleMenu()
@@ -269,6 +283,12 @@ return function(context)
 		update(isES and "Fling con moto Xeno detenido." or "Xeno motorcycle fling stopped.")
 		return mode~=nil
 	end
+	function Core:ForceReturn()
+		if self.Busy then return false,isES and "Espera a que termine la preparación." or "Wait for preparation to finish." end
+		if self:IsRunning() then return false,isES and "Desactiva el fling con moto antes de forzar el regreso." or "Disable the motorcycle fling before forcing the return." end
+		local engine=self.LastMode=="efficient" and Fling2EfficientCore or Fling2Core
+		return engine:ForceReturn()
+	end
 	function Core:Start(mode)
 	if AutoAnchorCore then
 		local anchorOK,anchorErr=AutoAnchorCore:PrepareForMotoFling()
@@ -299,6 +319,7 @@ return function(context)
 		self.Busy=false
 		if not ok then update("ERROR: "..tostring(err)); return false,err end
 		self.RunningMode=mode
+		self.LastMode=mode
 		update(mode=="efficient" and (isES and "Fling con moto Xeno eficiente activo." or "Efficient Xeno motorcycle fling active.") or (isES and "Fling con moto Xeno activo." or "Xeno motorcycle fling active."))
 		return true
 	end
