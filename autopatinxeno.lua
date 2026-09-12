@@ -99,34 +99,85 @@ return function(context)
 	local function getPhoneParts()
 		local screen=playerGui:FindFirstChild("ScreenGeneral")
 		local role=screen and screen:FindFirstChild("FrameRoleInfo")
-		return role and role:FindFirstChild("TelescopicBtn"),role and role:FindFirstChild("Buttons")
+		local buttons=role and role:FindFirstChild("Buttons")
+		local telescopic=role and role:FindFirstChild("TelescopicBtn")
+		return telescopic,buttons,telescopic and telescopic:FindFirstChild("phone"),telescopic and telescopic:FindFirstChild("Arrow")
 	end
 	local function isPhoneOpen()
 		local _,buttons=getPhoneParts()
 		return buttons and buttons.Visible and buttons.Size.X.Scale>=0.9 and buttons.Size.Y.Scale>=0.9
 	end
+	local function forcePhoneOpenState()
+		local telescopic,buttons,phone,arrow=getPhoneParts()
+		if not telescopic or not buttons then return false,"No encontré la interfaz del teléfono" end
+		buttons.Visible=true
+		buttons.Size=UDim2.new(1,0,1,0)
+		telescopic.Visible=true
+		telescopic.Position=UDim2.new(-0.159039497,0,0.146093443,0)
+		if phone then phone.Visible=false end
+		if arrow then
+			arrow.Position=UDim2.new(0.740999997,0,0.5,0)
+			arrow.Rotation=0
+		end
+		return true
+	end
+	local function clearSelectBG(holderName)
+		local _,buttons=getPhoneParts()
+		local holder=buttons and buttons:FindFirstChild(holderName)
+		local button=holder and holder:FindFirstChild("Button")
+		local selectbg=button and button:FindFirstChild("selectbg")
+		if selectbg then selectbg.Visible=false end
+	end
+	local function forcePhoneBack()
+		local communicate=playerGui:FindFirstChild("DialogCommunicate")
+		if communicate and communicate.Enabled then
+			local root=communicate:FindFirstChild("Root")
+			local panelUser=root and root:FindFirstChild("PanelUserList")
+			local panelChat=root and root:FindFirstChild("PanelChat")
+			if panelUser then panelUser.Visible=false end
+			if panelChat then panelChat.Visible=false end
+			communicate.Enabled=false
+			clearSelectBG("CommunicateBtn")
+		end
+		local vehicle=playerGui:FindFirstChild("DialogVehicle")
+		if vehicle and vehicle.Enabled then
+			vehicle.Enabled=false
+			clearSelectBG("VehicleBtn")
+		end
+		local backpack=playerGui:FindFirstChild("DialogBackpack")
+		if backpack and backpack.Enabled then backpack.Enabled=false end
+		local room=playerGui:FindFirstChild("DialogChooseRoomType")
+		if room and room.Enabled then room.Enabled=false end
+	end
 	local function forcePhoneMinimized()
-		if not isPhoneOpen() then return true end
-		local telescopic=getPhoneParts()
-		if not telescopic or not telescopic:IsA("GuiButton") then return false,"No encontré TelescopicBtn para minimizar el teléfono" end
+		forcePhoneBack()
+		local opened,openErr=forcePhoneOpenState()
+		if not opened then return false,openErr end
+		for _=1,2 do RunService.RenderStepped:Wait() end
+		local telescopic,buttons,phone,arrow=getPhoneParts()
+		if not telescopic or not buttons then return false,"No encontré la interfaz del teléfono" end
 		update(isES and "Reiniciando el teléfono..." or "Resetting phone...")
-		if not click(telescopic) then return false,isES and "No pude minimizar el teléfono." or "Could not minimize phone." end
-		local deadline=os.clock()+1.5
-		while os.clock()<deadline and isPhoneOpen() do task.wait(0.03) end
-		if isPhoneOpen() then return false,isES and "El teléfono no confirmó la minimización." or "The phone did not confirm minimization." end
+		buttons.Visible=false
+		buttons.Size=UDim2.new(0.199999988,0,0.199999988,0)
+		telescopic.Visible=true
+		telescopic.Position=UDim2.new(0.685960591,0,0.146093443,0)
+		if phone then phone.Visible=true end
+		if arrow then
+			arrow.Position=UDim2.new(0.141000003,0,0.5,0)
+			arrow.Rotation=180
+		end
+		for _=1,2 do RunService.RenderStepped:Wait() end
+		if isPhoneOpen() then return false,isES and "No pude establecer el teléfono minimizado." or "Could not set minimized phone state." end
 		return true
 	end
 	local function ensurePhoneOpen()
-		local telescopic,buttons=getPhoneParts()
-		if not telescopic then return false,"No encontré TelescopicBtn" end
-		if not buttons then return false,"No encontré Buttons" end
-		if not (buttons.Visible and buttons.Size.X.Scale>=0.9 and buttons.Size.Y.Scale>=0.9) then
-			update(isES and "Abriendo el teléfono..." or "Opening phone...")
-			telescopic.Position=UDim2.new(-0.159039438,0,0.146093443,0)
-			buttons.Visible,buttons.Size=true,UDim2.new(1,0,1,0)
-			for _=1,3 do RunService.RenderStepped:Wait() end
-			task.wait(0.10)
-		end
+		if isPhoneOpen() then return true end
+		update(isES and "Abriendo el teléfono..." or "Opening phone...")
+		local ok,err=forcePhoneOpenState()
+		if not ok then return false,err end
+		for _=1,3 do RunService.RenderStepped:Wait() end
+		task.wait(0.10)
+		if not isPhoneOpen() then return false,isES and "No pude establecer el teléfono abierto." or "Could not set open phone state." end
 		return true
 	end
 	local function initializeVehicleMenu()
