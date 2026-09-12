@@ -166,10 +166,47 @@ repeat task.wait(0.1) until selectedLang
 Settings.language = selectedLang
 SaveData()
 
-TweenService:Create(langBox, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0), Rotation = 360}):Play()
-TweenService:Create(langScreen, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-task.wait(0.4)
-langScreen:Destroy()
+local revealLine = Instance.new("Frame")
+revealLine.Name = "LanguageRevealLine"
+revealLine.Size = UDim2.new(0, 0, 0, isMobile and 2 or 3)
+revealLine.Position = UDim2.fromScale(0.5, 0.5)
+revealLine.AnchorPoint = Vector2.new(0.5, 0.5)
+revealLine.BackgroundColor3 = langTheme.accent
+revealLine.BorderSizePixel = 0
+revealLine.ZIndex = 20006
+revealLine.Parent = langScreen
+Instance.new("UICorner", revealLine).CornerRadius = UDim.new(1, 0)
+
+local revealGradient = Instance.new("UIGradient")
+revealGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, langTheme.stroke),
+	ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+	ColorSequenceKeypoint.new(1, langTheme.accent)
+}
+revealGradient.Parent = revealLine
+
+for _, object in ipairs(langBox:GetDescendants()) do
+	if object:IsA("GuiObject") then
+		TweenService:Create(object, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	end
+	if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+		TweenService:Create(object, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
+	end
+	if object:IsA("UIStroke") then
+		TweenService:Create(object, TweenInfo.new(0.20), {Transparency = 1}):Play()
+	end
+end
+TweenService:Create(langBox, TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+	Position = UDim2.fromScale(0.5, 0.485),
+	BackgroundTransparency = 1
+}):Play()
+TweenService:Create(revealLine, TweenInfo.new(0.46, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+	Size = UDim2.new(0.68, 0, 0, isMobile and 2 or 3)
+}):Play()
+task.wait(0.46)
+langBox.Visible = false
+languageRevealScreen = langScreen
+languageRevealLine = revealLine
 
 end
 

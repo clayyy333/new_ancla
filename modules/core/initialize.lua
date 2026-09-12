@@ -7,10 +7,28 @@ return function(context)
 
 main.Rotation = 0
 openSize = GetDefaultSize()
-TweenService:Create(main, TweenInfo.new(0.45, Enum.EasingStyle.Back), {Size = openSize, BackgroundTransparency = 0}):Play()
-TweenService:Create(mainStroke, TweenInfo.new(0.45), {Transparency = 0}):Play()
-
-task.wait(0.5)
+if languageRevealScreen and languageRevealScreen.Parent then
+	main.Size = UDim2.new(openSize.X.Scale * 0.96, math.floor(openSize.X.Offset * 0.96), openSize.Y.Scale * 0.96, math.floor(openSize.Y.Offset * 0.96))
+	main.BackgroundTransparency = 1
+	mainStroke.Transparency = 1
+	TweenService:Create(main, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = openSize, BackgroundTransparency = 0}):Play()
+	TweenService:Create(mainStroke, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+	TweenService:Create(languageRevealScreen, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	if languageRevealLine and languageRevealLine.Parent then
+		TweenService:Create(languageRevealLine, TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Size = UDim2.new(0.9, 0, 0, 1),
+			BackgroundTransparency = 1
+		}):Play()
+	end
+	task.wait(0.64)
+	languageRevealScreen:Destroy()
+	languageRevealScreen = nil
+	languageRevealLine = nil
+else
+	TweenService:Create(main, TweenInfo.new(0.45, Enum.EasingStyle.Back), {Size = openSize, BackgroundTransparency = 0}):Play()
+	TweenService:Create(mainStroke, TweenInfo.new(0.45), {Transparency = 0}):Play()
+	task.wait(0.5)
+end
 
 main.ClipsDescendants = true
 ApplyTheme(Settings.theme)
