@@ -26,16 +26,20 @@ UpdateTabStyles = function()
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isAnchorAuto
+	local isControl = currentTab == "camera_control" or currentTab == "flight_control"
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor
+	local isFlingView = isFling2Category or isAnchor or isControl
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
 	anchorNav.Visible = isAnchor
+	controlNav.Visible = isControl
 	content.Position = UDim2.new(0, sideBarW, 0, topNavH)
 	content.Size = UDim2.new(1, -sideBarW, 1, -topNavH)
 	SetButtonStyle(mainNavButtonStyle, not isFlingView)
 	SetButtonStyle(fling2NavButtonStyle, isFling2Category)
 	SetButtonStyle(anchorNavButtonStyle, isAnchor)
+	SetButtonStyle(controlNavButtonStyle, isControl)
+	for name, data in pairs(controlTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(anchorTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(fling2TabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(tabBtns) do
@@ -421,8 +425,11 @@ UpdateTabData = function()
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isAnchorAuto
+	local isCameraControl = currentTab == "camera_control"
+	local isFlightControl = currentTab == "flight_control"
+	local isControl = isCameraControl or isFlightControl
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor
+	local isFlingView = isFling2Category or isAnchor or isControl
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
@@ -433,6 +440,8 @@ UpdateTabData = function()
 	motoFlingXenoPanel.Visible = isFlingMotoXeno
 	anchorPanel.Visible = isAnchorBasic
 	autoAnchorPanel.Visible = isAnchorAuto
+	cameraControlPanel.Visible = isCameraControl
+	flightControlPanel.Visible = isFlightControl
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
 	if isPlaylists and not viewingPlaylist then
@@ -535,6 +544,12 @@ UpdateTabData = function()
 	elseif currentTab == "fling_moto_xeno" then
 		title.Text = isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"
 		if UpdateMotoFlingXenoPanel then UpdateMotoFlingXenoPanel() end
+	elseif currentTab == "camera_control" then
+		title.Text = isES and "Perspectiva Cámara" or "Camera Perspective"
+		if UpdateCameraControlPanel then UpdateCameraControlPanel() end
+	elseif currentTab == "flight_control" then
+		title.Text = isES and "Control de vuelo" or "Flight Control"
+		if UpdateFlightControlPanel then UpdateFlightControlPanel() end
 	elseif currentTab == "animations" then
 		currentData = AnimationPacks
 		filtered = AnimationPacks
@@ -549,6 +564,9 @@ end
 
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 mainNavBtns["anchor"].MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
+mainNavBtns["control"].MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
+controlTabBtns["camera_control"].btn.MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
+controlTabBtns["flight_control"].btn.MouseButton1Click:Connect(function() currentTab = "flight_control"; UpdateTabData() end)
 anchorTabBtns["anchor"].btn.MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
 anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_auto"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
@@ -574,7 +592,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

@@ -321,7 +321,18 @@ do
 end
 
 do
-	local speedRow = MakeRow("113837085020684", L.speed, "", 3, 78)
+	local ambientTitle = isES and "Sonido de ambiente" or "Ambient sound"
+	local ambientDesc = isES and "Activa o silencia el ambiente de día y noche" or "Enable or mute daytime and nighttime ambience"
+	local ambientRow = MakeRow("", ambientTitle, ambientDesc, 3)
+	MakePillToggle(ambientRow, Settings.ambientSound ~= false, function(v)
+		Settings.ambientSound = v
+		if AmbientSoundController then AmbientSoundController:SetEnabled(v) end
+		SaveData()
+	end)
+end
+
+do
+	local speedRow = MakeRow("113837085020684", L.speed, "", 4, 78)
 	local speeds = {0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3}
 	local speedIdx = 4
 	for i, s in ipairs(speeds) do if s == Settings.speed then speedIdx = i end end

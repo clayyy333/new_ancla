@@ -80,7 +80,27 @@ return function(context)
 	anchorOverlay.Parent = anchorNav
 	RegisterTheme(anchorOverlay, "BackgroundColor3", "sidebar")
 
-	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns = {}, {}, {}, {}
+	controlNav = Instance.new("Frame")
+	controlNav.Name = "ControlNavigation"
+	controlNav.Size = UDim2.new(0, sideBarW, 1, -topNavH)
+	controlNav.Position = UDim2.new(0, 0, 0, topNavH)
+	controlNav.BackgroundColor3 = currentTheme.sidebar
+	controlNav.ClipsDescendants = true
+	controlNav.Visible = false
+	controlNav.ZIndex = 18
+	controlNav.Parent = main
+	Instance.new("UICorner", controlNav).CornerRadius = UDim.new(0, 14)
+	RegisterTheme(controlNav, "BackgroundColor3", "sidebar")
+	local controlOverlay = Instance.new("Frame")
+	controlOverlay.Size = UDim2.new(0, 10, 1, 0)
+	controlOverlay.Position = UDim2.new(1, -10, 0, 0)
+	controlOverlay.BackgroundColor3 = currentTheme.sidebar
+	controlOverlay.BorderSizePixel = 0
+	controlOverlay.ZIndex = 17
+	controlOverlay.Parent = controlNav
+	RegisterTheme(controlOverlay, "BackgroundColor3", "sidebar")
+
+	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns, controlTabBtns = {}, {}, {}, {}, {}
 
 	local function CreateTextButton(parent, text, name, size, position)
 		local btn = Instance.new("TextButton")
@@ -98,7 +118,7 @@ return function(context)
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-		if parent == movementNav or parent == fling2Nav or parent == anchorNav then
+		if parent == movementNav or parent == fling2Nav or parent == anchorNav or parent == controlNav then
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			local textPadding = Instance.new("UIPadding")
 			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
@@ -160,6 +180,16 @@ return function(context)
 	mainNavBtns.anchor = anchorBtn
 	anchorNavButtonStyle = {btn = anchorBtn, stroke = anchorStroke, gradient = anchorGradient}
 
+	local controlBtn, controlStroke, controlGradient = CreateTextButton(
+		mainNav, isES and "Control" or "Control", "control",
+		UDim2.new(0, isMobile and 86 or 105, 1, 0),
+		UDim2.new(0, isMobile and 310 or 384, 0, 0)
+	)
+	controlBtn.Font = Enum.Font.GothamBold
+	controlBtn.TextSize = isMobile and 14 or 16
+	mainNavBtns.control = controlBtn
+	controlNavButtonStyle = {btn = controlBtn, stroke = controlStroke, gradient = controlGradient}
+
 	local labels = {
 		{"emotes", L.emotes},
 		{"animations", L.animations},
@@ -209,6 +239,19 @@ return function(context)
 			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
 		)
 		anchorTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
+	end
+
+	local controlLabels = {
+		{"camera_control", isES and "Perspectiva Cámara" or "Camera Perspective"},
+		{"flight_control", isES and "Control de vuelo" or "Flight Control"},
+	}
+	for index, item in ipairs(controlLabels) do
+		local btn, stroke, gradient = CreateTextButton(
+			controlNav, item[2], item[1],
+			UDim2.new(1, -(pad * 2), 0, buttonH),
+			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
+		)
+		controlTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
 
 	return true
