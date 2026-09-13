@@ -2,8 +2,45 @@
 return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
+	local SoundService=game:GetService("SoundService")
 	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12}
 	local connections={}; local renderConnection; local rotating=false; local activeTouch; local lastTouch
+	local savedLegacyListener; local managedAudioListeners={}; local listenerCamera
+	local function beginCameraAudio(camera)
+		if not savedLegacyListener then
+			local ok,listenerType,listener=pcall(function() return SoundService:GetListener() end)
+			if ok then savedLegacyListener={listenerType,listener} end
+		end
+		pcall(function() SoundService:SetListener(Enum.ListenerType.Camera) end)
+		listenerCamera=camera
+		local candidates={camera,player.Character,SoundService}
+		for _,container in ipairs(candidates) do
+			if container then
+				for _,item in ipairs(container:GetDescendants()) do
+					if item:IsA("AudioListener") and not managedAudioListeners[item] then
+						managedAudioListeners[item]=item.Parent
+						pcall(function() item.Parent=camera end)
+					end
+				end
+			end
+		end
+	end
+	local function updateCameraAudio(camera)
+		if camera~=listenerCamera then listenerCamera=camera end
+		for listener in pairs(managedAudioListeners) do
+			if listener.Parent and listener.Parent~=camera then pcall(function() listener.Parent=camera end) end
+		end
+	end
+	local function restoreCameraAudio()
+		if savedLegacyListener then
+			pcall(function() SoundService:SetListener(savedLegacyListener[1],savedLegacyListener[2]) end)
+			savedLegacyListener=nil
+		end
+		for listener,parent in pairs(managedAudioListeners) do
+			if listener.Parent and parent and parent.Parent then pcall(function() listener.Parent=parent end) end
+		end
+		table.clear(managedAudioListeners); listenerCamera=nil
+	end
 	local function root(p) local c=p and p.Character; return c and c:FindFirstChild("HumanoidRootPart") end
 	local function humanoid(p) local c=p and p.Character; return c and c:FindFirstChildOfClass("Humanoid") end
 	function Spectator:GetTargetOptions() local t={} for _,p in ipairs(Players:GetPlayers()) do if p~=player then t[#t+1]=p end end return t end
@@ -19,6 +56,7 @@ return function(context)
 	function Spectator:Stop()
 		self.Active=false; rotating=false; activeTouch=nil; lastTouch=nil
 		if renderConnection then renderConnection:Disconnect(); renderConnection=nil end
+		restoreCameraAudio()
 		pcall(function() UserInputService.MouseBehavior=Enum.MouseBehavior.Default end)
 		local camera=Workspace.CurrentCamera
 		if camera then camera.CameraType=Enum.CameraType.Custom; local h=humanoid(player); if h then camera.CameraSubject=h end end
@@ -29,11 +67,12 @@ return function(context)
 		local camera=Workspace.CurrentCamera
 		if not camera then return false,isES and "La cámara no está disponible." or "Camera is unavailable." end
 		if renderConnection then renderConnection:Disconnect() end
-		self.Active=true; camera.CameraType=Enum.CameraType.Scriptable; self.TargetDistance=self.Distance
+		self.Active=true; camera.CameraType=Enum.CameraType.Scriptable; self.TargetDistance=self.Distance; beginCameraAudio(camera)
 		renderConnection=RunService.RenderStepped:Connect(function(dt)
 			if not self.Active then return end
 			camera=Workspace.CurrentCamera; local r=root(self.Target)
 			if not camera or not r then return end
+			updateCameraAudio(camera)
 			self.Distance+=(self.TargetDistance-self.Distance)*(1-math.exp(-12*dt))
 			local targetPos=r.Position+Vector3.new(0,2,0)
 			local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
