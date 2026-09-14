@@ -57,15 +57,9 @@ return function(context)
 	function Tracker:GetActiveTools()
 		local result = {}; local backpack = player:FindFirstChildOfClass("Backpack")
 		if not backpack then return result end
-		for _, tool in ipairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") then
-				local uid = tool:GetAttribute("UserId")
-				local owned = uid == nil or tostring(uid) == tostring(player.UserId)
-				local record = self.Records[tool]
-				if owned and (tool:GetAttribute("ExtraType") == "SetupBuildTool" or (record and (record.ObjectRoot or record.LocalToolHelper))) then result[#result+1] = tool end
-			end
-		end
-		table.sort(result, function(a,b) return a.Name:lower() < b.Name:lower() end); return result
+		for _, object in ipairs(backpack:GetChildren()) do result[#result+1] = object end
+		table.sort(result, function(a,b) return a.Name:lower() < b.Name:lower() end)
+		return result
 	end
 	function Tracker:GetPhysicalRoot(tool)
 		local record = self.Records[tool] or register(tool)

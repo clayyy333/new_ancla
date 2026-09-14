@@ -46,7 +46,14 @@ local function directRoot(object)
 end
 
 local function ownerMatches(object)
-	local owner = object and object:FindFirstChild("Owner", true)
+	for _, attributeName in ipairs({"UserId", "OwnerId", "Owner"}) do
+		local value = object and object:GetAttribute(attributeName)
+		if value ~= nil then
+			local text = tostring(value)
+			return text == tostring(LocalPlayer.UserId) or text == LocalPlayer.Name
+		end
+	end
+	local owner = object and object:FindFirstChild("Owner")
 	if owner then
 		if owner:IsA("ObjectValue") then return owner.Value == LocalPlayer end
 		local ok, value = pcall(function() return owner.Value end)
@@ -55,16 +62,8 @@ local function ownerMatches(object)
 			return text == tostring(LocalPlayer.UserId) or text == LocalPlayer.Name
 		end
 	end
-	for _, attributeName in ipairs({"Owner", "OwnerId", "UserId"}) do
-		local value = object and object:GetAttribute(attributeName)
-		if value ~= nil then
-			local text = tostring(value)
-			return text == tostring(LocalPlayer.UserId) or text == LocalPlayer.Name
-		end
-	end
 	return nil
 end
-
 local function findObjectRoot(object)
 	if not object then return nil end
 	if ToolTracker then
