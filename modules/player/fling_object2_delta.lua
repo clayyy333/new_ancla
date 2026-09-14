@@ -67,6 +67,10 @@ end
 
 local function findObjectRoot(object)
 	if not object then return nil end
+	if ToolTracker then
+		local tracked = ToolTracker:GetPhysicalRoot(object)
+		if tracked then return tracked end
+	end
 	local cached = resolvedRoots[object]
 	if cached and cached.Parent then return cached end
 	local root = directRoot(object)
@@ -100,6 +104,7 @@ local function isMyObject(object)
 end
 
 local function listMyObjects()
+	if ToolTracker then return ToolTracker:GetActiveTools() end
 	local result = {}
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if not backpack then return result end
