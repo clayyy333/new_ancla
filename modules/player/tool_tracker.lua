@@ -41,12 +41,15 @@ return function(context)
 		if not Tracker.Running or not tool:IsA("Tool") then return end
 		local record = Tracker.Records[tool]
 		if record then inspect(record); return record end
-		record = {Tool=tool, ToolName=tool.Name, Attributes=tool:GetAttributes(), CurrentParent=tool.Parent, Equipped=tool.Parent==player.Character, Connections={}}
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		record = {Tool=tool, ToolName=tool.Name, Attributes=tool:GetAttributes(), CurrentParent=tool.Parent, SeenInBackpack=backpack and tool.Parent==backpack or false, Equipped=tool.Parent==player.Character, Connections={}}
 		Tracker.Records[tool] = record
 		table.insert(record.Connections, tool.ChildAdded:Connect(function() task.defer(inspect, record) end))
 		table.insert(record.Connections, tool.DescendantAdded:Connect(function() task.defer(inspect, record) end))
 		table.insert(record.Connections, tool.AncestryChanged:Connect(function(_, parent)
 			record.CurrentParent = parent
+			local currentBackpack = player:FindFirstChildOfClass("Backpack")
+			if currentBackpack and parent == currentBackpack then record.SeenInBackpack = true end
 			local nowEquipped = parent == player.Character
 			if nowEquipped and not record.Equipped then equipped:Fire(tool, record) end
 			record.Equipped = nowEquipped
@@ -57,7 +60,17 @@ return function(context)
 	function Tracker:GetActiveTools()
 		local result = {}; local backpack = player:FindFirstChildOfClass("Backpack")
 		if not backpack then return result end
-		for _, object in ipairs(backpack:GetChildren()) do result[#result+1] = object end
+		local seen = {}
+		for _, object in ipairs(backpack:GetChildren()) do result[#result+1] = object; seen[object] = true end
+		local character = player.Character
+		if character then
+			for _, object in ipairs(character:GetChildren()) do
+				local record = self.Records[object]
+				if not seen[object] and object:IsA("Tool") and ((record and record.SeenInBackpack) or object:GetAttribute("ExtraType") == "SetupBuildTool") then
+					result[#result+1] = object
+				end
+			end
+		end
 		table.sort(result, function(a,b) return a.Name:lower() < b.Name:lower() end)
 		return result
 	end

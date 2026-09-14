@@ -97,9 +97,10 @@ local function isMyObject(object)
 	if not object then return false end
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	local localContainer = (backpack and object.Parent == backpack) or object.Parent == LocalPlayer.Character
+	if localContainer then return true end
 	local owned = ownerMatches(object)
 	if owned ~= nil then return owned end
-	return localContainer
+	return false
 end
 
 local function listMyObjects()
