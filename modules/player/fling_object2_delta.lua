@@ -98,7 +98,21 @@ local function prepareObject(object)
 		pcall(function() humanoid:EquipTool(object) end)
 		RunService.Heartbeat:Wait()
 	end
-	return findObjectRoot(object)
+	local root = findObjectRoot(object)
+	local character = LocalPlayer.Character
+	if root and character then
+		for _, joint in ipairs(character:GetDescendants()) do
+			local isJoint = joint:IsA("JointInstance") or joint:IsA("WeldConstraint")
+			if isJoint then
+				local part0, part1 = joint.Part0, joint.Part1
+				local other = part0 == root and part1 or (part1 == root and part0 or nil)
+				if other and other:IsDescendantOf(character) and not other:IsDescendantOf(object) then
+					pcall(function() joint:Destroy() end)
+				end
+			end
+		end
+	end
+	return root
 end
 local function getPlayerRoot(player)
 	if not player then return nil end
@@ -384,6 +398,8 @@ function ObjectFling2DeltaCore:Stop()
 	self.Direction = 1
 	self.EfficientPhase = "IDLE"
 	self.Stopping = false
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	if car and car:IsA("Tool") and backpack then pcall(function() car.Parent = backpack end) end
 	return wasRunning
 end
 
