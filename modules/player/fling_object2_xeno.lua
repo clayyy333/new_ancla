@@ -28,33 +28,58 @@ local CONFIG = {
 -- UTILIDADES CARRO + OWNER (CarSpawnPoints)
 --------------------------------------------------
 
-local function findObjectRoot(tool)
-	if not tool or not tool:IsA("Tool") then return nil end
-	local handle = tool:FindFirstChild("Handle")
+local function findObjectRoot(object)
+	if not object then return nil end
+	if object:IsA("BasePart") then return object end
+	if object:IsA("Model") and object.PrimaryPart then return object.PrimaryPart end
+	local handle = object:FindFirstChild("Handle", true)
 	if handle and handle:IsA("BasePart") then return handle end
-	for _, descendant in ipairs(tool:GetDescendants()) do
+	for _, descendant in ipairs(object:GetDescendants()) do
 		if descendant:IsA("BasePart") and not descendant.Anchored then return descendant end
 	end
-	for _, descendant in ipairs(tool:GetDescendants()) do
+	for _, descendant in ipairs(object:GetDescendants()) do
 		if descendant:IsA("BasePart") then return descendant end
 	end
 	return nil
 end
 
-local function isMyObject(tool)
-	if not tool or not tool:IsA("Tool") then return false end
+local function ownerMatches(object)
+	local owner = object and object:FindFirstChild("Owner", true)
+	if owner then
+		if owner:IsA("ObjectValue") then return owner.Value == LocalPlayer end
+		local ok, value = pcall(function() return owner.Value end)
+		if ok then
+			local text = tostring(value)
+			return text == tostring(LocalPlayer.UserId) or text == LocalPlayer.Name
+		end
+	end
+	for _, attributeName in ipairs({"Owner", "OwnerId", "UserId"}) do
+		local value = object and object:GetAttribute(attributeName)
+		if value ~= nil then
+			local text = tostring(value)
+			return text == tostring(LocalPlayer.UserId) or text == LocalPlayer.Name
+		end
+	end
+	return nil
+end
+
+local function isMyObject(object)
+	if not object then return false end
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-	return (backpack and tool.Parent == backpack) or tool.Parent == LocalPlayer.Character
+	local localContainer = (backpack and object.Parent == backpack) or object.Parent == LocalPlayer.Character
+	local owned = ownerMatches(object)
+	if owned ~= nil then return owned end
+	return localContainer
 end
 
 local function listMyObjects()
 	local result, seen = {}, {}
 	local function collect(container)
 		if not container then return end
-		for _, tool in ipairs(container:GetChildren()) do
-			if tool:IsA("Tool") and not seen[tool] and findObjectRoot(tool) then
-				seen[tool] = true
-				table.insert(result, tool)
+		for _, object in ipairs(container:GetChildren()) do
+			if not seen[object] and isMyObject(object) and findObjectRoot(object) then
+				seen[object] = true
+				table.insert(result, object)
 			end
 		end
 	end
@@ -64,17 +89,17 @@ local function listMyObjects()
 	return result
 end
 
-local function prepareObject(tool)
-	if not isMyObject(tool) then return nil end
+local function prepareObject(object)
+	if not isMyObject(object) then return nil end
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-	if backpack and tool.Parent == backpack then
+	if object:IsA("Tool") and backpack and object.Parent == backpack then
 		local character = LocalPlayer.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if not humanoid then return nil end
-		pcall(function() humanoid:EquipTool(tool) end)
+		pcall(function() humanoid:EquipTool(object) end)
 		RunService.Heartbeat:Wait()
 	end
-	return findObjectRoot(tool)
+	return findObjectRoot(object)
 end
 local function getPlayerRoot(player)
 	if not player then return nil end
