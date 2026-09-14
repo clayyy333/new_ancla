@@ -84,7 +84,6 @@ local function listMyObjects()
 		end
 	end
 	collect(LocalPlayer:FindFirstChildOfClass("Backpack"))
-	collect(LocalPlayer.Character)
 	table.sort(result, function(a, b) return a.Name:lower() < b.Name:lower() end)
 	return result
 end
