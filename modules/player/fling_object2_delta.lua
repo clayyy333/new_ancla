@@ -28,7 +28,9 @@ local CONFIG = {
 -- UTILIDADES CARRO + OWNER (CarSpawnPoints)
 --------------------------------------------------
 
-local function findObjectRoot(object)
+local resolvedRoots = setmetatable({}, {__mode = "k"})
+
+local function directRoot(object)
 	if not object then return nil end
 	if object:IsA("BasePart") then return object end
 	if object:IsA("Model") and object.PrimaryPart then return object.PrimaryPart end
@@ -63,6 +65,31 @@ local function ownerMatches(object)
 	return nil
 end
 
+local function findObjectRoot(object)
+	if not object then return nil end
+	local cached = resolvedRoots[object]
+	if cached and cached.Parent then return cached end
+	local root = directRoot(object)
+	if root then resolvedRoots[object] = root; return root end
+	if object:IsA("ObjectValue") and typeof(object.Value) == "Instance" then
+		root = directRoot(object.Value)
+		if root then resolvedRoots[object] = root; return root end
+	end
+	for _, descendant in ipairs(object:GetDescendants()) do
+		if descendant:IsA("ObjectValue") and typeof(descendant.Value) == "Instance" then
+			root = directRoot(descendant.Value)
+			if root then resolvedRoots[object] = root; return root end
+		end
+	end
+	for _, candidate in ipairs(Workspace:GetDescendants()) do
+		if candidate.Name == object.Name and candidate ~= object and ownerMatches(candidate) == true then
+			root = directRoot(candidate)
+			if root then resolvedRoots[object] = root; return root end
+		end
+	end
+	return nil
+end
+
 local function isMyObject(object)
 	if not object then return false end
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
@@ -73,17 +100,12 @@ local function isMyObject(object)
 end
 
 local function listMyObjects()
-	local result, seen = {}, {}
-	local function collect(container)
-		if not container then return end
-		for _, object in ipairs(container:GetChildren()) do
-			if not seen[object] and isMyObject(object) and findObjectRoot(object) then
-				seen[object] = true
-				table.insert(result, object)
-			end
-		end
+	local result = {}
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	if not backpack then return result end
+	for _, object in ipairs(backpack:GetChildren()) do
+		if isMyObject(object) then table.insert(result, object) end
 	end
-	collect(LocalPlayer:FindFirstChildOfClass("Backpack"))
 	table.sort(result, function(a, b) return a.Name:lower() < b.Name:lower() end)
 	return result
 end
