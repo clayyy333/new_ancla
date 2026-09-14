@@ -126,7 +126,7 @@ local function prepareObject(object)
 		RunService.Heartbeat:Wait()
 	end
 	local root = findObjectRoot(object)
-	if not root and ToolTracker then root = ToolTracker:WaitForPhysicalRoot(object, 1.25, false) end
+	if not root and ToolTracker then root = ToolTracker:WaitForPhysicalRoot(object, 3) end
 	local character = LocalPlayer.Character
 	if root and character then
 		for _, joint in ipairs(character:GetDescendants()) do
@@ -272,7 +272,7 @@ function ObjectFling2XenoCore:Start()
 
 	local carRoot = prepareObject(car)
 	if not carRoot then
-		return false, "El objeto no tiene una pieza física utilizable."
+		return false, (ToolTracker and ToolTracker.LastError) or "El objeto no tiene una pieza física utilizable."
 	end
 
 	local targetRoot = getPlayerRoot(self.SelectedPlayer)
