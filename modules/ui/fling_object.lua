@@ -96,9 +96,9 @@ return function(context)
 	autoXenoButton.TextSize = isMobile and 10 or 11
 	autoXenoButton.Parent = card
 
-	local info = makeLabel(isES and "Modo estable: FAR moderado de 50 a 200 studs." or "Stable mode: moderate FAR from 50 to 200 studs.", 298)
+	local info = makeLabel(isES and "Modo estable: FAR moderado de 50 a 200 studs." or "Stable mode: moderate FAR from 50 to 200 studs.", 350)
 	info.TextWrapped, info.Size = true, UDim2.new(1,0,0,34)
-	local status = makeLabel("", 334)
+	local status = makeLabel("", 298)
 	status.Size = UDim2.new(1, 0, 0, 42)
 	status.TextWrapped = true
 
@@ -174,14 +174,14 @@ return function(context)
 		if ObjectFling2Xeno.Running then UpdateObjectFlingPanel(isES and "Desactiva Xeno primero" or "Disable Stable Xeno first"); return end
 		if not ObjectFling2Delta:GetCar() then UpdateObjectFlingPanel(isES and "Selecciona un objeto del Backpack" or "Select a Backpack object"); return end
 		if not ObjectFling2Delta:GetPlayer() then UpdateObjectFlingPanel(L.selectPlayerFirst); return end
-		local ok, err = ObjectFling2Delta:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed))
+		local ok, err = ObjectFling2Delta:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed)); if not ok then Notify(isES and "Fling con objeto" or "Object Fling", err or L.flingStartFailed) end
 	end)
 	xenoAction.MouseButton1Click:Connect(function()
 		if ObjectFling2Xeno.Running then autoXeno = false; ObjectFling2Xeno:Stop(); UpdateObjectFlingPanel(); return end
 		if ObjectFling2Delta.Running then UpdateObjectFlingPanel(isES and "Desactiva Delta estable primero" or "Disable Stable Delta first"); return end
 		if not ObjectFling2Xeno:GetCar() then UpdateObjectFlingPanel(isES and "Selecciona un objeto del Backpack" or "Select a Backpack object"); return end
 		if not ObjectFling2Xeno:GetPlayer() then UpdateObjectFlingPanel(L.selectPlayerFirst); return end
-		local ok, err = ObjectFling2Xeno:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed))
+		local ok, err = ObjectFling2Xeno:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed)); if not ok then Notify(isES and "Fling con objeto" or "Object Fling", err or L.flingStartFailed) end
 	end)
 	_objectFlingUiConn = RunService.Heartbeat:Connect(function()
 		if not objectFlingPanel.Visible then return end

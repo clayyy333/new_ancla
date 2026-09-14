@@ -79,7 +79,17 @@ return function(context)
 		if not record then return nil end
 		inspect(record); return physicalPart(record.ObjectRoot) or physicalPart(tool)
 	end
-	function Tracker:Stop()
+	function Tracker:WaitForPhysicalRoot(tool, timeout, activate)
+		local root = self:GetPhysicalRoot(tool)
+		if root then return root end
+		if activate and tool and tool:IsA("Tool") then pcall(function() tool:Activate() end) end
+		local deadline = os.clock() + (timeout or 1.25)
+		repeat
+			RunService.Heartbeat:Wait()
+			root = self:GetPhysicalRoot(tool)
+		until root or os.clock() >= deadline
+		return root
+	end	function Tracker:Stop()
 		if not self.Running then return end; self.Running = false
 		for _, connection in ipairs(self.Connections) do connection:Disconnect() end
 		for _, record in pairs(self.Records) do for _, connection in ipairs(record.Connections) do connection:Disconnect() end end

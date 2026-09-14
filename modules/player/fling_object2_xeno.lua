@@ -126,6 +126,7 @@ local function prepareObject(object)
 		RunService.Heartbeat:Wait()
 	end
 	local root = findObjectRoot(object)
+	if not root and ToolTracker then root = ToolTracker:WaitForPhysicalRoot(object, 1.25, true) end
 	local character = LocalPlayer.Character
 	if root and character then
 		for _, joint in ipairs(character:GetDescendants()) do
