@@ -332,7 +332,17 @@ do
 end
 
 do
-	local speedRow = MakeRow("113837085020684", L.speed, "", 4, 78)
+	local antiAFKTitle = "Anti-AFK"
+	local antiAFKDesc = isES and "Evita la expulsión por inactividad con una interacción cada 10 minutos" or "Prevents idle disconnection with an interaction every 10 minutes"
+	local antiAFKRow = MakeRow("", antiAFKTitle, antiAFKDesc, 4)
+	MakePillToggle(antiAFKRow, Settings.antiAFK == true, function(v)
+		Settings.antiAFK = v
+		if AntiAFKController then AntiAFKController:SetEnabled(v) end
+		SaveData()
+	end)
+end
+do
+	local speedRow = MakeRow("113837085020684", L.speed, "", 5, 78)
 	local speeds = {0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3}
 	local speedIdx = 4
 	for i, s in ipairs(speeds) do if s == Settings.speed then speedIdx = i end end
