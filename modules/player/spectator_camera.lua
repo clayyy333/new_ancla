@@ -3,9 +3,28 @@ return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
 	local SoundService=game:GetService("SoundService")
+	local GuiService=game:GetService("GuiService")
+	local CoreGui=game:GetService("CoreGui")
 	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12}
 	local connections={}; local renderConnection; local rotating=false; local activeTouch; local lastTouch
 	local savedLegacyListener; local managedAudioListeners={}; local listenerCamera
+	local function isPointerOverInteractiveGui(position)
+		if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then return true end
+		position=position or UserInputService:GetMouseLocation()
+		local function inspect(rootGui)
+			local ok,objects=pcall(function() return rootGui:GetGuiObjectsAtPosition(position.X,position.Y) end)
+			if not ok then return false end
+			for _,object in ipairs(objects) do
+				local current=object
+				while current and current~=rootGui do
+					if current:IsA("ScrollingFrame") or current:IsA("GuiButton") or current:IsA("TextBox") then return true end
+					current=current.Parent
+				end
+			end
+			return false
+		end
+		return inspect(playerGui) or inspect(CoreGui)
+	end
 	local function beginCameraAudio(camera)
 		if not savedLegacyListener then
 			local ok,listenerType,listener=pcall(function() return SoundService:GetListener() end)
@@ -88,9 +107,14 @@ return function(context)
 	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input)
 		if not Spectator.Active then return end
 		if rotating and input.UserInputType==Enum.UserInputType.MouseMovement then Spectator.Yaw-=input.Delta.X*0.006; Spectator.Pitch=math.clamp(Spectator.Pitch-input.Delta.Y*0.006,math.rad(-80),math.rad(80)) end
-		if input.UserInputType==Enum.UserInputType.MouseWheel then if input.Position.Z>0 then Spectator:ZoomIn(math.abs(input.Position.Z)*2) elseif input.Position.Z<0 then Spectator:ZoomOut(math.abs(input.Position.Z)*2) end end
+		if input.UserInputType==Enum.UserInputType.MouseWheel then
+			if isPointerOverInteractiveGui() then return end
+			if input.Position.Z>0 then Spectator:ZoomIn(math.abs(input.Position.Z)*2) elseif input.Position.Z<0 then Spectator:ZoomOut(math.abs(input.Position.Z)*2) end
+		end
 	end)
-	connections[#connections+1]=UserInputService.TouchStarted:Connect(function(touch) if Spectator.Active and not activeTouch then activeTouch=touch; lastTouch=touch.Position end end)
+	connections[#connections+1]=UserInputService.TouchStarted:Connect(function(touch)
+		if Spectator.Active and not activeTouch and not isPointerOverInteractiveGui(touch.Position) then activeTouch=touch; lastTouch=touch.Position end
+	end)
 	connections[#connections+1]=UserInputService.TouchMoved:Connect(function(touch)
 		if Spectator.Active and touch==activeTouch and lastTouch then local d=touch.Position-lastTouch; lastTouch=touch.Position; Spectator.Yaw-=d.X*0.007; Spectator.Pitch=math.clamp(Spectator.Pitch-d.Y*0.007,math.rad(-80),math.rad(80)) end
 	end)
