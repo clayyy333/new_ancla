@@ -1,5 +1,6 @@
 -- Catalogo local. No realiza solicitudes de red.
-return [====[{"keyword":null,"totalItems":48457,"lastUpdate":"2026-08-01T13:18:18.084Z","data":[
+return [====[{"keyword":null,"totalItems":48458,"lastUpdate":"2026-08-01T13:18:18.084Z","data":[
+{"id":110348711077449,"name":"Invisible"},
 {"id":3360689775,"name":"Salute"},
 {"id":5915779043,"name":"Applaud"},
 {"id":3360692915,"name":"Tilt"},
