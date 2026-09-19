@@ -639,7 +639,11 @@ search:GetPropertyChangedSignal("Text"):Connect(function()
 	filtered = {}
 	for i = 1, #currentData do
 		local e = currentData[i]
-		if not _badEmotes[tostring(e.id)] and (q == "" or (#q <= #(e._lname or e.name) and (e._lname or e.name:lower()):find(q, 1, true))) then
+		local itemName = e._lname or e.name:lower()
+		local itemId = tostring(e.id or ""):lower()
+		local matchesName = #q <= #itemName and itemName:find(q, 1, true) ~= nil
+		local matchesId = #q <= #itemId and itemId:find(q, 1, true) ~= nil
+		if not _badEmotes[tostring(e.id)] and (q == "" or matchesName or matchesId) then
 			filtered[#filtered + 1] = e
 		end
 	end
