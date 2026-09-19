@@ -245,6 +245,7 @@ return function(context)
 	local controlLabels = {
 		{"camera_control", isES and "Perspectiva Cámara" or "Camera Perspective"},
 		{"flight_control", isES and "Control de vuelo" or "Flight Control"},
+		{"car_control", isES and "Control de auto" or "Car Control"},
 	}
 	for index, item in ipairs(controlLabels) do
 		local btn, stroke, gradient = CreateTextButton(

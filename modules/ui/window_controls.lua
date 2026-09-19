@@ -110,6 +110,7 @@ end)
 
 local function _CleanupScript()
 	pcall(function() if FlightController then FlightController:Destroy() end end)
+	pcall(function() if CarControlController then CarControlController:Destroy() end end)
 	pcall(function() if SpectatorController then SpectatorController:Destroy() end end)
 	pcall(function() if AmbientSoundController then AmbientSoundController:Destroy() end end)
 	pcall(function() if AntiAFKController then AntiAFKController:Destroy() end end)
