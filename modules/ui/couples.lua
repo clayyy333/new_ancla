@@ -109,6 +109,8 @@ return function(context)
 		heightValue.Text = string.format("%+.1f", CouplesPositionController:GetHeight())
 		angleValue.Text = tostring(math.floor(CouplesPositionController:GetAngle())) .. "°"
 		selfValue.Text = tostring(math.floor(CouplesPositionController:GetSelfAngle())) .. "°"
+		positionButton.Text = CouplesPositionController:IsMaintaining() and (isES and "Liberar ubicación" or "Release location") or (isES and "Colocar frente a frente" or "Position face to face")
+		positionButton.BackgroundColor3 = CouplesPositionController:IsMaintaining() and currentTheme.critical or currentTheme.tertiary
 		if message then status.Text = message end
 	end
 
@@ -158,7 +160,12 @@ return function(context)
 	savedButton.MouseButton1Click:Connect(function() local loops=Settings.coupleLoops or {}; if #loops==0 then selectedLoop=nil; savedButton.Text=isES and "No hay bucles guardados" or "No saved loops" else selectedLoop=(selectedLoop or 0)%#loops+1; local v=loops[selectedLoop]; savedButton.Text=v.name.."  "..v.start.."–"..v.finish.."s" end end)
 	savePoseButton.MouseButton1Click:Connect(function() local ok=CoupleMovementController:SavePose(selectedLoop); UpdateCouplesPanel(ok and (isES and "Pose guardada." or "Pose saved.") or (isES and "Selecciona un bucle guardado." or "Select a saved loop.")) end)
 	positionButton.MouseButton1Click:Connect(function()
-		local _, message = CouplesPositionController:Position()
+		local _, message
+		if CouplesPositionController:IsMaintaining() then
+			_, message = CouplesPositionController:Release()
+		else
+			_, message = CouplesPositionController:Position()
+		end
 		UpdateCouplesPanel(message)
 	end)
 	resetButton.MouseButton1Click:Connect(function()

@@ -1,138 +1,77 @@
--- Posicionamiento de parejas integrado; no crea una GUI independiente.
 return function(context)
 	setfenv(1, context)
-
-	local Controller = {
-		Target = nil,
-		Distance = 3,
-		Height = 0,
-		Angle = 0,
-		SelfAngle = 0,
-		HeightInitialized = false,
-		HasPositioned = false,
-	}
-	local connections = {}
-
-	local function getRig(targetPlayer)
-		local character = targetPlayer and targetPlayer.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if not humanoid or humanoid.Health <= 0 or not root then return nil, nil end
-		return humanoid, root
+	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil}
+	local connections={}
+	local function rig(p)
+		local character=p and p.Character
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local root=character and character:FindFirstChild("HumanoidRootPart")
+		if not humanoid or humanoid.Health<=0 or not root then return nil,nil end
+		return humanoid,root
 	end
-
-	function Controller:GetTargetOptions()
-		local options = {}
-		for _, candidate in ipairs(Players:GetPlayers()) do
-			if candidate ~= player then options[#options + 1] = candidate end
-		end
-		table.sort(options, function(a, b)
-			return a.DisplayName:lower() < b.DisplayName:lower()
-		end)
-		return options
+	function C:GetTargetOptions()
+		local result={}
+		for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player then result[#result+1]=candidate end end
+		table.sort(result,function(a,b)return a.DisplayName:lower()<b.DisplayName:lower()end)
+		return result
 	end
-
-	function Controller:SetTarget(target)
-		if typeof(target) ~= "Instance" or not target:IsA("Player") or target == player then return false end
-		self.Target = target
-		self.HasPositioned = false
-		self.HeightInitialized = false
+	function C:SetTarget(target)
+		if typeof(target)~="Instance"or not target:IsA("Player")or target==player then return false end
+		if self.Maintaining then self:Release()end
+		self.Target=target;self.HasPositioned=false;self.HeightInitialized=false
 		return true
 	end
-
-	function Controller:GetTarget() return self.Target end
-	function Controller:GetDistance() return self.Distance end
-	function Controller:GetHeight() return self.Height end
-	function Controller:GetAngle() return self.Angle end
-	function Controller:GetSelfAngle() return self.SelfAngle end
-
-	function Controller:SetDistance(value)
-		self.Distance = math.clamp(tonumber(value) or self.Distance, 1.5, 15)
-	end
-	function Controller:SetHeight(value)
-		self.Height = math.clamp(tonumber(value) or self.Height, -8, 8)
-		self.HeightInitialized = true
-	end
-	function Controller:SetAngle(value)
-		self.Angle = ((tonumber(value) or self.Angle) + 180) % 360 - 180
-	end
-
-	function Controller:SetSelfAngle(value)
-		self.SelfAngle = ((tonumber(value) or self.SelfAngle) + 180) % 360 - 180
-	end
-
-	function Controller:Position()
-		if not self.Target or self.Target == player then
-			return false, isES and "Selecciona otro jugador." or "Select another player."
-		end
-		local localHumanoid, localRoot = getRig(player)
-		local _, targetRoot = getRig(self.Target)
-		if not localRoot then
-			return false, isES and "Tu personaje no está disponible." or "Your character is unavailable."
-		end
-		if not targetRoot then
-			return false, isES and "El personaje objetivo no está disponible." or "The target character is unavailable."
-		end
-
-		if localHumanoid.Sit then localHumanoid.Sit = false end
-		if not self.HeightInitialized then
-			self.Height = math.clamp(localRoot.Position.Y - targetRoot.Position.Y, -8, 8)
-			self.HeightInitialized = true
-		end
-		local orbit = targetRoot.CFrame * CFrame.Angles(0, math.rad(self.Angle), 0)
-		local position = (orbit * CFrame.new(0, self.Height, -self.Distance)).Position
-		local lookTarget = Vector3.new(targetRoot.Position.X, position.Y, targetRoot.Position.Z)
-		localRoot.AssemblyLinearVelocity = Vector3.zero
-		localRoot.AssemblyAngularVelocity = Vector3.zero
-		localRoot.CFrame = CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, math.rad(self.SelfAngle), 0)
-		self.HasPositioned = true
-		return true, isES and "Posición aplicada." or "Position applied."
-	end
-
-	function Controller:AdjustDistance(delta)
-		self:SetDistance(self.Distance + delta)
-		if self.HasPositioned then return self:Position() end
+	function C:GetTarget()return self.Target end
+	function C:GetDistance()return self.Distance end
+	function C:GetHeight()return self.Height end
+	function C:GetAngle()return self.Angle end
+	function C:GetSelfAngle()return self.SelfAngle end
+	function C:IsMaintaining()return self.Maintaining end
+	function C:SetDistance(v)self.Distance=math.clamp(tonumber(v)or self.Distance,1.5,15)end
+	function C:SetHeight(v)self.Height=math.clamp(tonumber(v)or self.Height,-8,8);self.HeightInitialized=true end
+	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
+	function C:SetSelfAngle(v)self.SelfAngle=((tonumber(v)or self.SelfAngle)+180)%360-180 end
+	function C:_Apply()
+		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
+		if not humanoid or not root or not targetRoot then return false end
+		if humanoid.Sit then humanoid.Sit=false end
+		local orbit=targetRoot.CFrame*CFrame.Angles(0,math.rad(self.Angle),0)
+		local position=(orbit*CFrame.new(0,self.Height,-self.Distance)).Position
+		local look=Vector3.new(targetRoot.Position.X,position.Y,targetRoot.Position.Z)
+		root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+		root.CFrame=CFrame.lookAt(position,look)*CFrame.Angles(0,math.rad(self.SelfAngle),0)
 		return true
 	end
-	function Controller:AdjustHeight(delta)
-		self:SetHeight(self.Height + delta)
-		if self.HasPositioned then return self:Position() end
+	function C:Position()
+		if not self.Target or self.Target==player then return false,isES and"Selecciona otro jugador."or"Select another player."end
+		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
+		if not root then return false,isES and"Tu personaje no está disponible."or"Your character is unavailable."end
+		if not targetRoot then return false,isES and"El personaje objetivo no está disponible."or"The target character is unavailable."end
+		if not self.HeightInitialized then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end
+		if self.SavedAutoRotate==nil then self.SavedAutoRotate=humanoid.AutoRotate end
+		humanoid.AutoRotate=false;self.Maintaining=true;self.HasPositioned=true;self:_Apply()
+		return true,isES and"Ubicación mantenida."or"Location maintained."
+	end
+	function C:Release()
+		self.Maintaining=false
+		local humanoid=rig(player)
+		if humanoid and self.SavedAutoRotate~=nil then humanoid.AutoRotate=self.SavedAutoRotate end
+		self.SavedAutoRotate=nil
+		return true,isES and"Ubicación liberada."or"Location released."
+	end
+	local function changed(self)
+		if self.Maintaining then self:_Apply()end
 		return true
 	end
-	function Controller:AdjustSelfAngle(delta)
-		self:SetSelfAngle(self.SelfAngle + delta)
-		if self.HasPositioned then return self:Position() end
-		return true
-	end
-	function Controller:AdjustAngle(delta)
-		self:SetAngle(self.Angle + delta)
-		if self.HasPositioned then return self:Position() end
-		return true
-	end
-	function Controller:Reset()
-		self.Distance, self.Height, self.Angle, self.SelfAngle, self.HeightInitialized = 3, 0, 0, 0, false
-		if self.HasPositioned then return self:Position() end
-		return true
-	end
-
-	connections[#connections + 1] = Players.PlayerRemoving:Connect(function(leaving)
-		if Controller.Target == leaving then
-			Controller.Target = nil
-			Controller.HasPositioned = false
-			if UpdateCouplesPanel then UpdateCouplesPanel(isES and "El jugador salió." or "The player left.") end
-		end
-	end)
-	connections[#connections + 1] = player.CharacterAdded:Connect(function()
-		Controller.HasPositioned = false
-	end)
-
-	function Controller:Destroy()
-		for _, connection in ipairs(connections) do connection:Disconnect() end
-		table.clear(connections)
-		self.Target = nil
-		self.HasPositioned = false
-	end
-
-	CouplesPositionController = Controller
+	function C:AdjustDistance(v)self:SetDistance(self.Distance+v);return changed(self)end
+	function C:AdjustHeight(v)self:SetHeight(self.Height+v);return changed(self)end
+	function C:AdjustAngle(v)self:SetAngle(self.Angle+v);return changed(self)end
+	function C:AdjustSelfAngle(v)self:SetSelfAngle(self.SelfAngle+v);return changed(self)end
+	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.HeightInitialized=3,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
+	connections[#connections+1]=RunService.Heartbeat:Connect(function()if C.Maintaining and not C:_Apply()then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
+	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then C:Release();C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
+	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;C.HasPositioned=false end)
+	function C:Destroy()self:Release();for _,connection in ipairs(connections)do connection:Disconnect()end;table.clear(connections)end
+	CouplesPositionController=C
 	return true
 end
