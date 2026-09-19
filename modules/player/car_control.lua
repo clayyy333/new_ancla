@@ -2,8 +2,8 @@
 return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
-	local Controller={Running=false,SelectedCar=nil,SelectedCarName=nil,SelectedPlayer=nil,Height=math.clamp(tonumber(Settings.carControlHeight) or 8,-10,50),SpinSpeed=math.clamp(tonumber(Settings.carControlSpinSpeed) or 360,0,1440),SpinY=0,Checkpoint=nil,PivotOffset=nil,LastTargetPosition=nil,LastOwnershipAttempt=0,Status=nil}
-	local heartbeat,stepped,rendered,ancestry,playerRemoving
+	local Controller={Running=false,AutoEnabled=false,AutoStarting=false,SelectedCar=nil,SelectedCarName=nil,SelectedPlayer=nil,Height=math.clamp(tonumber(Settings.carControlHeight) or 8,-10,50),SpinSpeed=math.clamp(tonumber(Settings.carControlSpinSpeed) or 360,0,1440),SpinY=0,Checkpoint=nil,PivotOffset=nil,LastTargetPosition=nil,LastOwnershipAttempt=0,Status=nil}
+	local heartbeat,stepped,rendered,ancestry,playerRemoving,autoMonitor
 	local function findRoot(model)
 		if not model then return nil end
 		if model:IsA("BasePart") then return model end
@@ -72,6 +72,8 @@ return function(context)
 	function Controller:GetSpinSpeed() return self.SpinSpeed end
 	function Controller:ChangeSpinSpeed(amount) return self:SetSpinSpeed(self.SpinSpeed+amount) end
 	function Controller:IsRunning() return self.Running end
+	function Controller:IsAutoEnabled() return self.AutoEnabled end
+	function Controller:SetAutoEnabled(enabled) self.AutoEnabled=enabled==true; return self.AutoEnabled end
 	function Controller:Apply(dt)
 		if not self.Running then return end
 		local car=self.SelectedCar; local root=car and findRoot(car); local target=targetRoot(self.SelectedPlayer)
@@ -112,9 +114,28 @@ return function(context)
 		if restore~=false then self.Status=isES and "Control detenido; vehículo restaurado." or "Control stopped; vehicle restored." end
 		return wasRunning
 	end
-	function Controller:Destroy() self:Stop(true); if playerRemoving then playerRemoving:Disconnect(); playerRemoving=nil end end
+	function Controller:Destroy() self.AutoEnabled=false; self:Stop(true); if playerRemoving then playerRemoving:Disconnect(); playerRemoving=nil end; if autoMonitor then autoMonitor:Disconnect(); autoMonitor=nil end end
 	playerRemoving=Players.PlayerRemoving:Connect(function(leaving)
 		if Controller.SelectedPlayer==leaving then Controller:Stop(true); Controller.SelectedPlayer=nil; if UpdateCarControlPanel then UpdateCarControlPanel() end end
+	end)
+	local autoElapsed=0
+	autoMonitor=RunService.Heartbeat:Connect(function(dt)
+		if not Controller.AutoEnabled or Controller.Running or Controller.AutoStarting then return end
+		autoElapsed+=dt
+		if autoElapsed<0.25 then return end
+		autoElapsed=0
+		if not Controller.SelectedPlayer or not targetRoot(Controller.SelectedPlayer) then return end
+		local car=Controller:GetCar()
+		if not car then
+			local options=listCars()
+			if #options==1 then Controller:SetCar(options[1]); car=options[1] end
+		end
+		if not car then return end
+		Controller.AutoStarting=true
+		local ok,err=Controller:Start()
+		Controller.AutoStarting=false
+		if not ok then Controller.Status=err end
+		if UpdateCarControlPanel then UpdateCarControlPanel() end
 	end)
 	CarControlController=Controller
 	return true
