@@ -20,17 +20,26 @@ return function(context)
 	end
 
 	function C:Find(query)
-		query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-		local requestedId = tonumber(query)
-		for _, emote in ipairs(Emotes) do
-			if (requestedId and tonumber(emote.id) == requestedId) or tostring(emote.name):lower() == query then
-				self.Selected = emote
-				return emote
+		local raw = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+		if raw == "" then self.Selected = nil; return nil end
+		local requestedId = tonumber(raw) or tonumber(raw:match("%((%d+)%)")) or tonumber(raw:match("(%d%d%d%d%d+)"))
+		if requestedId then
+			for _, emote in ipairs(Emotes) do
+				if tonumber(emote.id) == requestedId then self.Selected = emote; return emote end
 			end
+			self.Selected = {id = requestedId, name = "ID " .. tostring(requestedId)}
+			return self.Selected
 		end
-		return nil
+		local normalized = raw:lower()
+		local partial
+		for _, emote in ipairs(Emotes) do
+			local name = tostring(emote.name):lower()
+			if name == normalized then self.Selected = emote; return emote end
+			if not partial and name:find(normalized, 1, true) then partial = emote end
+		end
+		self.Selected = partial
+		return partial
 	end
-
 	function C:GetSelected() return self.Selected end
 	function C:GetTrack() return self.Track end
 
@@ -72,9 +81,26 @@ return function(context)
 			return false, isES and "Tu personaje no está disponible." or "Your character is unavailable."
 		end
 
-		local animation = Instance.new("Animation")
+		local animation
+		local cached = _animCache and _animCache[self.Selected.id]
+		if cached and cached:IsA("Animation") then
+			animation = cached:Clone()
+		else
+			local loadedOk, objects = pcall(function()
+				return game:GetObjects("rbxassetid://" .. tostring(self.Selected.id))
+			end)
+			if loadedOk and objects and #objects > 0 then
+				local item = objects[1]
+				local source = item:IsA("Animation") and item or item:FindFirstChildWhichIsA("Animation", true)
+				if source then animation = source:Clone() end
+				for _, object in ipairs(objects) do pcall(function() object:Destroy() end) end
+			end
+		end
+		if not animation then
+			animation = Instance.new("Animation")
+			animation.AnimationId = "rbxassetid://" .. tostring(self.Selected.id)
+		end
 		animation.Name = "VexroCoupleLoop"
-		animation.AnimationId = "rbxassetid://" .. tostring(self.Selected.id)
 		local ok, track = pcall(function() return animator:LoadAnimation(animation) end)
 		if not ok or not track then
 			animation:Destroy()
@@ -88,17 +114,17 @@ return function(context)
 		track:Play(0.1)
 
 		local waited = 0
-		while track.Length <= 0 and waited < 3 and self.Track == track do
-			waited = waited + task.wait()
+		while track.Length <= 0 and waited < 8 and self.Track == track do
+			waited = waited + task.wait(0.1)
 		end
 		if self.Track ~= track then return false end
-		if track.Length <= 0 then
-			self:StopLoop(0)
-			return false, isES and "No se pudo obtener la duración del emote." or "Could not read the emote duration."
+		if track.Length > 0 then
+			self.StartTime = math.clamp(self.StartTime, 0, math.max(0, track.Length - 0.5))
+			self.EndTime = math.clamp(self.EndTime, self.StartTime + 0.5, track.Length)
+		else
+			self.StartTime = math.max(0, self.StartTime)
+			self.EndTime = math.max(self.StartTime + 0.5, self.EndTime)
 		end
-
-		self.StartTime = math.clamp(self.StartTime, 0, math.max(0, track.Length - 0.5))
-		self.EndTime = math.clamp(self.EndTime, self.StartTime + 0.5, track.Length)
 		track.TimePosition = self.StartTime
 		track:AdjustSpeed(self.Speed)
 		self.Looping = true
@@ -130,6 +156,10 @@ return function(context)
 		local track = C.Track
 		if not C.Looping or not track or not track.IsPlaying then return end
 		if math.abs(track.Speed - C.Speed) > 0.001 then pcall(function() track:AdjustSpeed(C.Speed) end) end
+		if track.Length > 0 and C.EndTime > track.Length then
+			C.StartTime = math.min(C.StartTime, math.max(0, track.Length - 0.5))
+			C.EndTime = math.max(C.StartTime + 0.5, math.floor(track.Length * 2) / 2)
+		end
 		local position = track.TimePosition
 		if position >= C.EndTime or position < C.StartTime - 0.05 then
 			pcall(function()
