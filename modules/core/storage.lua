@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1, context)
 
 DATA_FILE = "VexroEmotes_Data_" .. tostring(player.UserId) .. ".json"
-Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, antiAFK = false, carControlHeight = 8, carControlSpinSpeed = 360}
+Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, antiAFK = false, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}}
 
 FriendData = {
 	friends        = {},
@@ -97,6 +97,8 @@ function LoadData()
 					Settings.carControlHeight = math.clamp(tonumber(data.settings.carControlHeight) or 8, -10, 50)
 					Settings.carControlSpinSpeed = math.clamp(tonumber(data.settings.carControlSpinSpeed) or 360, 0, 1440)
 					Settings.searchHistory = data.settings.searchHistory or {}
+					Settings.coupleLoops = type(data.settings.coupleLoops) == "table" and data.settings.coupleLoops or {}
+					Settings.couplePoses = type(data.settings.couplePoses) == "table" and data.settings.couplePoses or {}
 				end
 				if data.friendSettings then
 					FriendData.autoReject = data.friendSettings.autoReject == true

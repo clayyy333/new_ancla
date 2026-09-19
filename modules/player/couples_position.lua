@@ -7,6 +7,8 @@ return function(context)
 		Distance = 3,
 		Height = 0,
 		Angle = 0,
+		SelfAngle = 0,
+		HeightInitialized = false,
 		HasPositioned = false,
 	}
 	local connections = {}
@@ -34,6 +36,7 @@ return function(context)
 		if typeof(target) ~= "Instance" or not target:IsA("Player") or target == player then return false end
 		self.Target = target
 		self.HasPositioned = false
+		self.HeightInitialized = false
 		return true
 	end
 
@@ -41,15 +44,21 @@ return function(context)
 	function Controller:GetDistance() return self.Distance end
 	function Controller:GetHeight() return self.Height end
 	function Controller:GetAngle() return self.Angle end
+	function Controller:GetSelfAngle() return self.SelfAngle end
 
 	function Controller:SetDistance(value)
 		self.Distance = math.clamp(tonumber(value) or self.Distance, 1.5, 15)
 	end
 	function Controller:SetHeight(value)
 		self.Height = math.clamp(tonumber(value) or self.Height, -8, 8)
+		self.HeightInitialized = true
 	end
 	function Controller:SetAngle(value)
 		self.Angle = ((tonumber(value) or self.Angle) + 180) % 360 - 180
+	end
+
+	function Controller:SetSelfAngle(value)
+		self.SelfAngle = ((tonumber(value) or self.SelfAngle) + 180) % 360 - 180
 	end
 
 	function Controller:Position()
@@ -66,12 +75,16 @@ return function(context)
 		end
 
 		if localHumanoid.Sit then localHumanoid.Sit = false end
+		if not self.HeightInitialized then
+			self.Height = math.clamp(localRoot.Position.Y - targetRoot.Position.Y, -8, 8)
+			self.HeightInitialized = true
+		end
 		local orbit = targetRoot.CFrame * CFrame.Angles(0, math.rad(self.Angle), 0)
 		local position = (orbit * CFrame.new(0, self.Height, -self.Distance)).Position
 		local lookTarget = Vector3.new(targetRoot.Position.X, position.Y, targetRoot.Position.Z)
 		localRoot.AssemblyLinearVelocity = Vector3.zero
 		localRoot.AssemblyAngularVelocity = Vector3.zero
-		localRoot.CFrame = CFrame.lookAt(position, lookTarget)
+		localRoot.CFrame = CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, math.rad(self.SelfAngle), 0)
 		self.HasPositioned = true
 		return true, isES and "Posición aplicada." or "Position applied."
 	end
@@ -86,13 +99,18 @@ return function(context)
 		if self.HasPositioned then return self:Position() end
 		return true
 	end
+	function Controller:AdjustSelfAngle(delta)
+		self:SetSelfAngle(self.SelfAngle + delta)
+		if self.HasPositioned then return self:Position() end
+		return true
+	end
 	function Controller:AdjustAngle(delta)
 		self:SetAngle(self.Angle + delta)
 		if self.HasPositioned then return self:Position() end
 		return true
 	end
 	function Controller:Reset()
-		self.Distance, self.Height, self.Angle = 3, 0, 0
+		self.Distance, self.Height, self.Angle, self.SelfAngle, self.HeightInitialized = 3, 0, 0, 0, false
 		if self.HasPositioned then return self:Position() end
 		return true
 	end

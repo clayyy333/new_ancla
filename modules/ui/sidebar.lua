@@ -100,7 +100,10 @@ return function(context)
 	controlOverlay.Parent = controlNav
 	RegisterTheme(controlOverlay, "BackgroundColor3", "sidebar")
 
-	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns, controlTabBtns = {}, {}, {}, {}, {}
+	couplesNav=controlNav:Clone();couplesNav.Name="CouplesNavigation";couplesNav.Visible=false;couplesNav.Parent=main;for _,v in ipairs(couplesNav:GetChildren()) do v:Destroy() end
+	Instance.new("UICorner",couplesNav).CornerRadius=UDim.new(0,14);RegisterTheme(couplesNav,"BackgroundColor3","sidebar")
+
+	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns, controlTabBtns, couplesTabBtns = {}, {}, {}, {}, {}, {}
 
 	local function CreateTextButton(parent, text, name, size, position)
 		local btn = Instance.new("TextButton")
@@ -118,7 +121,7 @@ return function(context)
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-		if parent == movementNav or parent == fling2Nav or parent == anchorNav or parent == controlNav then
+		if parent == movementNav or parent == fling2Nav or parent == anchorNav or parent == controlNav or parent == couplesNav then
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			local textPadding = Instance.new("UIPadding")
 			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
@@ -266,6 +269,9 @@ return function(context)
 		)
 		controlTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
+
+	local coupleLabels={{"couples",isES and "Ubicación de cuerpo" or "Body location"},{"couple_movement",isES and "Control de movimiento" or "Movement control"},{"poses","Poses"}}
+	for index,item in ipairs(coupleLabels)do local btn,stroke,gradient=CreateTextButton(couplesNav,item[2],item[1],UDim2.new(1,-(pad*2),0,buttonH),UDim2.new(0,pad,0,pad+(index-1)*(buttonH+gap)));couplesTabBtns[item[1]]={btn=btn,stroke=stroke,gradient=gradient}end
 
 	return true
 end

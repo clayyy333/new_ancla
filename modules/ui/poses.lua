@@ -1,0 +1,5 @@
+return function(context)
+ setfenv(1,context)
+ posesPanel=Instance.new("ScrollingFrame");posesPanel.Size=UDim2.new(1,-16,1,-(titleH+20));posesPanel.Position=UDim2.new(0,8,0,titleH+8);posesPanel.BackgroundTransparency=1;posesPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;posesPanel.CanvasSize=UDim2.new();posesPanel.Visible=false;posesPanel.Parent=content;local layout=Instance.new("UIListLayout",posesPanel);layout.Padding=UDim.new(0,8)
+ UpdatePosesPanel=function()for _,v in ipairs(posesPanel:GetChildren())do if v:IsA("TextLabel")then v:Destroy()end end;for i,p in ipairs(Settings.couplePoses or{})do local l=Instance.new("TextLabel");l.Size=UDim2.new(1,-4,0,48);l.BackgroundColor3=currentTheme.secondary;l.Text=(i..". "..p.name.." · "..p.start.."–"..p.finish.."s · "..p.distance.." studs");l.TextColor3=currentTheme.text;l.Font=Enum.Font.GothamMedium;l.TextSize=12;l.Parent=posesPanel;Instance.new("UICorner",l).CornerRadius=UDim.new(0,10)end end;UpdatePosesPanel();return true
+end
