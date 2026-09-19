@@ -93,6 +93,7 @@ return function(context)
 	end
 	function Controller:Start()
 		if self.Running then return true end
+		if FreeCarController and FreeCarController:IsRunning() then FreeCarController:Stop() end
 		local car=self:GetCar()
 		if not car or not car.Parent or not isMyCar(car) then return false,isES and "Selecciona un vehículo propio válido." or "Select a valid owned vehicle." end
 		local root=findRoot(car)
