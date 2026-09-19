@@ -190,6 +190,16 @@ return function(context)
 	mainNavBtns.control = controlBtn
 	controlNavButtonStyle = {btn = controlBtn, stroke = controlStroke, gradient = controlGradient}
 
+	local couplesBtn, couplesStroke, couplesGradient = CreateTextButton(
+		mainNav, isES and "Parejas" or "Couples", "couples",
+		UDim2.new(0, isMobile and 86 or 105, 1, 0),
+		UDim2.new(0, isMobile and 402 or 497, 0, 0)
+	)
+	couplesBtn.Font = Enum.Font.GothamBold
+	couplesBtn.TextSize = isMobile and 14 or 16
+	mainNavBtns.couples = couplesBtn
+	couplesNavButtonStyle = {btn = couplesBtn, stroke = couplesStroke, gradient = couplesGradient}
+
 	local labels = {
 		{"emotes", L.emotes},
 		{"animations", L.animations},
