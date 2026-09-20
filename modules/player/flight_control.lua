@@ -39,7 +39,7 @@ return function(context)
 		self.Braking=true; self.Velocity=Vector3.zero
 		if root then self.Position=root.Position; root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero end
 	end
-	local function direction(camera)
+	local function direction(camera,humanoid)
 		local d=Vector3.zero
 		if keys.W or mobile.Forward then d+=camera.CFrame.LookVector end
 		if keys.S or mobile.Backward then d-=camera.CFrame.LookVector end
@@ -47,6 +47,10 @@ return function(context)
 		if keys.D or mobile.Right then d+=camera.CFrame.RightVector end
 		if keys.Up or mobile.Up then d+=Vector3.yAxis end
 		if keys.Down or mobile.Down then d-=Vector3.yAxis end
+		local hasManualHorizontal=keys.W or keys.S or keys.A or keys.D or mobile.Forward or mobile.Backward or mobile.Left or mobile.Right
+		if not hasManualHorizontal and UserInputService.TouchEnabled and humanoid and humanoid.MoveDirection.Magnitude>0.05 then
+			d+=humanoid.MoveDirection
+		end
 		return d.Magnitude>0 and d.Unit or d
 	end
 	function Flight:Start()
@@ -62,7 +66,8 @@ return function(context)
 			local _,r,h=character(); local camera=Workspace.CurrentCamera
 			if not r or not h or not camera then return end
 			h.PlatformStand=true; h.AutoRotate=false
-			local d=self.Braking and Vector3.zero or direction(camera)
+			if UserInputService.TouchEnabled and h.MoveDirection.Magnitude>0.05 then self.Braking=false end
+			local d=self.Braking and Vector3.zero or direction(camera,h)
 			local target=d*(self:IsSprinting() and self.SprintSpeed or self.NormalSpeed)
 			local response=target.Magnitude>0 and (self:IsSprinting() and 18 or 8) or 14
 			self.Velocity=self.Velocity:Lerp(target,1-math.exp(-response*dt))

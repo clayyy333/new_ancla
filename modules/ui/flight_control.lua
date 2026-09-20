@@ -14,7 +14,24 @@ return function(context)
 	local directionButtons={}
 	if isMobile then
 		local labels={{"Up","↑",258,0.34},{"Left","←",304,0},{"Forward","▲",304,0.17},{"Backward","▼",304,0.51},{"Right","→",304,0.68},{"Down","↓",258,0.68}}
-		for _,v in ipairs(labels) do local b=button(v[2],v[3],v[4],0.15); directionButtons[v[1]]=b; b.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then FlightController:SetMobileDirection(v[1],true) end end); b.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then FlightController:SetMobileDirection(v[1],false) end end) end
+		for _,v in ipairs(labels) do
+			local directionName=v[1]
+			local b=button(v[2],v[3],v[4],0.15)
+			directionButtons[directionName]=b
+			b.InputBegan:Connect(function(input)
+				if input.UserInputType~=Enum.UserInputType.Touch and input.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+				FlightController:SetMobileDirection(directionName,true)
+				b.BackgroundColor3=currentTheme.accent
+				local ended
+				ended=input:GetPropertyChangedSignal("UserInputState"):Connect(function()
+					if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then
+						if ended then ended:Disconnect();ended=nil end
+						FlightController:SetMobileDirection(directionName,false)
+						b.BackgroundColor3=currentTheme.tertiary
+					end
+				end)
+			end)
+		end
 	end
 	UpdateFlightControlPanel=function(message)
 		toggle.Text=FlightController:IsFlying() and (isES and "Desactivar vuelo" or "Disable flight") or (isES and "Activar vuelo" or "Enable flight")
