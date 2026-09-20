@@ -32,7 +32,7 @@ return function(context)
 	function C:GetSelfAngle()return self.SelfAngle end
 	function C:IsMaintaining()return self.Maintaining end
 	function C:SetDistance(v)self.Distance=math.round(math.clamp(tonumber(v)or self.Distance,0.5,15)*10)/10 end
-	function C:SetHeight(v)self.Height=math.clamp(tonumber(v)or self.Height,-8,8);self.HeightInitialized=true end
+	function C:SetHeight(v)self.Height=math.round(math.clamp(tonumber(v)or self.Height,-8,8)*10)/10;self.HeightInitialized=true end
 	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
 	function C:SetSelfAngle(v)self.SelfAngle=((tonumber(v)or self.SelfAngle)+180)%360-180 end
 	function C:_DisableCollisions()
