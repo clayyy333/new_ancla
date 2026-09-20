@@ -5,9 +5,9 @@ return function(context)
 	local connections,resolvedIds={},{}
 	local signalSpeeds={Pose1=2.71,Pose2=2.72,Pose3=2.73}
 	local poses={
-		Pose1={girl={id=78272860047654,distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,start=0}},
-		Pose2={girl={id=78272860047654,distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,start=8.5,finish=9}},
-		Pose3={girl={id=130478349245054,distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=3},boy={id=129305096889843,start=0,speed=1},independentSpeed=true}
+		Pose1={girl={id=78272860047654,name="Hold Onto",distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,name="WILL BYERS DONT HIDE",start=0}},
+		Pose2={girl={id=78272860047654,name="Hold Onto",distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,name="Michael Myers Bounce",start=8.5,finish=9}},
+		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=3},boy={id=129305096889843,name="Sitting..",start=0,speed=1},independentSpeed=true}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
@@ -34,6 +34,11 @@ return function(context)
 	function C:IsPaused()return self.Paused end
 	function C:GetStatus()return self.Status end
 	function C:GetPendingPose()return self.PendingPose end
+	function C:GetActiveEmoteName()
+		if not self.Role then return displayName(self.Selected) end
+		local definition=poses[self.Selected][self.Role]
+		return definition.name or displayName(self.Selected)
+	end
 	function C:Select(name)
 		if not poses[name]then return false end;if self.Active then self:Stop()end
 		self.Selected=name;self.Speed=(self.Role and poses[name][self.Role].speed)or 1;self.PendingPose=nil;applyGirlDefaults(self);self.Status=(isES and"Seleccionada "or"Selected ")..displayName(name);return true
@@ -59,7 +64,7 @@ return function(context)
 	function C:SetMode(mode)if mode~="solo"and mode~="sync"then return false end;self.Mode=mode;return true end
 	function C:SetTarget(target)if typeof(target)~="Instance"or not target:IsA("Player")or target==player then return false end;self.Target=target;local height=CouplesPositionController:GetHeight();CouplesPositionController:SetTarget(target);CouplesPositionController:SetHeight(height);return true end
 	function C:GetFriendOptions()local result={};for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player then local ok,value=pcall(function()return player:IsFriendsWith(candidate.UserId)end);if ok and value then result[#result+1]=candidate end end end;table.sort(result,function(a,b)return a.DisplayName:lower()<b.DisplayName:lower()end);return result end
-	function C:SetSpeed(value,localEdit)if self.Mode=="sync"and self.Role=="girl"and localEdit then self.Status=isES and"En sincronización, el Chico controla la velocidad."or"In sync mode, the Boy controls speed.";return false end;self.Speed=math.round(math.clamp(tonumber(value)or self.Speed,.1,3)*10)/10;if self.Track and self.Track.IsPlaying and not self.Paused then pcall(function()self.Track:AdjustSpeed(self.Speed)end)end;return true end
+	function C:SetSpeed(value,localEdit)if self.Mode=="sync"and self.Role=="girl"and localEdit then self.Status=isES and"En sincronización, el Chico controla la velocidad."or"In sync mode, the Boy controls speed.";return false end;self.Speed=math.round(math.clamp(tonumber(value)or self.Speed,.1,4)*10)/10;if self.Track and self.Track.IsPlaying and not self.Paused then pcall(function()self.Track:AdjustSpeed(self.Speed)end)end;return true end
 	function C:AdjustSpeed(delta)return self:SetSpeed(self.Speed+delta,true)end
 	function C:SetPaused(paused,fromPartner)
 		if not self.Active or not self.Track then return false,isES and"Inicia primero una pose."or"Start a pose first."end
