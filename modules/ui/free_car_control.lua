@@ -26,8 +26,9 @@ return function(context)
 		local controls={{"Forward","▲",364,0.34},{"Left","◀",410,0.08},{"Back","▼",410,0.34},{"Right","▶",410,0.60}}
 		for _,entry in ipairs(controls) do
 			local control=button(entry[2],entry[3],entry[4],0.24,40); directionButtons[entry[1]]=control
-			control.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then FreeCarController:SetMobileDirection(entry[1],true) end end)
-			control.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then FreeCarController:SetMobileDirection(entry[1],false) end end)
+			local directionName=entry[1]
+			control.InputBegan:Connect(function(input) if input.UserInputType~=Enum.UserInputType.Touch and input.UserInputType~=Enum.UserInputType.MouseButton1 then return end; FreeCarController:SetMobileDirection(directionName,true); control.BackgroundColor3=currentTheme.accent; local ended; ended=input:GetPropertyChangedSignal("UserInputState"):Connect(function() if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then if ended then ended:Disconnect();ended=nil end; FreeCarController:SetMobileDirection(directionName,false); control.BackgroundColor3=currentTheme.tertiary end end) end)
+
 		end
 	end
 	cameraPad.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.MouseButton2 then FreeCarController:BeginCameraDrag() end end)
@@ -51,7 +52,7 @@ return function(context)
 	speedMinus.MouseButton1Click:Connect(function() FreeCarController:ChangeSpeed(-20); UpdateFreeCarControlPanel() end); speedPlus.MouseButton1Click:Connect(function() FreeCarController:ChangeSpeed(20); UpdateFreeCarControlPanel() end)
 	tiltMinus.MouseButton1Click:Connect(function() FreeCarController:ChangeTiltResponse(-2); UpdateFreeCarControlPanel() end); tiltPlus.MouseButton1Click:Connect(function() FreeCarController:ChangeTiltResponse(2); UpdateFreeCarControlPanel() end)
 	toggle.MouseButton1Click:Connect(function() local ok,err; if FreeCarController:IsRunning() then FreeCarController:Stop(); ok=true else ok,err=FreeCarController:Start() end; UpdateFreeCarControlPanel(ok and nil or err) end)
-	boost.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then FreeCarController:SetBoost(true); boost.BackgroundColor3=currentTheme.accent end end)
-	boost.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then FreeCarController:SetBoost(false); boost.BackgroundColor3=currentTheme.tertiary end end)
+	boost.InputBegan:Connect(function(input) if input.UserInputType~=Enum.UserInputType.Touch and input.UserInputType~=Enum.UserInputType.MouseButton1 then return end; FreeCarController:SetBoost(true); boost.BackgroundColor3=currentTheme.accent; local ended; ended=input:GetPropertyChangedSignal("UserInputState"):Connect(function() if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then if ended then ended:Disconnect();ended=nil end; FreeCarController:SetBoost(false); boost.BackgroundColor3=currentTheme.tertiary end end) end)
+
 	UpdateFreeCarControlPanel(); return true
 end

@@ -44,7 +44,7 @@ return function(context)
 	soft.MouseButton1Click:Connect(function() FlightController:SoftStop() end); fast.MouseButton1Click:Connect(function() FlightController:FastStop() end)
 	normalMinus.MouseButton1Click:Connect(function() FlightController:DecreaseNormalSpeed(); UpdateFlightControlPanel() end); normalPlus.MouseButton1Click:Connect(function() FlightController:IncreaseNormalSpeed(); UpdateFlightControlPanel() end)
 	sprintMinus.MouseButton1Click:Connect(function() FlightController:DecreaseSprintSpeed(); UpdateFlightControlPanel() end); sprintPlus.MouseButton1Click:Connect(function() FlightController:IncreaseSprintSpeed(); UpdateFlightControlPanel() end)
-	sprint.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then FlightController:SetSprint(true); sprint.BackgroundColor3=currentTheme.accent end end)
-	sprint.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then FlightController:SetSprint(false); sprint.BackgroundColor3=currentTheme.tertiary end end)
+	sprint.InputBegan:Connect(function(input) if input.UserInputType~=Enum.UserInputType.Touch and input.UserInputType~=Enum.UserInputType.MouseButton1 then return end; FlightController:SetSprint(true); sprint.BackgroundColor3=currentTheme.accent; local ended; ended=input:GetPropertyChangedSignal("UserInputState"):Connect(function() if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then if ended then ended:Disconnect();ended=nil end; FlightController:SetSprint(false); sprint.BackgroundColor3=currentTheme.tertiary end end) end)
+
 	UpdateFlightControlPanel(); return true
 end

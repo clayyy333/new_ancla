@@ -104,6 +104,7 @@ return function(context)
 			local forward=((self.Keys.Forward or self.Mobile.Forward) and 1 or 0)-((self.Keys.Back or self.Mobile.Back) and 1 or 0)
 			local side=((self.Keys.Right or self.Mobile.Right) and 1 or 0)-((self.Keys.Left or self.Mobile.Left) and 1 or 0)
 			local velocity=Vector3.zero; local direction=look*forward+right*side
+			if UserInputService.TouchEnabled and forward==0 and side==0 then local character=player.Character; local humanoid=character and character:FindFirstChildOfClass("Humanoid"); if humanoid and humanoid.MoveDirection.Magnitude>0.05 then direction=humanoid.MoveDirection end end
 			if direction.Magnitude>0.001 then velocity=direction.Unit*self.Speed*(self.Boost and self.BoostMultiplier or 1) end
 			self.BV.Velocity=self.BV.Velocity:Lerp(velocity,1-math.exp(-10*dt)); self.BV.MaxForce=Vector3.new(1e6,1e6,1e6)
 			local flat=Vector3.new(look.X,0,look.Z)
