@@ -7,7 +7,7 @@ return function(context)
 	local function label(text,y)local l=Instance.new("TextLabel");l.Size=UDim2.new(1,0,0,18);l.Position=UDim2.new(0,0,0,y);l.BackgroundTransparency=1;l.Text=text;l.TextColor3=currentTheme.textDim;l.Font=Enum.Font.GothamMedium;l.TextSize=isMobile and 10 or 12;l.TextXAlignment=Enum.TextXAlignment.Left;l.Parent=card;RegisterTheme(l,"TextColor3","textDim");return l end
 	local function button(text,y,x,w)local b=Instance.new("TextButton");b.Size=UDim2.new(w or 1,0,0,40);b.Position=UDim2.new(x or 0,0,0,y);b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 12;b.AutoButtonColor=false;b.Parent=card;Instance.new("UICorner",b).CornerRadius=UDim.new(0,10);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b end
 	local function row(name,y)local l=label(name,y);local minus=button("−",y+20,0,.20);local value=button("",y+20,.22,.56);local plus=button("+",y+20,.80,.20);return minus,value,plus,l end
-	local pose1Button=button("Pose 1",0,0,.49);local pose2Button=button("Pose 2",0,.51,.49)
+	local pose1Button=button("Pose 1",0,0,.32);local pose2Button=button("Pose 2",0,.34,.32);local pose3Button=button("Pose 3",0,.68,.32)
 	label(isES and"Elige un rol"or"Choose a role",50)
 	local boy=button(isES and"Chico"or"Boy",70,0,.49);local girl=button(isES and"Chica"or"Girl",70,.51,.49)
 	label(isES and"Modo"or"Mode",120)
@@ -21,7 +21,7 @@ return function(context)
 	local orbitMinus,orbitValue,orbitPlus=row(isES and"Giro alrededor"or"Orbit rotation",450);orbitMinus.Text="↶";orbitPlus.Text="↷"
 	local rotationMinus,rotationValue,rotationPlus=row(isES and"Giro sobre su eje"or"Own-axis rotation",510);rotationMinus.Text="↶";rotationPlus.Text="↷"
 	local tiltMinus,tiltValue,tiltPlus=row(isES and"Girar adelante o atrás"or"Forward / backward tilt",570)
-	local start=button(isES and"Iniciar Pose 1"or"Start Pose 1",634,0,.66);local cancel=button(isES and"Cancelar pose"or"Cancel pose",634,.68,.32)
+	local start=button(isES and"Iniciar Pose 1"or"Start Pose 1",634,0,.46);local pause=button(isES and"Pausar"or"Pause",634,.48,.24);local cancel=button(isES and"Cancelar"or"Cancel",634,.74,.26)
 	local status=label(isES and"Selecciona Pose 1 y un rol."or"Select Pose 1 and a role.",686);status.TextWrapped=true;status.Size=UDim2.new(1,0,0,48)
 	local changeNotice=Instance.new("Frame");changeNotice.Size=UDim2.new(.72,0,0,168);changeNotice.Position=UDim2.fromScale(.5,.5);changeNotice.AnchorPoint=Vector2.new(.5,.5);changeNotice.BackgroundColor3=currentTheme.secondary;changeNotice.Visible=false;changeNotice.ZIndex=210;changeNotice.Parent=main;Instance.new("UICorner",changeNotice).CornerRadius=UDim.new(0,14);RegisterTheme(changeNotice,"BackgroundColor3","secondary")
 	local noticeStroke=Instance.new("UIStroke",changeNotice);noticeStroke.Color=currentTheme.accent;noticeStroke.Thickness=2;RegisterTheme(noticeStroke,"Color","accent")
@@ -35,14 +35,15 @@ return function(context)
 	local function active(buttonValue,value)buttonValue.BackgroundColor3=value and currentTheme.accent or currentTheme.tertiary end
 	UpdatePresetPosePanel=function(message)
 		local role=PresetPoseController:GetRole();local mode=PresetPoseController:GetMode();local friend=PresetPoseController:GetTarget();local selected=PresetPoseController:GetSelected()
-		active(pose1Button,selected=="Pose1");active(pose2Button,selected=="Pose2");active(boy,role=="boy");active(girl,role=="girl");active(solo,mode=="solo");active(sync,mode=="sync")
+		active(pose1Button,selected=="Pose1");active(pose2Button,selected=="Pose2");active(pose3Button,selected=="Pose3");active(boy,role=="boy");active(girl,role=="girl");active(solo,mode=="solo");active(sync,mode=="sync")
 		target.Visible=mode=="sync";target.Text=friend and(friend.DisplayName.."  (@"..friend.Name..")")or(isES and"Seleccionar amigo"or"Select friend")
 		speedValue.Text=string.format("%.1fx",PresetPoseController:GetSpeed());distanceValue.Text=string.format("%.1f studs",CouplesPositionController:GetDistance());heightValue.Text=string.format("%+.1f",CouplesPositionController:GetHeight());orbitValue.Text=math.floor(CouplesPositionController:GetAngle()).."°";rotationValue.Text=math.floor(CouplesPositionController:GetSelfAngle()).."°";tiltValue.Text=math.floor(CouplesPositionController:GetTilt()).."°"
-		start.Text=(isES and"Iniciar "or"Start ")..selected:gsub("Pose","Pose ");cancel.BackgroundColor3=PresetPoseController:IsActive()and currentTheme.critical or currentTheme.tertiary
+		start.Text=(isES and"Iniciar "or"Start ")..selected:gsub("Pose","Pose ");pause.Text=PresetPoseController:IsPaused()and(isES and"Reanudar"or"Resume")or(isES and"Pausar"or"Pause");pause.BackgroundColor3=PresetPoseController:IsPaused()and currentTheme.accent or currentTheme.tertiary;cancel.BackgroundColor3=PresetPoseController:IsActive()and currentTheme.critical or currentTheme.tertiary
 		status.Text=message or PresetPoseController:GetStatus()
 	end
 	pose1Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose1");UpdatePresetPosePanel(isES and"Pose 1 seleccionada."or"Pose 1 selected.")end)
 	pose2Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose2");UpdatePresetPosePanel(isES and"Pose 2 seleccionada."or"Pose 2 selected.")end)
+	pose3Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose3");UpdatePresetPosePanel(isES and"Pose 3 seleccionada."or"Pose 3 selected.")end)
 	boy.MouseButton1Click:Connect(function()PresetPoseController:SetRole("boy");UpdatePresetPosePanel()end);girl.MouseButton1Click:Connect(function()PresetPoseController:SetRole("girl");UpdatePresetPosePanel()end)
 	solo.MouseButton1Click:Connect(function()PresetPoseController:SetMode("solo");list.Visible=false;UpdatePresetPosePanel()end);sync.MouseButton1Click:Connect(function()PresetPoseController:SetMode("sync");UpdatePresetPosePanel()end)
 	target.MouseButton1Click:Connect(function()
@@ -60,6 +61,6 @@ return function(context)
 	orbitMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustAngle,-5)end);orbitPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustAngle,5)end)
 	rotationMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustSelfAngle,-5)end);rotationPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustSelfAngle,5)end)
 	tiltMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustTilt,-1)end);tiltPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustTilt,1)end)
-	start.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Start();UpdatePresetPosePanel(message)end);cancel.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Stop();UpdatePresetPosePanel(message)end)
+	start.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Start();UpdatePresetPosePanel(message)end);pause.MouseButton1Click:Connect(function()local _,message=PresetPoseController:TogglePaused();UpdatePresetPosePanel(message)end);cancel.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Stop();UpdatePresetPosePanel(message)end)
 	UpdatePresetPosePanel();return true
 end
