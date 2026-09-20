@@ -6,7 +6,7 @@ return function(context)
 	local signalSpeeds={Pose1=2.71,Pose2=2.72}
 	local poses={
 		Pose1={girl={id=78272860047654,distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,start=0}},
-		Pose2={girl={id=78272860047654,distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,start=4,finish=6}}
+		Pose2={girl={id=78272860047654,distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,start=4,finish=7}}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
