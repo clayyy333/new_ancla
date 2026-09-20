@@ -145,7 +145,7 @@ return function(context)
 		local pose = {
 			name = loop.name, id = loop.id, speed = loop.speed, start = loop.start, finish = loop.finish,
 			distance = CouplesPositionController:GetDistance(), height = CouplesPositionController:GetHeight(),
-			orbit = CouplesPositionController:GetAngle(), rotation = CouplesPositionController:GetSelfAngle(),
+			orbit = CouplesPositionController:GetAngle(), rotation = CouplesPositionController:GetSelfAngle(), tilt = CouplesPositionController:GetTilt(),
 		}
 		Settings.couplePoses[#Settings.couplePoses + 1] = pose
 		SaveLocalData()

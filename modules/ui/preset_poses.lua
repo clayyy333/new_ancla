@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	presetPosePanel=Instance.new("ScrollingFrame");presetPosePanel.Size=UDim2.new(1,-16,1,-(titleH+20));presetPosePanel.Position=UDim2.new(0,8,0,titleH+8);presetPosePanel.BackgroundTransparency=1;presetPosePanel.BorderSizePixel=0;presetPosePanel.ScrollBarThickness=3;presetPosePanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;presetPosePanel.CanvasSize=UDim2.new();presetPosePanel.Visible=false;presetPosePanel.Parent=content
-	local card=Instance.new("Frame");card.Size=UDim2.new(1,-4,0,690);card.BackgroundColor3=currentTheme.secondary;card.Parent=presetPosePanel;Instance.new("UICorner",card).CornerRadius=UDim.new(0,14);RegisterTheme(card,"BackgroundColor3","secondary")
+	local card=Instance.new("Frame");card.Size=UDim2.new(1,-4,0,770);card.BackgroundColor3=currentTheme.secondary;card.Parent=presetPosePanel;Instance.new("UICorner",card).CornerRadius=UDim.new(0,14);RegisterTheme(card,"BackgroundColor3","secondary")
 	local pad=Instance.new("UIPadding",card);pad.PaddingLeft=UDim.new(0,14);pad.PaddingRight=UDim.new(0,14);pad.PaddingTop=UDim.new(0,14);pad.PaddingBottom=UDim.new(0,14)
 	local function label(text,y)local l=Instance.new("TextLabel");l.Size=UDim2.new(1,0,0,18);l.Position=UDim2.new(0,0,0,y);l.BackgroundTransparency=1;l.Text=text;l.TextColor3=currentTheme.textDim;l.Font=Enum.Font.GothamMedium;l.TextSize=isMobile and 10 or 12;l.TextXAlignment=Enum.TextXAlignment.Left;l.Parent=card;RegisterTheme(l,"TextColor3","textDim");return l end
 	local function button(text,y,x,w)local b=Instance.new("TextButton");b.Size=UDim2.new(w or 1,0,0,40);b.Position=UDim2.new(x or 0,0,0,y);b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 12;b.AutoButtonColor=false;b.Parent=card;Instance.new("UICorner",b).CornerRadius=UDim.new(0,10);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b end
@@ -20,14 +20,15 @@ return function(context)
 	local heightMinus,heightValue,heightPlus=row(isES and"Altura"or"Height",390)
 	local orbitMinus,orbitValue,orbitPlus=row(isES and"Giro alrededor"or"Orbit rotation",450);orbitMinus.Text="↶";orbitPlus.Text="↷"
 	local rotationMinus,rotationValue,rotationPlus=row(isES and"Giro sobre su eje"or"Own-axis rotation",510);rotationMinus.Text="↶";rotationPlus.Text="↷"
-	local start=button(isES and"Iniciar Pose 1"or"Start Pose 1",574,0,.66);local cancel=button(isES and"Cancelar pose"or"Cancel pose",574,.68,.32)
-	local status=label(isES and"Selecciona Pose 1 y un rol."or"Select Pose 1 and a role.",626);status.TextWrapped=true;status.Size=UDim2.new(1,0,0,48)
+	local tiltMinus,tiltValue,tiltPlus=row(isES and"Girar adelante o atrás"or"Forward / backward tilt",570)
+	local start=button(isES and"Iniciar Pose 1"or"Start Pose 1",634,0,.66);local cancel=button(isES and"Cancelar pose"or"Cancel pose",634,.68,.32)
+	local status=label(isES and"Selecciona Pose 1 y un rol."or"Select Pose 1 and a role.",686);status.TextWrapped=true;status.Size=UDim2.new(1,0,0,48)
 	local function active(buttonValue,value)buttonValue.BackgroundColor3=value and currentTheme.accent or currentTheme.tertiary end
 	UpdatePresetPosePanel=function(message)
 		local role=PresetPoseController:GetRole();local mode=PresetPoseController:GetMode();local friend=PresetPoseController:GetTarget()
 		active(boy,role=="boy");active(girl,role=="girl");active(solo,mode=="solo");active(sync,mode=="sync")
 		target.Visible=mode=="sync";target.Text=friend and(friend.DisplayName.."  (@"..friend.Name..")")or(isES and"Seleccionar amigo"or"Select friend")
-		speedValue.Text=string.format("%.1fx",PresetPoseController:GetSpeed());distanceValue.Text=string.format("%.1f studs",CouplesPositionController:GetDistance());heightValue.Text=string.format("%+.1f",CouplesPositionController:GetHeight());orbitValue.Text=math.floor(CouplesPositionController:GetAngle()).."°";rotationValue.Text=math.floor(CouplesPositionController:GetSelfAngle()).."°"
+		speedValue.Text=string.format("%.1fx",PresetPoseController:GetSpeed());distanceValue.Text=string.format("%.1f studs",CouplesPositionController:GetDistance());heightValue.Text=string.format("%+.1f",CouplesPositionController:GetHeight());orbitValue.Text=math.floor(CouplesPositionController:GetAngle()).."°";rotationValue.Text=math.floor(CouplesPositionController:GetSelfAngle()).."°";tiltValue.Text=math.floor(CouplesPositionController:GetTilt()).."°"
 		cancel.BackgroundColor3=PresetPoseController:IsActive()and currentTheme.critical or currentTheme.tertiary
 		status.Text=message or PresetPoseController:GetStatus()
 	end
@@ -48,6 +49,7 @@ return function(context)
 	heightMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustHeight,-.1)end);heightPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustHeight,.1)end)
 	orbitMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustAngle,-5)end);orbitPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustAngle,5)end)
 	rotationMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustSelfAngle,-5)end);rotationPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustSelfAngle,5)end)
+	tiltMinus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustTilt,-1)end);tiltPlus.MouseButton1Click:Connect(function()location(CouplesPositionController.AdjustTilt,1)end)
 	start.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Start();UpdatePresetPosePanel(message)end);cancel.MouseButton1Click:Connect(function()local _,message=PresetPoseController:Stop();UpdatePresetPosePanel(message)end)
 	UpdatePresetPosePanel();return true
 end

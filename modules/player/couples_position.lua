@@ -1,6 +1,6 @@
 return function(context)
 	setfenv(1, context)
-	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil,SavedCollisions={}}
+	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,Tilt=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil,SavedCollisions={}}
 	local connections={}
 	local function rig(p)
 		local character=p and p.Character
@@ -30,11 +30,13 @@ return function(context)
 	function C:GetHeight()return self.Height end
 	function C:GetAngle()return self.Angle end
 	function C:GetSelfAngle()return self.SelfAngle end
+	function C:GetTilt()return self.Tilt end
 	function C:IsMaintaining()return self.Maintaining end
 	function C:SetDistance(v)self.Distance=math.round(math.clamp(tonumber(v)or self.Distance,0.5,15)*10)/10 end
 	function C:SetHeight(v)self.Height=math.round(math.clamp(tonumber(v)or self.Height,-8,8)*10)/10;self.HeightInitialized=true end
 	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
 	function C:SetSelfAngle(v)self.SelfAngle=((tonumber(v)or self.SelfAngle)+180)%360-180 end
+	function C:SetTilt(v)self.Tilt=math.clamp(math.round(tonumber(v)or self.Tilt),-60,60)end
 	function C:_DisableCollisions()
 		local character=player.Character
 		if not character then return end
@@ -65,7 +67,7 @@ return function(context)
 		local position=(orbit*CFrame.new(0,self.Height,-self.Distance)).Position
 		local look=Vector3.new(targetRoot.Position.X,position.Y,targetRoot.Position.Z)
 		root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-		root.CFrame=CFrame.lookAt(position,look)*CFrame.Angles(0,math.rad(self.SelfAngle),0)
+		root.CFrame=CFrame.lookAt(position,look)*CFrame.Angles(0,math.rad(self.SelfAngle),0)*CFrame.Angles(math.rad(self.Tilt),0,0)
 		return true
 	end
 	function C:Position()
@@ -95,7 +97,8 @@ return function(context)
 	function C:AdjustHeight(v)self:SetHeight(self.Height+v);return changed(self)end
 	function C:AdjustAngle(v)self:SetAngle(self.Angle+v);return changed(self)end
 	function C:AdjustSelfAngle(v)self:SetSelfAngle(self.SelfAngle+v);return changed(self)end
-	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.HeightInitialized=3,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then local anchor=bodyAnchor(self.Target,targetRoot);self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
+	function C:AdjustTilt(v)self:SetTilt(self.Tilt+v);return changed(self)end
+	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.Tilt,self.HeightInitialized=3,0,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then local anchor=bodyAnchor(self.Target,targetRoot);self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()if C.Maintaining and not C:_Apply()then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
 	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then C:Release();C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;table.clear(C.SavedCollisions);C.HasPositioned=false end)

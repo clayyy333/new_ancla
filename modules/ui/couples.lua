@@ -15,7 +15,7 @@ return function(context)
 	couplesPanel.Parent = content
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, -4, 0, 530)
+	card.Size = UDim2.new(1, -4, 0, 610)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = couplesPanel
@@ -95,12 +95,13 @@ return function(context)
 	angleMinus.Text, anglePlus.Text = "↶", "↷"
 	local selfMinus, selfValue, selfPlus = makeControlRow(isES and "Giro sobre su eje" or "Rotation on own axis", 276)
 	selfMinus.Text, selfPlus.Text = "↶", "↷"
-	local positionButton = makeButton(isES and "Colocar frente a frente" or "Position face to face", 346, 0, 0.67)
-	local resetButton = makeButton(isES and "Restablecer" or "Reset", 346, 0.69, 0.31)
-	local savedButton = makeButton(isES and "Bucles guardados" or "Saved loops", 396)
-	local savePoseButton = makeButton(isES and "Guardar bucle con ubicación" or "Save loop with location", 446)
+	local tiltMinus, tiltValue, tiltPlus = makeControlRow(isES and "Girar adelante o atrás" or "Forward / backward tilt", 344)
+	local positionButton = makeButton(isES and "Colocar frente a frente" or "Position face to face", 414, 0, 0.67)
+	local resetButton = makeButton(isES and "Restablecer" or "Reset", 414, 0.69, 0.31)
+	local savedButton = makeButton(isES and "Bucles guardados" or "Saved loops", 464)
+	local savePoseButton = makeButton(isES and "Guardar bucle con ubicación" or "Save loop with location", 514)
 	local selectedLoop = nil
-	local status = makeLabel(isES and "Selecciona un jugador y ajusta la posición." or "Select a player and adjust the position.", 490)
+	local status = makeLabel(isES and "Selecciona un jugador y ajusta la posición." or "Select a player and adjust the position.", 558)
 
 	UpdateCouplesPanel = function(message)
 		local target = CouplesPositionController:GetTarget()
@@ -109,6 +110,7 @@ return function(context)
 		heightValue.Text = string.format("%+.1f", CouplesPositionController:GetHeight())
 		angleValue.Text = tostring(math.floor(CouplesPositionController:GetAngle())) .. "°"
 		selfValue.Text = tostring(math.floor(CouplesPositionController:GetSelfAngle())) .. "°"
+		tiltValue.Text = tostring(math.floor(CouplesPositionController:GetTilt())) .. "°"
 		positionButton.Text = CouplesPositionController:IsMaintaining() and (isES and "Liberar ubicación" or "Release location") or (isES and "Colocar frente a frente" or "Position face to face")
 		positionButton.BackgroundColor3 = CouplesPositionController:IsMaintaining() and currentTheme.critical or currentTheme.tertiary
 		if message then status.Text = message end
@@ -157,6 +159,8 @@ return function(context)
 	anglePlus.MouseButton1Click:Connect(function() adjust(CouplesPositionController.AdjustAngle, 15) end)
 	selfMinus.MouseButton1Click:Connect(function() adjust(CouplesPositionController.AdjustSelfAngle, -15) end)
 	selfPlus.MouseButton1Click:Connect(function() adjust(CouplesPositionController.AdjustSelfAngle, 15) end)
+	tiltMinus.MouseButton1Click:Connect(function() adjust(CouplesPositionController.AdjustTilt, -1) end)
+	tiltPlus.MouseButton1Click:Connect(function() adjust(CouplesPositionController.AdjustTilt, 1) end)
 	savedButton.MouseButton1Click:Connect(function() local loops=Settings.coupleLoops or {}; if #loops==0 then selectedLoop=nil; savedButton.Text=isES and "No hay bucles guardados" or "No saved loops" else selectedLoop=(selectedLoop or 0)%#loops+1; local v=loops[selectedLoop]; savedButton.Text=v.name.."  "..v.start.."–"..v.finish.."s" end end)
 	savePoseButton.MouseButton1Click:Connect(function() local ok=CoupleMovementController:SavePose(selectedLoop); UpdateCouplesPanel(ok and (isES and "Pose guardada." or "Pose saved.") or (isES and "Selecciona un bucle guardado." or "Select a saved loop.")) end)
 	positionButton.MouseButton1Click:Connect(function()
