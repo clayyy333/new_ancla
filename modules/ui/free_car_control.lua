@@ -19,7 +19,7 @@ return function(context)
 	local tiltMinus=button("−",162,0,0.20); local tiltValue=button("",162,0.22,0.56); local tiltPlus=button("+",162,0.80,0.20)
 	local toggle=button("",214)
 	local boost=button(isES and "Mantener impulso" or "Hold boost",264)
-	local cameraPad=button(isES and "Clic derecho + mover: cámara" or "Right-click + move: camera",314,0,1,42)
+	local cameraPad=button(isES and "Arrastra aquí o usa clic derecho: cámara" or "Drag here or use right-click: camera",314,0,1,42)
 	local status=label("",isMobile and 466 or 364,34)
 	local directionButtons={}
 	if isMobile then
@@ -30,10 +30,8 @@ return function(context)
 			control.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then FreeCarController:SetMobileDirection(entry[1],false) end end)
 		end
 	end
-	local dragInput,lastPosition
-	cameraPad.InputBegan:Connect(function(input) if FreeCarController:IsRunning() and (input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1) then dragInput=input; lastPosition=input.Position end end)
-	cameraPad.InputChanged:Connect(function(input) if input==dragInput and lastPosition then local delta=input.Position-lastPosition; lastPosition=input.Position; FreeCarController:RotateCamera(delta) end end)
-	cameraPad.InputEnded:Connect(function(input) if input==dragInput then dragInput=nil; lastPosition=nil end end)
+	cameraPad.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.MouseButton2 then FreeCarController:BeginCameraDrag() end end)
+	cameraPad.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.MouseButton2 then FreeCarController:EndCameraDrag() end end)
 	local function clearOptions() for _,child in ipairs(carList:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end end
 	local function option(text,callback)
 		local item=button(text,0,0,1,32,31); item.Parent=carList; item.Position=UDim2.new(); item.Size=UDim2.new(1,-4,0,32); item.MouseButton1Click:Connect(callback)

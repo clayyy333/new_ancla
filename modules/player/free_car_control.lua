@@ -54,6 +54,8 @@ return function(context)
 	function Core:SetBoost(enabled) self.Boost=enabled==true end
 	function Core:SetMobileDirection(direction,enabled) if self.Mobile[direction]==nil then return false end; self.Mobile[direction]=enabled==true; return true end
 	function Core:RotateCamera(delta) if not self.Running then return end; self.CamYaw-=delta.X*0.18; self.CamPitch=math.clamp(self.CamPitch-delta.Y*0.18,-80,80) end
+	function Core:BeginCameraDrag() if self.Running then self.CameraDrag=true; return true end; return false end
+	function Core:EndCameraDrag() self.CameraDrag=false end
 	function Core:DestroyForce() if self.BV then pcall(function() self.BV:Destroy() end); self.BV=nil end end
 	function Core:CreateForce(root)
 		self:DestroyForce(); local body=Instance.new("BodyVelocity"); body.Name="VexroCarFreeControl"; body.MaxForce=Vector3.new(1e6,1e6,1e6); body.P=5000; body.Velocity=Vector3.zero; body.Parent=root; self.BV=body
@@ -119,9 +121,9 @@ return function(context)
 	local function setKey(code,value)
 		if code==Enum.KeyCode.W or code==Enum.KeyCode.Up then Core.Keys.Forward=value elseif code==Enum.KeyCode.S or code==Enum.KeyCode.Down then Core.Keys.Back=value elseif code==Enum.KeyCode.A or code==Enum.KeyCode.Left then Core.Keys.Left=value elseif code==Enum.KeyCode.D or code==Enum.KeyCode.Right then Core.Keys.Right=value elseif code==Enum.KeyCode.LeftShift then Core:SetBoost(value) end
 	end
-	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed) if processed or not Core.Running then return end; setKey(input.KeyCode,true); if input.UserInputType==Enum.UserInputType.MouseButton2 then Core.CameraDrag=true end end)
-	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input) setKey(input.KeyCode,false); if input.UserInputType==Enum.UserInputType.MouseButton2 then Core.CameraDrag=false end end)
-	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input) if Core.Running and Core.CameraDrag and input.UserInputType==Enum.UserInputType.MouseMovement then Core:RotateCamera(input.Delta) end end)
+	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed) if not Core.Running then return end; if input.UserInputType==Enum.UserInputType.MouseButton2 then Core:BeginCameraDrag(); return end; if processed then return end; setKey(input.KeyCode,true) end)
+	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input) setKey(input.KeyCode,false); if input.UserInputType==Enum.UserInputType.MouseButton2 or input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then Core:EndCameraDrag() end end)
+	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input) if Core.Running and Core.CameraDrag and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then Core:RotateCamera(input.Delta) end end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function() if Core.Running then task.wait(0.25); Core:Stop() end end)
 	function Core:Destroy() self:Stop(); for _,connection in ipairs(connections) do connection:Disconnect() end; table.clear(connections) end
 	FreeCarController=Core
