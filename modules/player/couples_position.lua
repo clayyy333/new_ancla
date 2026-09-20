@@ -9,6 +9,10 @@ return function(context)
 		if not humanoid or humanoid.Health<=0 or not root then return nil,nil end
 		return humanoid,root
 	end
+	local function bodyAnchor(p,root)
+		local character=p and p.Character
+		return character and(character:FindFirstChild("LowerTorso")or character:FindFirstChild("Torso")or character:FindFirstChild("UpperTorso"))or root
+	end
 	function C:GetTargetOptions()
 		local result={}
 		for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player then result[#result+1]=candidate end end
@@ -27,7 +31,7 @@ return function(context)
 	function C:GetAngle()return self.Angle end
 	function C:GetSelfAngle()return self.SelfAngle end
 	function C:IsMaintaining()return self.Maintaining end
-	function C:SetDistance(v)self.Distance=math.clamp(tonumber(v)or self.Distance,1.5,15)end
+	function C:SetDistance(v)self.Distance=math.round(math.clamp(tonumber(v)or self.Distance,0.5,15)*10)/10 end
 	function C:SetHeight(v)self.Height=math.clamp(tonumber(v)or self.Height,-8,8);self.HeightInitialized=true end
 	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
 	function C:SetSelfAngle(v)self.SelfAngle=((tonumber(v)or self.SelfAngle)+180)%360-180 end
@@ -50,9 +54,14 @@ return function(context)
 	function C:_Apply()
 		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
 		if not humanoid or not root or not targetRoot then return false end
+		local anchor=bodyAnchor(self.Target,targetRoot)
 		if humanoid.Sit then humanoid.Sit=false end
 		self:_DisableCollisions()
-		local orbit=targetRoot.CFrame*CFrame.Angles(0,math.rad(self.Angle),0)
+		local forward=Vector3.new(targetRoot.CFrame.LookVector.X,0,targetRoot.CFrame.LookVector.Z)
+		if forward.Magnitude<0.001 then forward=Vector3.new(0,0,-1)else forward=forward.Unit end
+		local anchorPosition=anchor.Position
+		local bodyFrame=CFrame.lookAt(anchorPosition,anchorPosition+forward)
+		local orbit=bodyFrame*CFrame.Angles(0,math.rad(self.Angle),0)
 		local position=(orbit*CFrame.new(0,self.Height,-self.Distance)).Position
 		local look=Vector3.new(targetRoot.Position.X,position.Y,targetRoot.Position.Z)
 		root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
@@ -64,7 +73,8 @@ return function(context)
 		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
 		if not root then return false,isES and"Tu personaje no está disponible."or"Your character is unavailable."end
 		if not targetRoot then return false,isES and"El personaje objetivo no está disponible."or"The target character is unavailable."end
-		if not self.HeightInitialized then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end
+		local anchor=bodyAnchor(self.Target,targetRoot)
+		if not self.HeightInitialized then self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end
 		if self.SavedAutoRotate==nil then self.SavedAutoRotate=humanoid.AutoRotate end
 		humanoid.AutoRotate=false;self.Maintaining=true;self.HasPositioned=true;self:_DisableCollisions();self:_Apply()
 		return true,isES and"Ubicación mantenida."or"Location maintained."
@@ -85,7 +95,7 @@ return function(context)
 	function C:AdjustHeight(v)self:SetHeight(self.Height+v);return changed(self)end
 	function C:AdjustAngle(v)self:SetAngle(self.Angle+v);return changed(self)end
 	function C:AdjustSelfAngle(v)self:SetSelfAngle(self.SelfAngle+v);return changed(self)end
-	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.HeightInitialized=3,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
+	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.HeightInitialized=3,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then local anchor=bodyAnchor(self.Target,targetRoot);self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()if C.Maintaining and not C:_Apply()then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
 	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then C:Release();C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;table.clear(C.SavedCollisions);C.HasPositioned=false end)
