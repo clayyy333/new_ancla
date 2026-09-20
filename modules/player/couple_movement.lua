@@ -48,6 +48,8 @@ return function(context)
 	end
 	function C:GetSelected() return self.Selected end
 	function C:GetTrack() return self.Track end
+	function C:IsSavedPoseActive(index) return self.Looping and self.Track~=nil and self.ActivePoseIndex~=nil and(index==nil or self.ActivePoseIndex==index) end
+	function C:GetActivePoseIndex() return self.ActivePoseIndex end
 
 	function C:SetSpeed(value)
 		self.Speed = math.clamp(roundHalf(value), 0.5, 3)
@@ -187,7 +189,7 @@ return function(context)
 		if self.ActivePoseIndex==index then self:StopLoop(.05)elseif self.ActivePoseIndex and self.ActivePoseIndex>index then self.ActivePoseIndex-=1 end
 		table.remove(Settings.couplePoses,index);SaveLocalData();return true
 	end
-	function C:StopSavedPose()self:StopLoop(.1);return true,isES and"Pose detenida."or"Pose stopped."end
+	function C:StopSavedPose()if not self:IsSavedPoseActive()then return false,isES and"No hay una pose activa."or"No pose is active."end;self:StopLoop(.1);return true,isES and"Pose detenida."or"Pose stopped."end
 	connections[#connections + 1] = RunService.Heartbeat:Connect(function()
 		local track = C.Track
 		if not C.Looping or not track then return end
