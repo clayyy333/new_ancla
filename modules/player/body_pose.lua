@@ -4,9 +4,30 @@ return function(context)
 	local C={Active=false,Original={},Joints={},Values={RightArmOpen=0,RightArmLift=0,RightForearm=0,LeftArmOpen=0,LeftArmLift=0,LeftForearm=0,LegsOpen=0,RightLegLift=0,LeftLegLift=0,Lean=0}}
 	local connection
 	local limits={RightArmOpen={-70,100},RightArmLift={-80,140},RightForearm={0,145},LeftArmOpen={-70,100},LeftArmLift={-80,140},LeftForearm={0,145},LegsOpen={-45,60},RightLegLift={-60,100},LeftLegLift={-60,100},Lean={-60,60}}
-	local names={RightShoulder={"RightShoulder","Right Shoulder"},LeftShoulder={"LeftShoulder","Left Shoulder"},RightElbow={"RightElbow"},LeftElbow={"LeftElbow"},RightHip={"RightHip","Right Hip"},LeftHip={"LeftHip","Left Hip"},Waist={"Waist","RootJoint","Root Joint"}}
-	local function findMotor(character,candidates)
-		for _,name in ipairs(candidates)do local motor=character:FindFirstChild(name,true);if motor and motor:IsA("Motor6D")then return motor end end
+	local specs={
+		RightShoulder={motor={"rightshoulder"},part={"rightupperarm","rightarm"}},
+		LeftShoulder={motor={"leftshoulder"},part={"leftupperarm","leftarm"}},
+		RightElbow={motor={"rightelbow"},part={"rightlowerarm","rightforearm"}},
+		LeftElbow={motor={"leftelbow"},part={"leftlowerarm","leftforearm"}},
+		RightHip={motor={"righthip"},part={"rightupperleg","rightleg"}},
+		LeftHip={motor={"lefthip"},part={"leftupperleg","leftleg"}},
+		Waist={motor={"waist","rootjoint"},part={"uppertorso","torso"}}
+	}
+	local function normalized(value)return tostring(value or""):lower():gsub("[^%w]","")end
+	local function contains(list,value)for _,candidate in ipairs(list)do if value==candidate then return true end end return false end
+	local function getMotors(character)
+		local motors={}
+		for _,object in ipairs(character:GetDescendants())do
+			if object:IsA("Motor6D")or object:IsA("Motor")then motors[#motors+1]=object end
+		end
+		return motors
+	end
+	local function findMotor(motors,spec)
+		for _,motor in ipairs(motors)do if contains(spec.motor,normalized(motor.Name))then return motor end end
+		for _,motor in ipairs(motors)do
+			local part1=motor.Part1
+			if part1 and contains(spec.part,normalized(part1.Name))then return motor end
+		end
 	end
 	function C:_Restore()
 		for motor,c0 in pairs(self.Original)do if motor and motor.Parent then pcall(function()motor.C0=c0 end)end end
@@ -15,8 +36,9 @@ return function(context)
 	function C:_Resolve()
 		self:_Restore()
 		local character=player.Character;if not character then return false end
-		for key,candidates in pairs(names)do local motor=findMotor(character,candidates);self.Joints[key]=motor;if motor then self.Original[motor]=motor.C0 end end
-		return self.Joints.RightShoulder~=nil or self.Joints.LeftShoulder~=nil
+		local motors=getMotors(character);self.LastMotorCount=#motors
+		for key,spec in pairs(specs)do local motor=findMotor(motors,spec);self.Joints[key]=motor;if motor then self.Original[motor]=motor.C0 end end
+		return next(self.Joints)~=nil
 	end
 	function C:_Set(key,offset)
 		local motor=self.Joints[key];if motor and motor.Parent then motor.C0=self.Original[motor]*offset end
@@ -35,7 +57,16 @@ return function(context)
 	end
 	function C:Start()
 		if self.Active then return true end
-		if not self:_Resolve()then return false,isES and"No se encontraron articulaciones compatibles."or"No compatible joints found."end
+		local resolved=false
+		local deadline=os.clock()+3
+		repeat
+			resolved=self:_Resolve()
+			if not resolved then RunService.Heartbeat:Wait()end
+		until resolved or os.clock()>=deadline
+		if not resolved then
+			local count=self.LastMotorCount or 0
+			return false,isES and("No se encontraron articulaciones compatibles (motores detectados: "..count..").")or("No compatible joints found (motors detected: "..count..").")
+		end
 		self.Active=true;self:Apply();return true,isES and"Control corporal activo."or"Body control active."
 	end
 	function C:Stop()self.Active=false;self:_Restore();return true,isES and"Control corporal desactivado."or"Body control disabled."end
