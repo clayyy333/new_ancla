@@ -6,7 +6,7 @@ return function(context)
 	local signalSpeeds={Pose1=2.71,Pose2=2.72}
 	local poses={
 		Pose1={girl={id=78272860047654,distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,start=0}},
-		Pose2={girl={id=78272860047654,distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,start=4}}
+		Pose2={girl={id=78272860047654,distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,start=4,endTrim=1.5}}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
@@ -78,13 +78,16 @@ return function(context)
 	connections[#connections+1]=RunService.Heartbeat:Connect(function(dt)
 		if not C.Active or not C.Track then return end;elapsed+=dt;if elapsed<.1 then return end;elapsed=0
 		if C.StartTime>0 and C.Track.IsPlaying and C.Track.TimePosition<C.StartTime-.05 then pcall(function()C.Track.TimePosition=C.StartTime end)end
+		local ownDefinition=poses[C.Selected][C.Role]
+		local ownEnd=ownDefinition and C.Track.Length>0 and(C.Track.Length-(ownDefinition.endTrim or 0))or 0
+		if ownEnd>C.StartTime and C.Track.TimePosition>=ownEnd then pcall(function()C.Track.TimePosition=C.StartTime end)end
 		if C.Mode~="sync"or not C.Target or not C.Role then return end
 		local targetAnimator=animatorFor(C.Target)
 		if targetAnimator then for _,candidate in ipairs(targetAnimator:GetPlayingAnimationTracks())do local candidateId=trackId(candidate);for poseName,pose in pairs(poses)do local partnerDefinition=pose[opposite(C.Role)];if candidateId==resolvedCatalog(partnerDefinition.id)then local code=signalSpeeds[poseName];if math.abs(candidate.Speed-code)<.008 then C:_ReceivePoseChange(poseName)elseif C.Role=="girl"and poseName~=C.Selected then C:_ReceivePoseChange(poseName)end end end end end
 		if C.SyncSuspended then return end
 		local partnerDefinition=poses[C.Selected][opposite(C.Role)];local other=partnerTrack(C.Target,resolvedCatalog(partnerDefinition.id))
 		if not other then C.Status=isES and"Esperando que el amigo inicie el rol opuesto."or"Waiting for your friend to start the opposite role.";if UpdatePresetPosePanel then UpdatePresetPosePanel()end;return end
-		if C.Role=="girl"then C:SetSpeed(other.Speed,false);if other.Length>0 and C.Track.Length>0 then local otherStart=partnerDefinition.start or 0;local ownStart=poses[C.Selected][C.Role].start or 0;local otherDuration=math.max(.01,other.Length-otherStart);local ownDuration=math.max(.01,C.Track.Length-ownStart);local phase=((other.TimePosition-otherStart)/otherDuration)%1;local desired=ownStart+phase*ownDuration;if math.abs(C.Track.TimePosition-desired)>math.max(.12,C.Track.Length*.025)then pcall(function()C.Track.TimePosition=desired end)end end end
+		if C.Role=="girl"then C:SetSpeed(other.Speed,false);if other.Length>0 and C.Track.Length>0 then local otherStart=partnerDefinition.start or 0;local ownStart=ownDefinition.start or 0;local otherDuration=math.max(.01,other.Length-otherStart-(partnerDefinition.endTrim or 0));local ownDuration=math.max(.01,C.Track.Length-ownStart-(ownDefinition.endTrim or 0));local phase=((other.TimePosition-otherStart)/otherDuration)%1;local desired=ownStart+phase*ownDuration;if math.abs(C.Track.TimePosition-desired)>math.max(.12,C.Track.Length*.025)then pcall(function()C.Track.TimePosition=desired end)end end end
 		C.Status=isES and"Pose sincronizada con "..C.Target.DisplayName.."."or"Pose synced with "..C.Target.DisplayName..".";if UpdatePresetPosePanel then UpdatePresetPosePanel()end
 	end)
 	connections[#connections+1]=Players.PlayerRemoving:Connect(function(leaving)if leaving==C.Target then C:Stop();C.Target=nil end end);connections[#connections+1]=player.CharacterRemoving:Connect(function()C:Stop(true)end)
