@@ -10,6 +10,8 @@ return function(context)
 		Looping = false,
 		Track = nil,
 		Animation = nil,
+		ActivePoseIndex = nil,
+		PosePositionOwned = false,
 	}
 	Settings.coupleLoops = type(Settings.coupleLoops) == "table" and Settings.coupleLoops or {}
 	Settings.couplePoses = type(Settings.couplePoses) == "table" and Settings.couplePoses or {}
@@ -17,6 +19,10 @@ return function(context)
 
 	local function roundHalf(value)
 		return math.floor((tonumber(value) or 0) * 2 + 0.5) / 2
+	end
+
+	local function roundTenth(value)
+		return math.floor((tonumber(value) or 0) * 10 + 0.5) / 10
 	end
 
 	function C:Find(query)
@@ -51,20 +57,22 @@ return function(context)
 	end
 
 	function C:SetStart(value)
-		self.StartTime = math.max(0, roundHalf(value))
-		if self.EndTime <= self.StartTime then self.EndTime = self.StartTime + 0.5 end
+		self.StartTime = math.max(0, roundTenth(value))
+		if self.EndTime <= self.StartTime then self.EndTime = self.StartTime + 0.1 end
 		if self.Track and self.Track.Length > 0 then
-			self.StartTime = math.min(self.StartTime, math.max(0, self.Track.Length - 0.5))
+			self.StartTime = math.min(self.StartTime, math.max(0, self.Track.Length - 0.1))
 		end
 	end
 
 	function C:SetEnd(value)
 		local maximum = self.Track and self.Track.Length > 0 and self.Track.Length or 999
-		self.EndTime = math.clamp(roundHalf(value), self.StartTime + 0.5, maximum)
+		self.EndTime = math.clamp(roundTenth(value), self.StartTime + 0.1, maximum)
 	end
 
 	function C:StopLoop(fadeTime)
 		self.Looping = false
+		self.ActivePoseIndex = nil
+		if self.PosePositionOwned then CouplesPositionController:Release();self.PosePositionOwned=false end
 		if self.Track then pcall(function() self.Track:Stop(fadeTime or 0.1) end) end
 		self.Track = nil
 		if self.Animation then pcall(function() self.Animation:Destroy() end) end
@@ -119,11 +127,11 @@ return function(context)
 		end
 		if self.Track ~= track then return false end
 		if track.Length > 0 then
-			self.StartTime = math.clamp(self.StartTime, 0, math.max(0, track.Length - 0.5))
-			self.EndTime = math.clamp(self.EndTime, self.StartTime + 0.5, track.Length)
+			self.StartTime = math.clamp(self.StartTime, 0, math.max(0, track.Length - 0.1))
+			self.EndTime = math.clamp(self.EndTime, self.StartTime + 0.1, track.Length)
 		else
 			self.StartTime = math.max(0, self.StartTime)
-			self.EndTime = math.max(self.StartTime + 0.5, self.EndTime)
+			self.EndTime = math.max(self.StartTime + 0.1, self.EndTime)
 		end
 		track.TimePosition = self.StartTime
 		track:AdjustSpeed(self.Speed)
@@ -152,13 +160,47 @@ return function(context)
 		return true
 	end
 
+	function C:UseSavedPose(index)
+		local pose=Settings.couplePoses[tonumber(index)or 0]
+		if not pose then return false,isES and"Pose no encontrada."or"Pose not found."end
+		local target=CouplesPositionController:GetTarget()
+		if not target or target.Parent~=Players then return false,isES and"Selecciona primero un jugador en Ubicación de cuerpo."or"Select a player in Body location first."end
+		self.Selected={id=pose.id,name=pose.name};self.Speed=math.clamp(tonumber(pose.speed)or 1,.1,3);self.StartTime=tonumber(pose.start)or 0;self.EndTime=tonumber(pose.finish)or(self.StartTime+.5)
+		local ok,message=self:Preview();if not ok then return false,message end
+		CouplesPositionController:SetDistance(tonumber(pose.distance)or 3);CouplesPositionController:SetHeight(tonumber(pose.height)or 0);CouplesPositionController:SetAngle(tonumber(pose.orbit)or 0);CouplesPositionController:SetSelfAngle(tonumber(pose.rotation)or 0);CouplesPositionController:SetTilt(tonumber(pose.tilt)or 0)
+		local positioned,positionMessage=CouplesPositionController:Position();if not positioned then self:StopLoop(.05);return false,positionMessage end
+		self.ActivePoseIndex=index;self.PosePositionOwned=true
+		return true,isES and"Pose activa: "..pose.name or"Pose active: "..pose.name
+	end
+	function C:RenameSavedPose(index,name)
+		local pose=Settings.couplePoses[tonumber(index)or 0];local clean=tostring(name or""):gsub("^%s+",""):gsub("%s+$","")
+		if not pose or clean==""then return false end;pose.name=clean;if self.ActivePoseIndex==index and self.Selected then self.Selected.name=clean end;SaveLocalData();return true
+	end
+	function C:SetSavedPoseSpeed(index,value)
+		local pose=Settings.couplePoses[tonumber(index)or 0];if not pose then return false end
+		pose.speed=math.round(math.clamp(tonumber(value)or tonumber(pose.speed)or 1,.1,3)*10)/10
+		if self.ActivePoseIndex==index then self.Speed=pose.speed;if self.Track and self.Track.IsPlaying then pcall(function()self.Track:AdjustSpeed(self.Speed)end)end end
+		SaveLocalData();return true
+	end
+	function C:DeleteSavedPose(index)
+		index=tonumber(index);if not index or not Settings.couplePoses[index]then return false end
+		if self.ActivePoseIndex==index then self:StopLoop(.05)elseif self.ActivePoseIndex and self.ActivePoseIndex>index then self.ActivePoseIndex-=1 end
+		table.remove(Settings.couplePoses,index);SaveLocalData();return true
+	end
+	function C:StopSavedPose()self:StopLoop(.1);return true,isES and"Pose detenida."or"Pose stopped."end
 	connections[#connections + 1] = RunService.Heartbeat:Connect(function()
 		local track = C.Track
-		if not C.Looping or not track or not track.IsPlaying then return end
+		if not C.Looping or not track then return end
+		if not track.IsPlaying then
+			C.Looping=false;C.ActivePoseIndex=nil;C.Track=nil
+			if C.Animation then pcall(function()C.Animation:Destroy()end);C.Animation=nil end
+			if C.PosePositionOwned then CouplesPositionController:Release();C.PosePositionOwned=false end
+			return
+		end
 		if math.abs(track.Speed - C.Speed) > 0.001 then pcall(function() track:AdjustSpeed(C.Speed) end) end
 		if track.Length > 0 and C.EndTime > track.Length then
-			C.StartTime = math.min(C.StartTime, math.max(0, track.Length - 0.5))
-			C.EndTime = math.max(C.StartTime + 0.5, math.floor(track.Length * 2) / 2)
+			C.StartTime = math.min(C.StartTime, math.max(0, track.Length - 0.1))
+			C.EndTime = math.max(C.StartTime + 0.1, math.floor(track.Length * 10) / 10)
 		end
 		local position = track.TimePosition
 		if position >= C.EndTime or position < C.StartTime - 0.05 then

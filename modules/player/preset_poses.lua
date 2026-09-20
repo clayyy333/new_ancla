@@ -76,7 +76,9 @@ return function(context)
 	end
 	local elapsed=0
 	connections[#connections+1]=RunService.Heartbeat:Connect(function(dt)
-		if not C.Active or not C.Track then return end;elapsed+=dt;if elapsed<.1 then return end;elapsed=0
+		if not C.Active or not C.Track then return end
+		if not C.Track.IsPlaying then C.Active=false;if C.Animation then pcall(function()C.Animation:Destroy()end);C.Animation=nil end;C.Track=nil;if C.PositionOwned then CouplesPositionController:Release();C.PositionOwned=false end;return end
+		elapsed+=dt;if elapsed<.1 then return end;elapsed=0
 		if C.StartTime>0 and C.Track.IsPlaying and C.Track.TimePosition<C.StartTime-.05 then pcall(function()C.Track.TimePosition=C.StartTime end)end
 		local ownDefinition=poses[C.Selected][C.Role]
 		local ownEnd=ownDefinition and C.Track.Length>0 and math.min(ownDefinition.finish or C.Track.Length,C.Track.Length)or 0
