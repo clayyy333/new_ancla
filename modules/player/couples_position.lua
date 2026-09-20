@@ -1,6 +1,6 @@
 return function(context)
 	setfenv(1, context)
-	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil}
+	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil,SavedCollisions={}}
 	local connections={}
 	local function rig(p)
 		local character=p and p.Character
@@ -31,10 +31,27 @@ return function(context)
 	function C:SetHeight(v)self.Height=math.clamp(tonumber(v)or self.Height,-8,8);self.HeightInitialized=true end
 	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
 	function C:SetSelfAngle(v)self.SelfAngle=((tonumber(v)or self.SelfAngle)+180)%360-180 end
+	function C:_DisableCollisions()
+		local character=player.Character
+		if not character then return end
+		for _,part in ipairs(character:GetDescendants())do
+			if part:IsA("BasePart")then
+				if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end
+				part.CanCollide=false
+			end
+		end
+	end
+	function C:_RestoreCollisions()
+		for part,original in pairs(self.SavedCollisions)do
+			if part and part.Parent then pcall(function()part.CanCollide=original end)end
+		end
+		table.clear(self.SavedCollisions)
+	end
 	function C:_Apply()
 		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
 		if not humanoid or not root or not targetRoot then return false end
 		if humanoid.Sit then humanoid.Sit=false end
+		self:_DisableCollisions()
 		local orbit=targetRoot.CFrame*CFrame.Angles(0,math.rad(self.Angle),0)
 		local position=(orbit*CFrame.new(0,self.Height,-self.Distance)).Position
 		local look=Vector3.new(targetRoot.Position.X,position.Y,targetRoot.Position.Z)
@@ -49,11 +66,12 @@ return function(context)
 		if not targetRoot then return false,isES and"El personaje objetivo no está disponible."or"The target character is unavailable."end
 		if not self.HeightInitialized then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end
 		if self.SavedAutoRotate==nil then self.SavedAutoRotate=humanoid.AutoRotate end
-		humanoid.AutoRotate=false;self.Maintaining=true;self.HasPositioned=true;self:_Apply()
+		humanoid.AutoRotate=false;self.Maintaining=true;self.HasPositioned=true;self:_DisableCollisions();self:_Apply()
 		return true,isES and"Ubicación mantenida."or"Location maintained."
 	end
 	function C:Release()
 		self.Maintaining=false
+		self:_RestoreCollisions()
 		local humanoid=rig(player)
 		if humanoid and self.SavedAutoRotate~=nil then humanoid.AutoRotate=self.SavedAutoRotate end
 		self.SavedAutoRotate=nil
@@ -70,7 +88,7 @@ return function(context)
 	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.HeightInitialized=3,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then self.Height=math.clamp(root.Position.Y-targetRoot.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()if C.Maintaining and not C:_Apply()then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
 	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then C:Release();C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
-	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;C.HasPositioned=false end)
+	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;table.clear(C.SavedCollisions);C.HasPositioned=false end)
 	function C:Destroy()self:Release();for _,connection in ipairs(connections)do connection:Disconnect()end;table.clear(connections)end
 	CouplesPositionController=C
 	return true
