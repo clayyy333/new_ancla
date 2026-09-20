@@ -217,6 +217,8 @@ return {
 		"PresetPoseController",
 		"presetPosePanel",
 		"UpdatePresetPosePanel",
+		"ShowPresetPoseChange",
+		"HidePresetPoseChange",
 		"SpectatorController",
 		"FlightController",
 		"CarControlController",
