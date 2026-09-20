@@ -4,7 +4,7 @@ return function(context)
 	local C={Role=nil,Mode="solo",Target=nil,Speed=1,Track=nil,Animation=nil,Active=false,PositionOwned=false,LocalSpeedUntil=0,Status="Selecciona Pose 1."}
 	local connections={}
 	local resolvedIds={}
-	local poses={Pose1={girl={id=78272860047654,distance=1.4,height=1.8,orbit=30,rotation=0},boy={id=84288917893504}}}
+	local poses={Pose1={girl={id=78272860047654,distance=1.4,height=1.6,orbit=30,rotation=0},boy={id=84288917893504}}}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
 	local function animatorFor(p)
