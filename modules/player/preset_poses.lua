@@ -1,13 +1,13 @@
 -- Poses predeterminadas aisladas del reproductor normal.
 return function(context)
 	setfenv(1,context)
-	local C={Role=nil,Mode="solo",Target=nil,Speed=1,Track=nil,Animation=nil,Active=false,Paused=false,PauseGraceUntil=0,PositionOwned=false,StartTime=0,PendingPose=nil,SyncSuspended=false,SignalToken=0,Status="Selecciona una pose."}
+	local C={Role=nil,Mode="solo",Target=nil,Speed=1,Track=nil,Animation=nil,Active=false,Paused=false,PauseGraceUntil=0,PartnerTrack=nil,PartnerLastPosition=nil,PartnerStillFor=0,PositionOwned=false,StartTime=0,PendingPose=nil,SyncSuspended=false,SignalToken=0,Status="Selecciona una pose."}
 	local connections,resolvedIds={},{}
 	local signalSpeeds={Pose1=2.71,Pose2=2.72,Pose3=2.73}
 	local poses={
 		Pose1={girl={id=78272860047654,name="Hold Onto",distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,name="WILL BYERS DONT HIDE",start=0}},
 		Pose2={girl={id=78272860047654,name="Hold Onto",distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,name="Michael Myers Bounce",start=8.5,finish=9}},
-		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=3},boy={id=129305096889843,name="Sitting..",start=0,speed=1},independentSpeed=true}
+		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=3},boy={id=129305096889843,name="Sitting..",start=0,speed=1},girlControlsSpeed=true}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
@@ -64,11 +64,11 @@ return function(context)
 	function C:SetMode(mode)if mode~="solo"and mode~="sync"then return false end;self.Mode=mode;return true end
 	function C:SetTarget(target)if typeof(target)~="Instance"or not target:IsA("Player")or target==player then return false end;self.Target=target;local height=CouplesPositionController:GetHeight();CouplesPositionController:SetTarget(target);CouplesPositionController:SetHeight(height);return true end
 	function C:GetFriendOptions()local result={};for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player then local ok,value=pcall(function()return player:IsFriendsWith(candidate.UserId)end);if ok and value then result[#result+1]=candidate end end end;table.sort(result,function(a,b)return a.DisplayName:lower()<b.DisplayName:lower()end);return result end
-	function C:SetSpeed(value,localEdit)if self.Mode=="sync"and self.Role=="girl"and localEdit then self.Status=isES and"En sincronización, el Chico controla la velocidad."or"In sync mode, the Boy controls speed.";return false end;self.Speed=math.round(math.clamp(tonumber(value)or self.Speed,.1,4)*10)/10;if self.Track and self.Track.IsPlaying and not self.Paused then pcall(function()self.Track:AdjustSpeed(self.Speed)end)end;return true end
+	function C:SetSpeed(value,localEdit)if self.Mode=="sync"and self.Role=="girl"and localEdit and not poses[self.Selected].girlControlsSpeed then self.Status=isES and"En sincronización, el Chico controla la velocidad."or"In sync mode, the Boy controls speed.";return false end;self.Speed=math.round(math.clamp(tonumber(value)or self.Speed,.1,4)*10)/10;if self.Track and self.Track.IsPlaying and not self.Paused then pcall(function()self.Track:AdjustSpeed(self.Speed)end)end;return true end
 	function C:AdjustSpeed(delta)return self:SetSpeed(self.Speed+delta,true)end
 	function C:SetPaused(paused,fromPartner)
 		if not self.Active or not self.Track then return false,isES and"Inicia primero una pose."or"Start a pose first."end
-		self.Paused=paused==true;if not fromPartner then self.PauseGraceUntil=os.clock()+1.25 end
+		self.Paused=paused==true;if not fromPartner then self.PauseGraceUntil=os.clock()+3 end
 		pcall(function()self.Track:AdjustSpeed(self.Paused and 0 or self.Speed)end)
 		self.Status=self.Paused and(isES and"Pose pausada."or"Pose paused.")or(isES and"Pose reanudada."or"Pose resumed.")
 		return true,self.Status
@@ -86,7 +86,7 @@ return function(context)
 		self.Status=self.Mode=="sync"and(isES and"Pose activa; esperando el emote complementario."or"Pose active; waiting for the matching emote.")or(isES and"Pose individual activa."or"Solo pose active.");return true,self.Status
 	end
 	function C:Stop(quiet)
-		self.SignalToken+=1;self.Active=false;self.Paused=false;self.PauseGraceUntil=0;self.SyncSuspended=false;if self.Track then pcall(function()self.Track:Stop(.1)end)end;self.Track=nil;if self.Animation then pcall(function()self.Animation:Destroy()end)end;self.Animation=nil
+		self.SignalToken+=1;self.Active=false;self.Paused=false;self.PauseGraceUntil=0;self.PartnerTrack=nil;self.PartnerLastPosition=nil;self.PartnerStillFor=0;self.SyncSuspended=false;if self.Track then pcall(function()self.Track:Stop(.1)end)end;self.Track=nil;if self.Animation then pcall(function()self.Animation:Destroy()end)end;self.Animation=nil
 		if self.PositionOwned then CouplesPositionController:Release();self.PositionOwned=false end;if not quiet then self.Status=isES and"Pose cancelada."or"Pose cancelled."end;return true,self.Status
 	end
 	local elapsed=0
@@ -104,8 +104,8 @@ return function(context)
 		if C.SyncSuspended then return end
 		local partnerDefinition=poses[C.Selected][opposite(C.Role)];local other=partnerTrack(C.Target,resolvedCatalog(partnerDefinition.id))
 		if not other then C.Status=isES and"Esperando que el amigo inicie el rol opuesto."or"Waiting for your friend to start the opposite role.";if UpdatePresetPosePanel then UpdatePresetPosePanel()end;return end
-		local partnerPaused=math.abs(other.Speed)<.01;if os.clock()>=C.PauseGraceUntil and partnerPaused~=C.Paused then C:SetPaused(partnerPaused,true)end;if C.Paused then C.Status=isES and"Pose sincronizada en pausa."or"Synchronized pose paused.";if UpdatePresetPosePanel then UpdatePresetPosePanel()end;return end
-		if C.Role=="girl"then if not poses[C.Selected].independentSpeed then C:SetSpeed(other.Speed,false)end;if other.Length>0 and C.Track.Length>0 then local otherStart=partnerDefinition.start or 0;local ownStart=ownDefinition.start or 0;local otherEnd=math.min(partnerDefinition.finish or other.Length,other.Length);local ownSyncEnd=math.min(ownDefinition.finish or C.Track.Length,C.Track.Length);local otherDuration=math.max(.01,otherEnd-otherStart);local ownDuration=math.max(.01,ownSyncEnd-ownStart);local phase=((other.TimePosition-otherStart)/otherDuration)%1;local desired=ownStart+phase*ownDuration;if math.abs(C.Track.TimePosition-desired)>math.max(.12,C.Track.Length*.025)then pcall(function()C.Track.TimePosition=desired end)end end end
+		local nowPosition=other.TimePosition;if C.PartnerTrack~=other then C.PartnerTrack=other;C.PartnerLastPosition=nowPosition;C.PartnerStillFor=0 else local moved=math.abs(nowPosition-(C.PartnerLastPosition or nowPosition));C.PartnerStillFor=moved<.003 and(C.PartnerStillFor+.1)or 0;C.PartnerLastPosition=nowPosition end;local partnerPaused=math.abs(other.Speed)<.01 or C.PartnerStillFor>=.35;if os.clock()>=C.PauseGraceUntil and partnerPaused~=C.Paused then C:SetPaused(partnerPaused,true)end;if C.Paused then C.Status=isES and"Pose sincronizada en pausa."or"Synchronized pose paused.";if UpdatePresetPosePanel then UpdatePresetPosePanel()end;return end
+		local girlControls=poses[C.Selected].girlControlsSpeed==true;local followsGirl=girlControls and C.Role=="boy";local followsBoy=not girlControls and C.Role=="girl";if followsGirl or followsBoy then C:SetSpeed(other.Speed,false)end;if followsGirl or followsBoy then if other.Length>0 and C.Track.Length>0 then local otherStart=partnerDefinition.start or 0;local ownStart=ownDefinition.start or 0;local otherEnd=math.min(partnerDefinition.finish or other.Length,other.Length);local ownSyncEnd=math.min(ownDefinition.finish or C.Track.Length,C.Track.Length);local otherDuration=math.max(.01,otherEnd-otherStart);local ownDuration=math.max(.01,ownSyncEnd-ownStart);local phase=((other.TimePosition-otherStart)/otherDuration)%1;local desired=ownStart+phase*ownDuration;if math.abs(C.Track.TimePosition-desired)>math.max(.12,C.Track.Length*.025)then pcall(function()C.Track.TimePosition=desired end)end end end
 		C.Status=isES and"Pose sincronizada con "..C.Target.DisplayName.."."or"Pose synced with "..C.Target.DisplayName..".";if UpdatePresetPosePanel then UpdatePresetPosePanel()end
 	end)
 	connections[#connections+1]=Players.PlayerRemoving:Connect(function(leaving)if leaving==C.Target then C:Stop();C.Target=nil end end);connections[#connections+1]=player.CharacterRemoving:Connect(function()C:Stop(true)end)

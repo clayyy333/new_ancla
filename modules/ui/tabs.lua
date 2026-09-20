@@ -29,6 +29,8 @@ UpdateTabStyles = function()
 	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isControl = currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
+	if stopBtn then stopBtn.Visible = not isCouples end
+	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor or isControl or isCouples
 	movementNav.Visible = not isFlingView
@@ -437,6 +439,8 @@ UpdateTabData = function()
 	local isFreeCarControl = currentTab == "free_car_control"
 	local isControl = isCameraControl or isFlightControl or isCarControl or isFreeCarControl
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
+	if stopBtn then stopBtn.Visible = not isCouples end
+	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor or isControl or isCouples
 	settingsPanel.Visible  = isSettings
