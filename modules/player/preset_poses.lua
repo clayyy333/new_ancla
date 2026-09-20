@@ -78,7 +78,14 @@ return function(context)
 		if not ok or not track then animation:Destroy();return false,isES and"No se pudo cargar el emote de la pose."or"Could not load the pose emote."end
 		self.Animation,self.Track=animation,track;track.Priority=Enum.AnimationPriority.Action4;track.Looped=true;track:Play(.1);track:AdjustSpeed(self.Speed);self.Active=true
 		if self.Mode=="sync"and self.Role=="girl"then
-			CouplesPositionController:SetTarget(self.Target);local positioned=CouplesPositionController:Position();self.PositionOwned=positioned==true
+			CouplesPositionController:SetDistance(definition.distance)
+			CouplesPositionController:SetHeight(definition.height)
+			CouplesPositionController:SetAngle(definition.orbit)
+			CouplesPositionController:SetSelfAngle(definition.rotation)
+			local height=definition.height
+			CouplesPositionController:SetTarget(self.Target)
+			CouplesPositionController:SetHeight(height)
+			local positioned=CouplesPositionController:Position();self.PositionOwned=positioned==true
 		end
 		self.Status=self.Mode=="sync"and(isES and"Pose activa; esperando el emote complementario."or"Pose active; waiting for the matching emote.")or(isES and"Pose individual activa."or"Solo pose active.")
 		return true,self.Status
