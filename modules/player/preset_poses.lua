@@ -7,7 +7,7 @@ return function(context)
 	local poses={
 		Pose1={girl={id=78272860047654,name="Hold Onto",distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,name="WILL BYERS DONT HIDE",start=0}},
 		Pose2={girl={id=78272860047654,name="Hold Onto",distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,name="Michael Myers Bounce",start=8.5,finish=9}},
-		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=3},boy={id=129305096889843,name="Sitting..",start=0,speed=1},girlControlsSpeed=true}
+		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=2},boy={id=129305096889843,name="Sitting..",start=0,speed=1,lockedPaused=true},girlControlsSpeed=true}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
@@ -33,6 +33,7 @@ return function(context)
 	function C:IsActive()return self.Active end
 	function C:IsPaused()return self.Paused end
 	function C:IsResumePending()return self.PendingResume end
+	function C:IsPauseLocked()local definition=self.Role and poses[self.Selected][self.Role];return definition and definition.lockedPaused==true or false end
 	function C:GetStatus()return self.Status end
 	function C:GetPendingPose()return self.PendingPose end
 	function C:GetActiveEmoteName()
@@ -69,9 +70,10 @@ return function(context)
 	function C:AdjustSpeed(delta)return self:SetSpeed(self.Speed+delta,true)end
 	function C:SetPaused(paused)
 		if not self.Active or not self.Track then return false,isES and"Inicia primero una pose."or"Start a pose first."end
+		if self:IsPauseLocked()then return false,isES and"Este rol permanece pausado."or"This role remains paused."end
 		if paused then
 			self.Paused=true;self.PendingResume=false;pcall(function()self.Track:AdjustSpeed(0)end);self.Status=isES and"Pose pausada solo para ti."or"Pose paused only for you."
-		elseif self.Mode=="sync"and self.Target and self.Target.Parent==Players then
+		elseif self.Mode=="sync"and self.Target and self.Target.Parent==Players and not poses[self.Selected][opposite(self.Role)].lockedPaused then
 			self.Paused=true;self.PendingResume=true;pcall(function()self.Track:AdjustSpeed(.001)end);self.Status=isES and"Esperando el final del bucle del compañero..."or"Waiting for the partner loop to finish..."
 		else
 			self.Paused=false;self.PendingResume=false;pcall(function()self.Track.TimePosition=self.StartTime;self.Track:AdjustSpeed(self.Speed)end);self.Status=isES and"Pose reanudada."or"Pose resumed."
@@ -85,7 +87,7 @@ return function(context)
 		local animator=animatorFor(player);if not animator then return false,isES and"Tu personaje no está disponible."or"Your character is unavailable."end
 		local definition=poses[self.Selected][self.Role];local animation=loadAnimation(definition.id);local ok,track=pcall(function()return animator:LoadAnimation(animation)end)
 		if not ok or not track then animation:Destroy();return false,isES and"No se pudo cargar el emote de la pose."or"Could not load the pose emote."end
-		self.Animation,self.Track=animation,track;self.Paused=false;self.PendingResume=false;self.PartnerTrack=nil;self.PartnerLastPosition=nil;self.StartTime=definition.start or 0;track.Priority=Enum.AnimationPriority.Action4;track.Looped=true;track:Play(.1);track:AdjustSpeed(self.Speed);self.Active=true
+		self.Animation,self.Track=animation,track;self.Paused=definition.lockedPaused==true;self.PendingResume=false;self.PartnerTrack=nil;self.PartnerLastPosition=nil;self.StartTime=definition.start or 0;track.Priority=Enum.AnimationPriority.Action4;track.Looped=true;track:Play(.1);track:AdjustSpeed(self.Paused and 0 or self.Speed);self.Active=true
 		if self.StartTime>0 then pcall(function()track.TimePosition=self.StartTime end);task.spawn(function()local waited=0;while C.Track==track and track.Length<=0 and waited<5 do waited+=task.wait(.1)end;if C.Track==track then pcall(function()track.TimePosition=C.StartTime end)end end)end
 		if self.Mode=="sync"and self.Role=="girl"then local height=definition.height;CouplesPositionController:SetTarget(self.Target);CouplesPositionController:SetHeight(height);local positioned=CouplesPositionController:Position();self.PositionOwned=positioned==true end
 		self.Status=self.Mode=="sync"and(isES and"Pose activa; esperando el emote complementario."or"Pose active; waiting for the matching emote.")or(isES and"Pose individual activa."or"Solo pose active.");return true,self.Status
