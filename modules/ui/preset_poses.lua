@@ -7,7 +7,7 @@ return function(context)
 	local function label(text,y)local l=Instance.new("TextLabel");l.Size=UDim2.new(1,0,0,18);l.Position=UDim2.new(0,0,0,y);l.BackgroundTransparency=1;l.Text=text;l.TextColor3=currentTheme.textDim;l.Font=Enum.Font.GothamMedium;l.TextSize=isMobile and 10 or 12;l.TextXAlignment=Enum.TextXAlignment.Left;l.Parent=card;RegisterTheme(l,"TextColor3","textDim");return l end
 	local function button(text,y,x,w)local b=Instance.new("TextButton");b.Size=UDim2.new(w or 1,0,0,40);b.Position=UDim2.new(x or 0,0,0,y);b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 12;b.AutoButtonColor=false;b.Parent=card;Instance.new("UICorner",b).CornerRadius=UDim.new(0,10);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b end
 	local function row(name,y)local l=label(name,y);local minus=button("−",y+20,0,.20);local value=button("",y+20,.22,.56);local plus=button("+",y+20,.80,.20);return minus,value,plus,l end
-	local pose1Button=button("Pose 1",0,0,.32);local pose2Button=button("Pose 2",0,.34,.32);local pose3Button=button("Pose 3",0,.68,.32)
+	local pose1Button=button("Pose 1",0,0,.235);local pose2Button=button("Pose 2",0,.255,.235);local pose3Button=button("Pose 3",0,.51,.235);local pose4Button=button("Pose 4",0,.765,.235)
 	label(isES and"Elige un rol"or"Choose a role",50)
 	local boy=button(isES and"Chico"or"Boy",70,0,.49);local girl=button(isES and"Chica"or"Girl",70,.51,.49)
 	label(isES and"Modo"or"Mode",120)
@@ -43,7 +43,7 @@ local poseHud=Instance.new("Frame");poseHud.Name="CouplesPosePlayback";poseHud.S
 	local function active(buttonValue,value)buttonValue.BackgroundColor3=value and currentTheme.accent or currentTheme.tertiary end
 	UpdatePresetPosePanel=function(message)
 		local role=PresetPoseController:GetRole();local mode=PresetPoseController:GetMode();local friend=PresetPoseController:GetTarget();local selected=PresetPoseController:GetSelected()
-		active(pose1Button,selected=="Pose1");active(pose2Button,selected=="Pose2");active(pose3Button,selected=="Pose3");active(boy,role=="boy");active(girl,role=="girl");active(solo,mode=="solo");active(sync,mode=="sync")
+		active(pose1Button,selected=="Pose1");active(pose2Button,selected=="Pose2");active(pose3Button,selected=="Pose3");active(pose4Button,selected=="Pose4");active(boy,role=="boy");active(girl,role=="girl");active(solo,mode=="solo");active(sync,mode=="sync")
 		target.Visible=mode=="sync";target.Text=friend and(friend.DisplayName.."  (@"..friend.Name..")")or(isES and"Seleccionar amigo"or"Select friend")
 		speedValue.Text=string.format("%.1fx",PresetPoseController:GetSpeed());distanceValue.Text=string.format("%.1f studs",CouplesPositionController:GetDistance());heightValue.Text=string.format("%+.1f",CouplesPositionController:GetHeight());orbitValue.Text=math.floor(CouplesPositionController:GetAngle()).."°";rotationValue.Text=math.floor(CouplesPositionController:GetSelfAngle()).."°";tiltValue.Text=math.floor(CouplesPositionController:GetTilt()).."°"
 		start.Text=(isES and"Iniciar "or"Start ")..selected:gsub("Pose","Pose ");pause.Visible=not PresetPoseController:IsPauseLocked();pause.Text=PresetPoseController:IsResumePending()and(isES and"Esperando..."or"Waiting...")or(PresetPoseController:IsPaused()and(isES and"Reanudar"or"Resume")or(isES and"Pausar"or"Pause"));pause.BackgroundColor3=PresetPoseController:IsPaused()and currentTheme.accent or currentTheme.tertiary;cancel.BackgroundColor3=PresetPoseController:IsActive()and currentTheme.critical or currentTheme.tertiary
@@ -52,6 +52,7 @@ local poseHud=Instance.new("Frame");poseHud.Name="CouplesPosePlayback";poseHud.S
 	pose1Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose1");UpdatePresetPosePanel(isES and"Pose 1 seleccionada."or"Pose 1 selected.")end)
 	pose2Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose2");UpdatePresetPosePanel(isES and"Pose 2 seleccionada."or"Pose 2 selected.")end)
 	pose3Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose3");UpdatePresetPosePanel(isES and"Pose 3 seleccionada."or"Pose 3 selected.")end)
+	pose4Button.MouseButton1Click:Connect(function()PresetPoseController:ChangePose("Pose4");UpdatePresetPosePanel(isES and"Pose 4 seleccionada."or"Pose 4 selected.")end)
 	boy.MouseButton1Click:Connect(function()PresetPoseController:SetRole("boy");UpdatePresetPosePanel()end);girl.MouseButton1Click:Connect(function()PresetPoseController:SetRole("girl");UpdatePresetPosePanel()end)
 	solo.MouseButton1Click:Connect(function()PresetPoseController:SetMode("solo");list.Visible=false;UpdatePresetPosePanel()end);sync.MouseButton1Click:Connect(function()PresetPoseController:SetMode("sync");UpdatePresetPosePanel()end)
 	target.MouseButton1Click:Connect(function()

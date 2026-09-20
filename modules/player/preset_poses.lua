@@ -3,11 +3,12 @@ return function(context)
 	setfenv(1,context)
 	local C={Role=nil,Mode="solo",Target=nil,Speed=1,Track=nil,Animation=nil,Active=false,Paused=false,PendingResume=false,PartnerTrack=nil,PartnerLastPosition=nil,PositionOwned=false,StartTime=0,PendingPose=nil,SyncSuspended=false,SignalToken=0,Status="Selecciona una pose."}
 	local connections,resolvedIds={},{}
-	local signalSpeeds={Pose1=2.71,Pose2=2.72,Pose3=2.73}
+	local signalSpeeds={Pose1=2.71,Pose2=2.72,Pose3=2.73,Pose4=2.74}
 	local poses={
 		Pose1={girl={id=78272860047654,name="Hold Onto",distance=1.4,height=1.6,orbit=30,rotation=0,tilt=0,start=0},boy={id=84288917893504,name="WILL BYERS DONT HIDE",start=0}},
 		Pose2={girl={id=78272860047654,name="Hold Onto",distance=1.3,height=1.4,orbit=30,rotation=0,tilt=-5,start=0},boy={id=74006637928491,name="Michael Myers Bounce",start=8.5,finish=9}},
-		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=2},boy={id=129305096889843,name="Sitting..",start=0,speed=1,lockedPaused=true},girlControlsSpeed=true}
+		Pose3={girl={id=130478349245054,name="Sweet hug",distance=0.5,height=5.5,orbit=0,rotation=0,tilt=9,start=3,finish=5.7,speed=2},boy={id=129305096889843,name="Sitting..",start=0,speed=1,lockedPaused=true},girlControlsSpeed=true},
+		Pose4={girl={id=130478349245054,name="Sweet hug",distance=3.8,height=4.3,orbit=0,rotation=-180,tilt=-30,start=3,finish=5.7,speed=3},boy={id=129305096889843,name="Sitting..",start=0,speed=1,lockedPaused=true},girlControlsSpeed=true}
 	}
 	C.Selected="Pose1"
 	local function opposite(role)return role=="boy"and"girl"or"boy"end
@@ -107,7 +108,7 @@ return function(context)
 		if ownEnd>C.StartTime and C.Track.TimePosition>=ownEnd then pcall(function()C.Track.TimePosition=C.StartTime end)end
 		if C.Mode~="sync"or not C.Target or not C.Role then return end
 		local targetAnimator=animatorFor(C.Target)
-		if targetAnimator then for _,candidate in ipairs(targetAnimator:GetPlayingAnimationTracks())do local candidateId=trackId(candidate);for poseName,pose in pairs(poses)do local partnerDefinition=pose[opposite(C.Role)];if candidateId==resolvedCatalog(partnerDefinition.id)then local code=signalSpeeds[poseName];if math.abs(candidate.Speed-code)<.008 then C:_ReceivePoseChange(poseName)elseif C.Role=="girl"and poseName~=C.Selected then C:_ReceivePoseChange(poseName)end end end end end
+		if targetAnimator then for _,candidate in ipairs(targetAnimator:GetPlayingAnimationTracks())do local announced=nil;for poseName,code in pairs(signalSpeeds)do if math.abs(candidate.Speed-code)<.008 then announced=poseName;break end end;if announced then C:_ReceivePoseChange(announced)elseif C.Role=="girl"then local candidateId=trackId(candidate);local matched,count=nil,0;for poseName,pose in pairs(poses)do if candidateId==resolvedCatalog(pose[opposite(C.Role)].id)then matched=poseName;count+=1 end end;if count==1 and matched~=C.Selected then C:_ReceivePoseChange(matched)end end end end
 		if C.SyncSuspended then return end
 		local partnerDefinition=poses[C.Selected][opposite(C.Role)];local other=partnerTrack(C.Target,resolvedCatalog(partnerDefinition.id))
 		if not other then C.Status=isES and"Esperando que el amigo inicie el rol opuesto."or"Waiting for your friend to start the opposite role.";if UpdatePresetPosePanel then UpdatePresetPosePanel()end;return end
