@@ -32,15 +32,13 @@ return function(context)
 		local root,humanoid=rig()
 		if not root or not humanoid or humanoid.Health<=0 then reset(self);return end
 		if root~=self.LastRoot then
-			reset(self);self.LastRoot=root;+
-	end
-	function Core:SetEnabled;self.LastVelocity=root.AssemblyLinearVelocity;self.SafeCFrame=root.CFrame
+			reset(self);self.LastRoot=root
+			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.SafeCFrame=root.CFrame
 			return
 		end
 		if root.Anchored or humanoid.Sit or humanoid.SeatPart or intentional() then
-			self.SafeCFrame=root.CFrame;+
-	end
-	function Core:SetEnabled;self.LastVelocity=root.AssemblyLinearVelocity;self.HoldUntil=0
+			self.SafeCFrame=root.CFrame
+			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.HoldUntil=0
 			return
 		end
 		local position=root.Position
@@ -81,9 +79,8 @@ return function(context)
 		if (step>MAX_STEP and speed<=35) or (humanoid.FloorMaterial~=Enum.Material.Air and speed<=MAX_SPEED and angular.Magnitude<=MAX_ANGULAR) then
 			self.SafeCFrame=root.CFrame
 		end
-		+
-	end
-	function Core:SetEnabled
+		self.LastPosition=position
+		self.LastVelocity=velocity
 	end
 	function Core:SetEnabled(enabled)
 		enabled=enabled==true
