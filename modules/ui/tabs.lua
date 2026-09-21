@@ -606,7 +606,7 @@ end
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 mainNavBtns["anchor"].MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
 mainNavBtns["control"].MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
-mainNavBtns["couples"].MouseButton1Click:Connect(function() currentTab = "couples"; UpdateTabData() end)
+mainNavBtns["couples"].MouseButton1Click:Connect(function() currentTab = "preset_poses"; UpdateTabData() end)
 couplesTabBtns["couples"].btn.MouseButton1Click:Connect(function() currentTab="couples";UpdateTabData() end)
 couplesTabBtns["couple_movement"].btn.MouseButton1Click:Connect(function() currentTab="couple_movement";UpdateTabData() end)
 couplesTabBtns["poses"].btn.MouseButton1Click:Connect(function() currentTab="poses";UpdateTabData() end)

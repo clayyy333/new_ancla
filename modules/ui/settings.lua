@@ -429,14 +429,6 @@ end
 MakeSectionHeader(isTR and "Davranış" or (isES and "Comportamiento" or (isAR and "السلوك" or (isFR and "Comportement" or (isHI and "व्यवहार" or (isPT and "Comportamento" or (isRU and "Поведение" or "Behaviour")))))), 9)
 
 do
-	local row = MakeRow("99427666057293", L.notif, "", 10)
-	MakePillToggle(row, Settings.notifications, function(v)
-		Settings.notifications = v
-		SaveData()
-	end)
-end
-
-do
 	local row = MakeRow("103179694587186", L.loopText or "Loop", "", 11)
 	MakePillToggle(row, Settings.loopEmote, function(v)
 		Settings.loopEmote = v
@@ -497,14 +489,13 @@ end
 
 do
 	MakeSectionHeader(isTR and "Hakkında & Güncelleme Notları" or "About & Update Notes", 10)
-	local verRow = MakeRow("110192525313214", "V5.0 - LOCAL", isTR and "Yerel depolama" or "Local storage", 11, 135)
+	local verRow = MakeRow("110192525313214", "Versión 1.0", "", 11, 112)
 	
 	local verLbl = Instance.new("TextLabel")
-	verLbl.Size = UDim2.new(1, -24, 0, 80)
+	verLbl.Size = UDim2.new(1, -24, 0, 52)
 	verLbl.Position = UDim2.new(0, 12, 0, 48)
 	verLbl.BackgroundTransparency = 1
-	verLbl.Text = isTR and "• Asenkron emote yükleme (Sıfır donma/freeze)\n• Animasyon paketlerinde hareket eşleşmesi (Yürüme/Koşma)\n• Menü açılış ve küçültme kırpma düzeltmesi (No spill)\n• Kart çerçeveleri imleç ayrılma düzeltmesi\n• %100 Açık kaynak & Yerel depolama" 
-		or "• Async emote loading (Zero client freeze)\n• Dynamic animation pack slot matching\n• Rotation-free window clipping fix\n• Card stroke hover fix\n• 100% Open source & Local Storage"
+	verLbl.Text = "Desarrollada por Psycho @Thranduil553\nFlujo de emotes inspirado en Vexro"
 	verLbl.TextColor3 = currentTheme.textDim
 	verLbl.Font = Enum.Font.Gotham
 	verLbl.TextSize = isMobile and 10 or 11

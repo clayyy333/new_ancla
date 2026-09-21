@@ -270,7 +270,7 @@ return function(context)
 		controlTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
 
-	local coupleLabels={{"couples",isES and "Ubicación de cuerpo" or "Body location"},{"couple_movement",isES and "Control de movimiento" or "Movement control"},{"poses","Poses"},{"preset_poses",isES and "Poses predeterminadas" or "Preset poses"}}
+	local coupleLabels={{"preset_poses",isES and "Poses predeterminadas" or "Preset poses"},{"couples",isES and "Ubicación de cuerpo" or "Body location"},{"couple_movement",isES and "Control de movimiento" or "Movement control"},{"poses","Poses"}}
 	for index,item in ipairs(coupleLabels)do local btn,stroke,gradient=CreateTextButton(couplesNav,item[2],item[1],UDim2.new(1,-(pad*2),0,buttonH),UDim2.new(0,pad,0,pad+(index-1)*(buttonH+gap)));couplesTabBtns[item[1]]={btn=btn,stroke=stroke,gradient=gradient}end
 
 	return true
