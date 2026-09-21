@@ -26,8 +26,7 @@ UpdateTabStyles = function()
 	local isFlingMotoXeno = currentTab == "fling_moto_xeno"
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
-	local isAnchorMoving = currentTab == "anchor_moving"
-	local isAnchor = isAnchorBasic or isAnchorAuto or isAnchorMoving
+	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isControl = currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	if stopBtn then stopBtn.Visible = not isCouples end
@@ -433,8 +432,7 @@ UpdateTabData = function()
 	local isFlingMotoXeno = currentTab == "fling_moto_xeno"
 	local isAnchorBasic = currentTab == "anchor"
 	local isAnchorAuto = currentTab == "anchor_auto"
-	local isAnchorMoving = currentTab == "anchor_moving"
-	local isAnchor = isAnchorBasic or isAnchorAuto or isAnchorMoving
+	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isCameraControl = currentTab == "camera_control"
 	local isFlightControl = currentTab == "flight_control"
 	local isCarControl = currentTab == "car_control"
@@ -456,7 +454,6 @@ UpdateTabData = function()
 	motoFlingXenoPanel.Visible = isFlingMotoXeno
 	anchorPanel.Visible = isAnchorBasic
 	autoAnchorPanel.Visible = isAnchorAuto
-	movingAnchorPanel.Visible = isAnchorMoving
 	cameraControlPanel.Visible = isCameraControl
 	flightControlPanel.Visible = isFlightControl
 	carControlPanel.Visible = isCarControl
@@ -552,9 +549,6 @@ UpdateTabData = function()
 	elseif currentTab == "anchor_auto" then
 		title.Text = isES and "Ancla automática" or "Automatic Anchor"
 		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
-	elseif currentTab == "anchor_moving" then
-		title.Text = isES and "Ancla con movimiento" or "Moving Anchor"
-		if UpdateMovingAnchorPanel then UpdateMovingAnchorPanel() end
 	elseif currentTab == "fling2" then
 		title.Text = "Fling 2"
 		if UpdateFling2Panel then UpdateFling2Panel() end
@@ -623,7 +617,6 @@ controlTabBtns["car_control"].btn.MouseButton1Click:Connect(function() currentTa
 controlTabBtns["free_car_control"].btn.MouseButton1Click:Connect(function() currentTab = "free_car_control"; UpdateTabData() end)
 anchorTabBtns["anchor"].btn.MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
 anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_auto"; UpdateTabData() end)
-anchorTabBtns["anchor_moving"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_moving"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
@@ -648,7 +641,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "anchor_moving" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)
