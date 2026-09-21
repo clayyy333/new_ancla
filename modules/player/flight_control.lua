@@ -76,12 +76,8 @@ return function(context)
 		local response=target.Magnitude>0 and (self:IsSprinting() and 18 or 8) or 14
 		self.Velocity=self.Velocity:Lerp(target,1-math.exp(-response*dt))
 		if self.Velocity.Magnitude<0.01 then self.Velocity=Vector3.zero end
-		self.Position+=self.Velocity*dt
-		if self.Velocity.Magnitude>1 then
-			local desired=CFrame.lookAt(self.Position,self.Position+self.Velocity.Unit)
-			local current=CFrame.new(self.Position)*root.CFrame.Rotation
-			root.CFrame=current:Lerp(desired,1-math.exp(-8*dt))
-		else root.CFrame=CFrame.new(self.Position)*root.CFrame.Rotation end
+		self.Position=root.Position+self.Velocity*math.min(dt,1/30)
+		root.CFrame=CFrame.new(self.Position)*root.CFrame.Rotation
 		root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero
 	end
 	function Flight:Start()
