@@ -488,23 +488,8 @@ do
 end
 
 do
-	MakeSectionHeader(isTR and "Hakkında & Güncelleme Notları" or "About & Update Notes", 10)
-	local verRow = MakeRow("110192525313214", "Versión 1.0", "", 11, 112)
-	
-	local verLbl = Instance.new("TextLabel")
-	verLbl.Size = UDim2.new(1, -24, 0, 52)
-	verLbl.Position = UDim2.new(0, 12, 0, 48)
-	verLbl.BackgroundTransparency = 1
-	verLbl.Text = "Desarrollada por Psycho @Thranduil553\nFlujo de emotes inspirado en Vexro"
-	verLbl.TextColor3 = currentTheme.textDim
-	verLbl.Font = Enum.Font.Gotham
-	verLbl.TextSize = isMobile and 10 or 11
-	verLbl.TextXAlignment = Enum.TextXAlignment.Left
-	verLbl.TextYAlignment = Enum.TextYAlignment.Top
-	verLbl.TextWrapped = true
-	verLbl.ZIndex = 8
-	verLbl.Parent = verRow
-	RegisterTheme(verLbl, "TextColor3", "textDim")
+	MakeSectionHeader(isES and "Acerca de" or "About", 21)
+	MakeRow("", "Versión 1.0", "Desarrollada por Psycho @Thranduil553", 22)
 end
 
 	return true
