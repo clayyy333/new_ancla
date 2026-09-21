@@ -54,8 +54,21 @@ return function(context)
 	function Core:SetBoost(enabled) self.Boost=enabled==true end
 	function Core:SetMobileDirection(direction,enabled) if self.Mobile[direction]==nil then return false end; self.Mobile[direction]=enabled==true; return true end
 	function Core:RotateCamera(delta) if not self.Running then return end; self.CamYaw-=delta.X*0.18; self.CamPitch=math.clamp(self.CamPitch-delta.Y*0.18,-80,80) end
-	function Core:BeginCameraDrag() if self.Running then self.CameraDrag=true; return true end; return false end
-	function Core:EndCameraDrag() self.CameraDrag=false end
+	function Core:BeginCameraDrag(input)
+		if not self.Running then return false end
+		self.CameraDrag=true
+		self.CameraDragInput=input and input.UserInputType or nil
+		if self.CameraDragInput==Enum.UserInputType.MouseButton1 or self.CameraDragInput==Enum.UserInputType.MouseButton2 then
+			UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
+		end
+		return true
+	end
+	function Core:EndCameraDrag(input)
+		if input and self.CameraDragInput and input.UserInputType~=self.CameraDragInput then return end
+		self.CameraDrag=false
+		self.CameraDragInput=nil
+		if self.Running then UserInputService.MouseBehavior=Enum.MouseBehavior.Default end
+	end
 	function Core:DestroyForce() if self.BV then pcall(function() self.BV:Destroy() end); self.BV=nil end end
 	function Core:CreateForce(root)
 		self:DestroyForce(); local body=Instance.new("BodyVelocity"); body.Name="VexroCarFreeControl"; body.MaxForce=Vector3.new(1e6,1e6,1e6); body.P=5000; body.Velocity=Vector3.zero; body.Parent=root; self.BV=body
@@ -76,6 +89,7 @@ return function(context)
 		Camera.CameraType=Enum.CameraType.Scriptable; UserInputService.MouseBehavior=Enum.MouseBehavior.Default; UserInputService.MouseIconEnabled=true
 		cameraConnection=RunService.RenderStepped:Connect(function()
 			if not self.Running then return end; local currentRoot=findRoot(self.Car); Camera=Workspace.CurrentCamera; if not currentRoot or not Camera then return end
+			if self.CameraDrag and (self.CameraDragInput==Enum.UserInputType.MouseButton1 or self.CameraDragInput==Enum.UserInputType.MouseButton2) then UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition end
 			local rotation=CFrame.fromOrientation(math.rad(self.CamPitch),math.rad(self.CamYaw),0); local look=rotation.LookVector; local focus=currentRoot.Position+Vector3.new(0,2,0); local cameraPosition=focus-look*16+Vector3.new(0,5,0)
 			Camera.CFrame=CFrame.lookAt(cameraPosition,focus+look*8); Camera.Focus=CFrame.new(focus)
 		end)
@@ -114,7 +128,7 @@ return function(context)
 		return true
 	end
 	function Core:Stop()
-		self.Running=false; self.Boost=false; self.CameraDrag=false
+		self.Running=false; self.Boost=false; self.CameraDrag=false; self.CameraDragInput=nil
 		if heartbeat then heartbeat:Disconnect(); heartbeat=nil end; if ancestryConnection then ancestryConnection:Disconnect(); ancestryConnection=nil end
 		self:DestroyForce(); clearMotion(self.Car); self:RestoreCarAnchors(); self:StopCamera(); self:RestoreCharacter()
 		for key in pairs(self.Keys) do self.Keys[key]=false end; for key in pairs(self.Mobile) do self.Mobile[key]=false end
@@ -122,9 +136,29 @@ return function(context)
 	local function setKey(code,value)
 		if code==Enum.KeyCode.W or code==Enum.KeyCode.Up then Core.Keys.Forward=value elseif code==Enum.KeyCode.S or code==Enum.KeyCode.Down then Core.Keys.Back=value elseif code==Enum.KeyCode.A or code==Enum.KeyCode.Left then Core.Keys.Left=value elseif code==Enum.KeyCode.D or code==Enum.KeyCode.Right then Core.Keys.Right=value elseif code==Enum.KeyCode.LeftShift then Core:SetBoost(value) end
 	end
-	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed) if not Core.Running then return end; if input.UserInputType==Enum.UserInputType.MouseButton2 then Core:BeginCameraDrag(); return end; if processed then return end; setKey(input.KeyCode,true) end)
-	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input) setKey(input.KeyCode,false); if input.UserInputType==Enum.UserInputType.MouseButton2 or input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then Core:EndCameraDrag() end end)
-	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input) if Core.Running and Core.CameraDrag and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then Core:RotateCamera(input.Delta) end end)
+	local function isPointerOverGui(position)
+		local ok,objects=pcall(function() return playerGui:GetGuiObjectsAtPosition(position.X,position.Y) end)
+		if not ok then return false end
+		for _,object in ipairs(objects) do
+			if object:IsA("GuiButton") or (object.Active and object.BackgroundTransparency<1) then return true end
+		end
+		return false
+	end
+	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed)
+		if not Core.Running then return end
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.MouseButton2 then
+			if (input.UserInputType==Enum.UserInputType.MouseButton2 or not processed) and not isPointerOverGui(input.Position) then Core:BeginCameraDrag(input) end
+			return
+		end
+		if not processed then setKey(input.KeyCode,true) end
+	end)
+	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input)
+		setKey(input.KeyCode,false)
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.MouseButton2 or input.UserInputType==Enum.UserInputType.Touch then Core:EndCameraDrag(input) end
+	end)
+	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input)
+		if Core.Running and Core.CameraDrag and (input.UserInputType==Enum.UserInputType.MouseMovement or (input.UserInputType==Enum.UserInputType.Touch and Core.CameraDragInput==Enum.UserInputType.Touch)) then Core:RotateCamera(input.Delta) end
+	end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function() if Core.Running then task.wait(0.25); Core:Stop() end end)
 	function Core:Destroy() self:Stop(); for _,connection in ipairs(connections) do connection:Disconnect() end; table.clear(connections) end
 	FreeCarController=Core
