@@ -71,7 +71,13 @@ return function(context)
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
 			root.CFrame=checkpoint
-			if AnchorCore then AnchorCore:SetAncla(true) end
+			if AnchorCore then
+				local anchored=AnchorCore:SetAncla(true)
+				if anchored then
+					AnchorCore:SetAntiSeat(true)
+					AnchorCore:SetHeartbeat(true)
+				end
+			end
 			self.LastPosition=checkpoint.Position
 			self.LastVelocity=Vector3.zero
 			self.LastAngularVelocity=Vector3.zero
