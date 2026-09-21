@@ -1,18 +1,20 @@
 -- Ancla con movimiento: corrige impulsos sin anclar ni cambiar el estado del Humanoid.
 return function(context)
 	setfenv(1,context)
-	local Core={Enabled=false,SafeCFrame=nil,LastPosition=nil,LastVelocity=nil,LastRoot=nil,HoldUntil=0,Corrections=0}
+	local Core={Enabled=false,SafeCFrame=nil,LastPosition=nil,LastVelocity=nil,LastAngularVelocity=nil,LastRoot=nil,HoldUntil=0,Corrections=0}
 	local beforePhysics,afterPhysics
 	local MAX_SPEED=75
 	local MAX_ANGULAR=12
 	local MAX_STEP=3.5
-	local HOLD_TIME=0.22
+	local HOLD_TIME=0.8
+	local MAX_VELOCITY_CHANGE=38
+	local MAX_ANGULAR_CHANGE=7
 	local function rig()
 		local character=player.Character
 		return character and character:FindFirstChild("HumanoidRootPart"),character and character:FindFirstChildOfClass("Humanoid")
 	end
 	local function reset(self)
-		self.SafeCFrame=nil;self.LastPosition=nil;self.LastVelocity=nil;self.LastRoot=nil;self.HoldUntil=0
+		self.SafeCFrame=nil;self.LastPosition=nil;self.LastVelocity=nil;self.LastAngularVelocity=nil;self.LastRoot=nil;self.HoldUntil=0
 	end
 	local function refresh()
 		if UpdateMovingAnchorPanel then UpdateMovingAnchorPanel() end
@@ -33,12 +35,12 @@ return function(context)
 		if not root or not humanoid or humanoid.Health<=0 then reset(self);return end
 		if root~=self.LastRoot then
 			reset(self);self.LastRoot=root
-			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.SafeCFrame=root.CFrame
+			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.LastAngularVelocity=root.AssemblyAngularVelocity;self.SafeCFrame=root.CFrame
 			return
 		end
 		if root.Anchored or humanoid.Sit or humanoid.SeatPart or intentional() then
 			self.SafeCFrame=root.CFrame
-			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.HoldUntil=0
+			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.LastAngularVelocity=root.AssemblyAngularVelocity;self.HoldUntil=0
 			return
 		end
 		local position=root.Position
@@ -49,7 +51,8 @@ return function(context)
 		local change=velocity-(self.LastVelocity or velocity)
 		local horizontalChange=Vector3.new(change.X,0,change.Z).Magnitude
 		local horizontalSpeed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
-		local impulse=speed>MAX_SPEED or angular.Magnitude>MAX_ANGULAR or (step>MAX_STEP and speed>35) or (horizontalSpeed>45 and horizontalChange>35)
+		local angularChange=(angular-(self.LastAngularVelocity or angular)).Magnitude
+		local impulse=speed>MAX_SPEED or angular.Magnitude>MAX_ANGULAR or (step>MAX_STEP and speed>35) or (horizontalSpeed>45 and horizontalChange>35) or (change.Magnitude>MAX_VELOCITY_CHANGE and speed>38) or (angularChange>MAX_ANGULAR_CHANGE and angular.Magnitude>7)
 		local now=os.clock()
 		if impulse and self.SafeCFrame then self.HoldUntil=math.max(self.HoldUntil,now+HOLD_TIME) end
 		if now<self.HoldUntil and self.SafeCFrame then
@@ -72,6 +75,7 @@ return function(context)
 			root.AssemblyAngularVelocity=Vector3.zero
 			self.LastPosition=self.SafeCFrame.Position
 			self.LastVelocity=Vector3.zero
+			self.LastAngularVelocity=Vector3.zero
 			if impulse then self.Corrections=self.Corrections+1 end
 			return
 		end
@@ -81,6 +85,7 @@ return function(context)
 		end
 		self.LastPosition=position
 		self.LastVelocity=velocity
+		self.LastAngularVelocity=angular
 	end
 	function Core:SetEnabled(enabled)
 		enabled=enabled==true
