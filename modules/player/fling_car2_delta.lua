@@ -423,7 +423,7 @@ end
 		if monitorElapsed < 0.5 then return end
 		monitorElapsed = 0
 		local car = CarFling2Delta:GetCar()
-		if car and (not car.Parent or not isMyCar(car)) then
+		if car and (not car.Parent or (not isMyCar(car) and not (CarFling2Delta.Running and car.Name == "ltp2_car_7"))) then
 			if CarFling2Delta.Running then CarFling2Delta:Stop() end
 			CarFling2Delta:SetCar(nil)
 			if UpdateCarFling2Panel then UpdateCarFling2Panel() end

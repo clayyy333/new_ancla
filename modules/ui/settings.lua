@@ -332,9 +332,20 @@ do
 end
 
 do
+	local emergencyTitle = isES and "Ancla de Emergencia" or "Emergency Anchor"
+	local emergencyDesc = isES and "Activa para evitar fling sorpresivo" or "Enable to prevent unexpected flings"
+	local emergencyRow = MakeRow("", emergencyTitle, emergencyDesc, 4)
+	MakePillToggle(emergencyRow, Settings.emergencyAnchor == true, function(v)
+		Settings.emergencyAnchor = v
+		if EmergencyAnchorController then EmergencyAnchorController:SetEnabled(v) end
+		SaveData()
+	end)
+end
+
+do
 	local antiAFKTitle = "Anti-AFK"
 	local antiAFKDesc = isES and "Evita la expulsión por inactividad con una interacción cada 10 minutos" or "Prevents idle disconnection with an interaction every 10 minutes"
-	local antiAFKRow = MakeRow("", antiAFKTitle, antiAFKDesc, 4)
+	local antiAFKRow = MakeRow("", antiAFKTitle, antiAFKDesc, 5)
 	MakePillToggle(antiAFKRow, Settings.antiAFK == true, function(v)
 		Settings.antiAFK = v
 		if AntiAFKController then AntiAFKController:SetEnabled(v) end
@@ -342,7 +353,7 @@ do
 	end)
 end
 do
-	local speedRow = MakeRow("113837085020684", L.speed, "", 5, 78)
+	local speedRow = MakeRow("113837085020684", L.speed, "", 6, 78)
 	local speeds = {0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3}
 	local speedIdx = 4
 	for i, s in ipairs(speeds) do if s == Settings.speed then speedIdx = i end end

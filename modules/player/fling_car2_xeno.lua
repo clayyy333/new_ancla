@@ -461,7 +461,7 @@ end
 		if monitorElapsed < 0.5 then return end
 		monitorElapsed = 0
 		local car = CarFling2Xeno:GetCar()
-		if car and (not car.Parent or not isMyCar(car)) then
+		if car and (not car.Parent or (not isMyCar(car) and not (CarFling2Xeno.Running and car.Name == "ltp2_car_7"))) then
 			if CarFling2Xeno.Running then CarFling2Xeno:Stop() end
 			CarFling2Xeno:SetCar(nil)
 			if UpdateCarFling2Panel then UpdateCarFling2Panel() end
