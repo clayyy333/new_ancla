@@ -74,7 +74,7 @@ return function(context)
 			root.AssemblyAngularVelocity=Vector3.zero
 			self.LastPosition=self.SafeCFrame.Position
 			self.LastVelocity=Vector3.zero
-			if impulse then self.Corrections+=1 end
+			if impulse then self.Corrections=self.Corrections+1 end
 			return
 		end
 		-- Un salto sin velocidad física se considera TP intencional.
