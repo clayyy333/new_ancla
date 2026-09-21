@@ -1,17 +1,17 @@
--- Equipar paquetes completos o estados individuales del script Animate.
+-- Paquetes completos y mezcla de estados de Animate, sin tocar emotes externos.
 return function(context)
 	setfenv(1, context)
 
-	local states = {
-		Idle={"idle"}, Walk={"walk"}, Run={"run"}, Jump={"jump"},
-		Fall={"fall"}, Climb={"climb"}, Swim={"swim","swimidle"}
+	local states={
+		Idle={"idle"},Walk={"walk"},Run={"run"},Jump={"jump"},
+		Fall={"fall"},Climb={"climb"},Swim={"swim","swimidle"}
 	}
 	local stateOrder={"Idle","Walk","Run","Jump","Fall","Climb","Swim"}
 	local selected={}
-	local versions={}
-	local originalAnimate=nil
 	local originals={}
-	local refreshVersion=0
+	local originalAnimate=nil
+	local request=0
+	local resolvedCache={}
 
 	local function getAnimate()
 		local character=player.Character
@@ -23,37 +23,23 @@ return function(context)
 		originalAnimate=animate
 		originals={}
 		for _,folders in pairs(states) do
-			for _,folderName in ipairs(folders) do
-				local folder=animate:FindFirstChild(folderName)
+			for _,name in ipairs(folders) do
+				local folder=animate:FindFirstChild(name)
 				if folder then
 					local copies={}
 					for _,child in ipairs(folder:GetChildren()) do
 						if child:IsA("Animation") then copies[#copies+1]=child:Clone() end
 					end
-					originals[folderName]=copies
+					originals[name]=copies
 				end
 			end
 		end
 	end
 
-	local function replaceAnimations(animate, folderName, ids)
-		local folder=animate:FindFirstChild(folderName)
-		if not folder then return end
-		for _,child in ipairs(folder:GetChildren()) do
-			if child:IsA("Animation") then child:Destroy() end
-		end
-		for index,id in ipairs(ids) do
-			local animation=Instance.new("Animation")
-			animation.Name="Animation"..index
-			animation.AnimationId=id
-			animation.Parent=folder
-		end
-	end
-
 	local function restoreOriginal(animate)
 		if originalAnimate~=animate then return end
-		for folderName,copies in pairs(originals) do
-			local folder=animate:FindFirstChild(folderName)
+		for name,copies in pairs(originals) do
+			local folder=animate:FindFirstChild(name)
 			if folder then
 				for _,child in ipairs(folder:GetChildren()) do
 					if child:IsA("Animation") then child:Destroy() end
@@ -63,21 +49,12 @@ return function(context)
 		end
 	end
 
-	local function refreshAnimate(animate)
-		refreshVersion=refreshVersion+1
-		local version=refreshVersion
-		task.defer(function()
-			if version~=refreshVersion or not animate.Parent then return end
-			animate.Enabled=false
-			task.wait(0.05)
-			if animate.Parent then animate.Enabled=true end
-		end)
-	end
-
 	local function resolveIds(catalogId)
+		local key=tostring(catalogId)
+		if resolvedCache[key] then return resolvedCache[key] end
 		local ids={}
 		local ok,objects=pcall(function()
-			return game:GetObjects("rbxassetid://"..tostring(catalogId))
+			return game:GetObjects("rbxassetid://"..key)
 		end)
 		if ok and objects then
 			local function scan(instance)
@@ -88,79 +65,129 @@ return function(context)
 			end
 			for _,object in ipairs(objects) do scan(object);object:Destroy() end
 		end
-		if #ids==0 then ids[1]="rbxassetid://"..tostring(catalogId) end
+		if #ids==0 then ids[1]="rbxassetid://"..key end
+		resolvedCache[key]=ids
 		return ids
 	end
 
-	local function applyState(pack,state)
-		local catalogId=pack and pack[state]
-		if not catalogId or not states[state] then return false end
-		local animate=getAnimate()
-		if not animate then return false end
-		captureOriginal(animate)
-		versions[state]=(versions[state] or 0)+1
-		local version=versions[state]
-		selected[state]={id=catalogId,name=pack.name}
-		task.spawn(function()
-			local ids=resolveIds(catalogId)
-			if versions[state]~=version or selected[state]==nil or getAnimate()~=animate then return end
-			for _,folderName in ipairs(states[state]) do replaceAnimations(animate,folderName,ids) end
-			refreshAnimate(animate)
-		end)
-		return true
+	local function stopOutgoingTracks(animate)
+		local character=animate.Parent
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not animator then return end
+		local instances={}
+		local ids={}
+		for _,folders in pairs(states) do
+			for _,name in ipairs(folders) do
+				local folder=animate:FindFirstChild(name)
+				if folder then
+					for _,child in ipairs(folder:GetChildren()) do
+						if child:IsA("Animation") then
+							instances[child]=true
+							local id=child.AnimationId:match("%d+")
+							if id then ids[id]=true end
+						end
+					end
+				end
+			end
+		end
+		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+			local animation=track.Animation
+			local id=animation and animation.AnimationId:match("%d+")
+			local lowPriority=track.Priority.Value<=Enum.AnimationPriority.Movement.Value
+			if animation and (instances[animation] or (id and ids[id] and lowPriority)) then
+				track:Stop(0)
+			end
+		end
 	end
 
-	function EquipAnimationPart(pack,state)
-		local applied=applyState(pack,state)
-		if applied then
-			Notify(isES and "Animación equipada" or "Animation equipped",
-				(pack.name or "").." - "..state)
+	local function replaceState(animate,state,ids)
+		for _,name in ipairs(states[state]) do
+			local folder=animate:FindFirstChild(name)
+			if folder then
+				for _,child in ipairs(folder:GetChildren()) do
+					if child:IsA("Animation") then child:Destroy() end
+				end
+				for index,id in ipairs(ids) do
+					local animation=Instance.new("Animation")
+					animation.Name="Animation"..index
+					animation.AnimationId=id
+					animation.Parent=folder
+				end
+			end
 		end
-		return applied
 	end
 
-	function EquipAnimationPack(pack)
-		local animate=getAnimate()
-		if not animate then return false end
-		captureOriginal(animate)
-		restoreOriginal(animate)
-		for _,state in ipairs(stateOrder) do
-			versions[state]=(versions[state] or 0)+1
-			selected[state]=nil
-		end
-		local count=0
-		for _,state in ipairs(stateOrder) do
-			if applyState(pack,state) then count=count+1 end
-		end
-		lastVexroAnimationPack=pack
-		if count>0 then
-			Notify(isES and "Paquete equipado" or "Pack equipped",pack.name or "")
-		end
-		return count>0
-	end
-
-	function RemoveAnimationPacks(silent)
-		for _,state in ipairs(stateOrder) do
-			versions[state]=(versions[state] or 0)+1
-			selected[state]=nil
-		end
-		lastVexroAnimationPack=nil
-		local animate=getAnimate()
-		if animate then
-			restoreOriginal(animate)
-			refreshAnimate(animate)
-		end
-		if not silent then Notify(isES and "Animaciones restauradas" or "Animations restored",
-			isES and "Se recuperaron las animaciones originales." or "Original animations restored.") end
-	end
-
-	function ReapplyAnimationSelection()
+	local function applySelection()
+		request=request+1
+		local thisRequest=request
 		local animate=getAnimate()
 		if not animate then return end
 		captureOriginal(animate)
+		task.spawn(function()
+			local resolved={}
+			for _,state in ipairs(stateOrder) do
+				local entry=selected[state]
+				if entry then resolved[state]=resolveIds(entry.id) end
+				if request~=thisRequest or getAnimate()~=animate then return end
+			end
+			if request~=thisRequest or getAnimate()~=animate then return end
+			-- Una sola transición evita que siete estados reinicien Animate a destiempo.
+			local ok,err=pcall(function()
+				animate.Enabled=false
+				stopOutgoingTracks(animate)
+				restoreOriginal(animate)
+				for _,state in ipairs(stateOrder) do
+					if resolved[state] then replaceState(animate,state,resolved[state]) end
+				end
+			end)
+			task.wait(0.05)
+			pcall(function() if animate.Parent then animate.Enabled=true end end)
+			if not ok then warn('[Animations] Could not change animation tracks: '..tostring(err)) end
+		end)
+	end
+
+	function EquipAnimationPart(pack,state)
+		if not states[state] or not pack or not pack[state] then return false end
+		if not getAnimate() then return false end
+		selected[state]={id=pack[state],name=pack.name}
+		applySelection()
+		Notify(isES and "Animación equipada" or "Animation equipped",
+			(pack.name or "").." - "..state)
+		return true
+	end
+
+	function EquipAnimationPack(pack)
+		if not pack or not getAnimate() then return false end
+		local count=0
 		for _,state in ipairs(stateOrder) do
-			local entry=selected[state]
-			if entry then applyState({[state]=entry.id,name=entry.name},state) end
+			if pack[state] then
+				selected[state]={id=pack[state],name=pack.name}
+				count=count+1
+			else
+				selected[state]=nil
+			end
+		end
+		if count==0 then return false end
+		lastVexroAnimationPack=pack
+		applySelection()
+		Notify(isES and "Paquete equipado" or "Pack equipped",pack.name or "")
+		return true
+	end
+
+	function RemoveAnimationPacks(silent)
+		for _,state in ipairs(stateOrder) do selected[state]=nil end
+		lastVexroAnimationPack=nil
+		applySelection()
+		if not silent then
+			Notify(isES and "Animaciones restauradas" or "Animations restored",
+				isES and "Se recuperaron las animaciones originales." or "Original animations restored.")
+		end
+	end
+
+	function ReapplyAnimationSelection()
+		for _,state in ipairs(stateOrder) do
+			if selected[state] then applySelection();return end
 		end
 	end
 
