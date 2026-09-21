@@ -13,7 +13,8 @@ return function(context)
 	local TELEPORT_SETTLE_TIME = 0.18
 
 	local function intentionalMovement()
-		return (AnchorCore and AnchorCore.AnclaEnabled)
+		return (MovingAnchorController and MovingAnchorController.Enabled)
+			or (AnchorCore and AnchorCore.AnclaEnabled)
 			or (AutoAnchorCore and AutoAnchorCore.Mode)
 			or (Fling2Core and (Fling2Core.Running or Fling2Core.Stopping))
 			or (Fling2EfficientCore and (Fling2EfficientCore.Running or Fling2EfficientCore.Stopping))
