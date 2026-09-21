@@ -1,20 +1,14 @@
 -- Ancla con movimiento: corrige impulsos sin anclar ni cambiar el estado del Humanoid.
 return function(context)
 	setfenv(1,context)
-	local Core={Enabled=false,SafeCFrame=nil,LastPosition=nil,LastVelocity=nil,LastAngularVelocity=nil,LastRoot=nil,HoldUntil=0,Corrections=0}
+	local Core={Enabled=false,SafeCFrame=nil,LastPosition=nil,LastVelocity=nil,LastAngularVelocity=nil,LastRoot=nil,Corrections=0}
 	local beforePhysics,afterPhysics
-	local MAX_SPEED=75
-	local MAX_ANGULAR=12
-	local MAX_STEP=3.5
-	local HOLD_TIME=0.8
-	local MAX_VELOCITY_CHANGE=38
-	local MAX_ANGULAR_CHANGE=7
 	local function rig()
 		local character=player.Character
 		return character and character:FindFirstChild("HumanoidRootPart"),character and character:FindFirstChildOfClass("Humanoid")
 	end
 	local function reset(self)
-		self.SafeCFrame=nil;self.LastPosition=nil;self.LastVelocity=nil;self.LastAngularVelocity=nil;self.LastRoot=nil;self.HoldUntil=0
+		self.SafeCFrame=nil;self.LastPosition=nil;self.LastVelocity=nil;self.LastAngularVelocity=nil;self.LastRoot=nil
 	end
 	local function refresh()
 		if UpdateMovingAnchorPanel then UpdateMovingAnchorPanel() end
@@ -28,59 +22,44 @@ return function(context)
 			or (Fling2EfficientCore and (Fling2EfficientCore.Running or Fling2EfficientCore.Stopping))
 			or (CouplesPositionController and CouplesPositionController:IsMaintaining())
 	end
-	function Core:Check(dt,advance)
+	function Core:Check()
 		if not self.Enabled then return end
 		if conflicting() then self:SetEnabled(false);return end
 		local root,humanoid=rig()
 		if not root or not humanoid or humanoid.Health<=0 then reset(self);return end
+		local position=root.Position
+		local velocity=root.AssemblyLinearVelocity
+		local angular=root.AssemblyAngularVelocity
 		if root~=self.LastRoot then
 			reset(self);self.LastRoot=root
-			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.LastAngularVelocity=root.AssemblyAngularVelocity;self.SafeCFrame=root.CFrame
+			self.SafeCFrame=root.CFrame
+			self.LastPosition=position;self.LastVelocity=velocity;self.LastAngularVelocity=angular
 			return
 		end
 		if root.Anchored or humanoid.Sit or humanoid.SeatPart or intentional() then
 			self.SafeCFrame=root.CFrame
-			self.LastPosition=root.Position;self.LastVelocity=root.AssemblyLinearVelocity;self.LastAngularVelocity=root.AssemblyAngularVelocity;self.HoldUntil=0
+			self.LastPosition=position;self.LastVelocity=velocity;self.LastAngularVelocity=angular
 			return
 		end
-		local position=root.Position
-		local velocity=root.AssemblyLinearVelocity
-		local angular=root.AssemblyAngularVelocity
 		local step=(position-(self.LastPosition or position)).Magnitude
-		local speed=velocity.Magnitude
 		local change=velocity-(self.LastVelocity or velocity)
-		local horizontalChange=Vector3.new(change.X,0,change.Z).Magnitude
-		local horizontalSpeed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
 		local angularChange=(angular-(self.LastAngularVelocity or angular)).Magnitude
-		local impulse=speed>MAX_SPEED or angular.Magnitude>MAX_ANGULAR or (step>MAX_STEP and speed>35) or (horizontalSpeed>45 and horizontalChange>35) or (change.Magnitude>MAX_VELOCITY_CHANGE and speed>38) or (angularChange>MAX_ANGULAR_CHANGE and angular.Magnitude>7)
-		local now=os.clock()
-		if impulse and self.SafeCFrame then self.HoldUntil=math.max(self.HoldUntil,now+HOLD_TIME) end
-		if now<self.HoldUntil and self.SafeCFrame then
-			humanoid.PlatformStand=false
-			if humanoid:GetState()==Enum.HumanoidStateType.FallingDown or humanoid:GetState()==Enum.HumanoidStateType.Ragdoll then
-				humanoid:ChangeState(Enum.HumanoidStateType.Running)
-			end
-			local walking=Vector3.new(humanoid.MoveDirection.X,0,humanoid.MoveDirection.Z)
-			if advance and walking.Magnitude>0.01 then
-				local move=walking.Unit*math.min(humanoid.WalkSpeed,28)*math.min(dt,1/30)
-				local params=RaycastParams.new()
-				params.FilterType=Enum.RaycastFilterType.Exclude
-				params.FilterDescendantsInstances={humanoid.Parent}
-				if not workspace:Raycast(self.SafeCFrame.Position,move,params) then
-					self.SafeCFrame=self.SafeCFrame+move
-				end
-			end
-			root.CFrame=self.SafeCFrame
-			root.AssemblyLinearVelocity=Vector3.zero
-			root.AssemblyAngularVelocity=Vector3.zero
-			self.LastPosition=self.SafeCFrame.Position
-			self.LastVelocity=Vector3.zero
-			self.LastAngularVelocity=Vector3.zero
-			if impulse then self.Corrections=self.Corrections+1 end
+		local hit=velocity.Magnitude>90 or (change.Magnitude>70 and velocity.Magnitude>55)
+			or (angular.Magnitude>16 and angularChange>10)
+		if hit then
+			-- Rebote breve: nunca bloquea el movimiento durante varios frames.
+			local horizontal=Vector3.new(change.X,0,change.Z)
+			local rebound=horizontal.Magnitude>1 and -horizontal.Unit*math.min(horizontal.Magnitude*0.14,12) or Vector3.zero
+			root.AssemblyLinearVelocity=rebound+Vector3.new(0,velocity.Y>0 and 7 or 2,0)
+			root.AssemblyAngularVelocity=angular*0.1
+			if step>6 and self.SafeCFrame then root.CFrame=self.SafeCFrame end
+			self.Corrections=self.Corrections+1
+			self.LastPosition=root.Position
+			self.LastVelocity=root.AssemblyLinearVelocity
+			self.LastAngularVelocity=root.AssemblyAngularVelocity
 			return
 		end
-		-- Un salto sin velocidad física se considera TP intencional.
-		if (step>MAX_STEP and speed<=35) or (humanoid.FloorMaterial~=Enum.Material.Air and speed<=MAX_SPEED and angular.Magnitude<=MAX_ANGULAR) then
+		if step<=6 and velocity.Magnitude<45 and angular.Magnitude<8 then
 			self.SafeCFrame=root.CFrame
 		end
 		self.LastPosition=position
@@ -95,8 +74,8 @@ return function(context)
 		if beforePhysics then beforePhysics:Disconnect();beforePhysics=nil end
 		if afterPhysics then afterPhysics:Disconnect();afterPhysics=nil end
 		if enabled then
-			beforePhysics=RunService.PreSimulation:Connect(function(dt) self:Check(dt,true) end)
-			afterPhysics=RunService.PostSimulation:Connect(function(dt) self:Check(dt,false) end)
+			beforePhysics=RunService.PreSimulation:Connect(function() self:Check() end)
+			afterPhysics=RunService.PostSimulation:Connect(function() self:Check() end)
 		end
 		refresh()
 		return true
