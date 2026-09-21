@@ -12,10 +12,17 @@ return function(context)
 	Instance.new("UICorner", topNav).CornerRadius = UDim.new(0, 14)
 	RegisterTheme(topNav, "BackgroundColor3", "sidebar")
 
-	mainNav = Instance.new("Frame")
-	mainNav.Size = UDim2.new(1, -16, 1, -12)
+	mainNav = Instance.new("ScrollingFrame")
+	mainNav.Name = "TopNavigationTabs"
+	mainNav.Size = UDim2.new(1, -(isMobile and 96 or 112), 1, -12)
 	mainNav.Position = UDim2.new(0, 8, 0, 6)
 	mainNav.BackgroundTransparency = 1
+	mainNav.BorderSizePixel = 0
+	mainNav.ScrollBarThickness = 0
+	mainNav.Active = true
+	mainNav.ScrollingDirection = Enum.ScrollingDirection.X
+	mainNav.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
+	mainNav.CanvasSize = UDim2.new(0, isMobile and 488 or 602, 0, 0)
 	mainNav.ZIndex = 21
 	mainNav.Parent = topNav
 
@@ -202,6 +209,34 @@ return function(context)
 	couplesBtn.TextSize = isMobile and 14 or 16
 	mainNavBtns.couples = couplesBtn
 	couplesNavButtonStyle = {btn = couplesBtn, stroke = couplesStroke, gradient = couplesGradient}
+
+	-- El tacto usa el desplazamiento nativo; en PC se puede arrastrar con el mouse.
+	mainNavDragSuppressUntil = 0
+	local dragStartX, dragStartCanvas, dragInput, dragged
+	local function beginTabDrag(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		dragStartX = input.Position.X
+		dragStartCanvas = mainNav.CanvasPosition.X
+		dragInput = input
+		dragged = false
+	end
+	mainNav.InputBegan:Connect(beginTabDrag)
+	for _, button in pairs(mainNavBtns) do button.InputBegan:Connect(beginTabDrag) end
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragInput or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+		local delta = input.Position.X - dragStartX
+		if math.abs(delta) > 5 and mainNav.AbsoluteCanvasSize.X > mainNav.AbsoluteSize.X then dragged = true end
+		if dragged then
+			local maxScroll = math.max(0, mainNav.AbsoluteCanvasSize.X - mainNav.AbsoluteSize.X)
+			mainNav.CanvasPosition = Vector2.new(math.clamp(dragStartCanvas - delta, 0, maxScroll), 0)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if dragInput and input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if dragged then mainNavDragSuppressUntil = os.clock() + 0.15 end
+			dragInput = nil
+		end
+	end)
 
 	local labels = {
 		{"emotes", L.emotes},

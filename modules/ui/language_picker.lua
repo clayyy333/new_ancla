@@ -112,23 +112,13 @@ local function MakeLangBtn(txt, flag, index, lang)
 	btnStroke.Transparency = 0.5
 	btnStroke.Parent = btn
 	
-	local shine = Instance.new("Frame")
-	shine.Size = UDim2.new(0, 0, 1, 0)
-	shine.BackgroundColor3 = Color3.new(1, 1, 1)
-	shine.BackgroundTransparency = 0.9
-	shine.ZIndex = 20004
-	shine.Parent = btn
-	Instance.new("UICorner", shine).CornerRadius = UDim.new(0, 12)
-	
 	btn.MouseEnter:Connect(function()
 		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = langTheme.accent}):Play()
 		TweenService:Create(btnStroke, TweenInfo.new(0.2), {Transparency = 0, Color = langTheme.accent}):Play()
-		TweenService:Create(shine, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 1, 0)}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
 		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = langTheme.tertiary}):Play()
 		TweenService:Create(btnStroke, TweenInfo.new(0.2), {Transparency = 0.5, Color = langTheme.stroke}):Play()
-		TweenService:Create(shine, TweenInfo.new(0.3), {Size = UDim2.new(0, 0, 1, 0)}):Play()
 	end)
 	btn.MouseButton1Click:Connect(function()
 		local ripple = Instance.new("Frame")

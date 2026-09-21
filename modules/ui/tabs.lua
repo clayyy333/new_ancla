@@ -603,10 +603,10 @@ UpdateTabData = function()
 	if shouldRefresh then Refresh(true) end
 end
 
-mainNavBtns["fling2"].MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
-mainNavBtns["anchor"].MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
-mainNavBtns["control"].MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
-mainNavBtns["couples"].MouseButton1Click:Connect(function() currentTab = "preset_poses"; UpdateTabData() end)
+mainNavBtns["fling2"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fling2"; UpdateTabData() end)
+mainNavBtns["anchor"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "anchor"; UpdateTabData() end)
+mainNavBtns["control"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "camera_control"; UpdateTabData() end)
+mainNavBtns["couples"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "preset_poses"; UpdateTabData() end)
 couplesTabBtns["couples"].btn.MouseButton1Click:Connect(function() currentTab="couples";UpdateTabData() end)
 couplesTabBtns["couple_movement"].btn.MouseButton1Click:Connect(function() currentTab="couple_movement";UpdateTabData() end)
 couplesTabBtns["poses"].btn.MouseButton1Click:Connect(function() currentTab="poses";UpdateTabData() end)
@@ -623,7 +623,7 @@ fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab 
 fling2TabBtns["fling_object"].btn.MouseButton1Click:Connect(function() currentTab = "fling_object"; UpdateTabData() end)
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
 fling2TabBtns["fling_moto_xeno"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto_xeno"; UpdateTabData() end)
-mainNavBtns["movements"].MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
+mainNavBtns["movements"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)
 
