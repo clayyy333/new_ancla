@@ -59,6 +59,10 @@ end
 
 local function isMyCar(car)
 	if not car then return false end
+	local vehicleOwner = car:FindFirstChild("VehicleOwner")
+	if vehicleOwner and vehicleOwner:IsA("ObjectValue") then
+		return vehicleOwner.Value == LocalPlayer
+	end
 	local spawnPoints = Workspace:FindFirstChild("CarSpawnPoints")
 	if not spawnPoints then return false end
 
@@ -75,10 +79,19 @@ local function listMyCars()
 	local seen = {}
 
 	local cars = Workspace:FindFirstChild("Cars")
-	local spawnPoints = Workspace:FindFirstChild("CarSpawnPoints")
-	if not cars or not spawnPoints then
-		return result
+	if not cars then return result end
+
+	-- Las motos usan VehicleOwner en el modelo, sin entrada en CarSpawnPoints.
+	for _, car in ipairs(cars:GetChildren()) do
+		local vehicleOwner = car:FindFirstChild("VehicleOwner")
+		if vehicleOwner and vehicleOwner:IsA("ObjectValue") and isMyCar(car) and findCarRoot(car) then
+			seen[car] = true
+			table.insert(result, car)
+		end
 	end
+
+	local spawnPoints = Workspace:FindFirstChild("CarSpawnPoints")
+	if not spawnPoints then return result end
 
 	local myName = LocalPlayer.Name
 	local prefix = myName .. "_"
@@ -93,7 +106,7 @@ local function listMyCars()
 
 			if carName then
 				local car = cars:FindFirstChild(carName)
-				if car and not seen[car] and findCarRoot(car) then
+				if car and not seen[car] and isMyCar(car) and findCarRoot(car) then
 					seen[car] = true
 					table.insert(result, car)
 				end
