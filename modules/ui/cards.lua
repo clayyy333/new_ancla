@@ -2,6 +2,124 @@
 return function(context)
 	setfenv(1, context)
 
+local removeAnimationButton
+local animationPicker
+local animationStateLabels={
+	{"Idle","Inactividad","Idle"},{"Walk","Caminar","Walk"},
+	{"Run","Correr","Run"},{"Jump","Saltar","Jump"},
+	{"Fall","Caer","Fall"},{"Climb","Trepar","Climb"},
+	{"Swim","Nadar","Swim"}
+}
+
+local function ShowAnimationPackOptions(pack)
+	if animationPicker then animationPicker:Destroy() end
+	local overlay=Instance.new("TextButton")
+	overlay.Name="AnimationPackOptions"
+	overlay.Size=UDim2.fromScale(1,1)
+	overlay.BackgroundColor3=Color3.new(0,0,0)
+	overlay.BackgroundTransparency=0.35
+	overlay.Text=""
+	overlay.AutoButtonColor=false
+	overlay.ZIndex=70
+	overlay.Parent=gui
+	animationPicker=overlay
+	local width=math.min(440,workspace.CurrentCamera.ViewportSize.X-24)
+	local height=math.min(470,workspace.CurrentCamera.ViewportSize.Y-32)
+	local panel=Instance.new("Frame")
+	panel.Size=UDim2.fromOffset(width,height)
+	panel.Position=UDim2.fromScale(0.5,0.5)
+	panel.AnchorPoint=Vector2.new(0.5,0.5)
+	panel.BackgroundColor3=currentTheme.primary
+	panel.ZIndex=71
+	panel.Active=true
+	panel.Parent=overlay
+	Instance.new("UICorner",panel).CornerRadius=UDim.new(0,16)
+	local border=Instance.new("UIStroke")
+	border.Color=currentTheme.accent
+	border.Thickness=1.5
+	border.Parent=panel
+	local titleLabel=Instance.new("TextLabel")
+	titleLabel.Size=UDim2.new(1,-70,0,44)
+	titleLabel.Position=UDim2.fromOffset(16,8)
+	titleLabel.BackgroundTransparency=1
+	titleLabel.Text=pack.name
+	titleLabel.TextColor3=currentTheme.text
+	titleLabel.Font=Enum.Font.GothamBold
+	titleLabel.TextSize=18
+	titleLabel.TextXAlignment=Enum.TextXAlignment.Left
+	titleLabel.TextTruncate=Enum.TextTruncate.AtEnd
+	titleLabel.ZIndex=72
+	titleLabel.Parent=panel
+	local close=Instance.new("TextButton")
+	close.Size=UDim2.fromOffset(36,36)
+	close.Position=UDim2.new(1,-46,0,12)
+	close.BackgroundColor3=currentTheme.tertiary
+	close.Text="×"
+	close.TextColor3=currentTheme.text
+	close.Font=Enum.Font.GothamBold
+	close.TextSize=24
+	close.ZIndex=73
+	close.Parent=panel
+	Instance.new("UICorner",close).CornerRadius=UDim.new(0,10)
+	local function dismiss()
+		if animationPicker==overlay then animationPicker=nil end
+		overlay:Destroy()
+	end
+	close.Activated:Connect(dismiss)
+	overlay.Activated:Connect(dismiss)
+	local function addButton(parent,label,top,callback)
+		local button=Instance.new("TextButton")
+		button.Size=UDim2.new(1,-24,0,42)
+		button.Position=UDim2.fromOffset(12,top)
+		button.BackgroundColor3=currentTheme.tertiary
+		button.Text=label
+		button.TextColor3=currentTheme.text
+		button.Font=Enum.Font.GothamMedium
+		button.TextSize=14
+		button.ZIndex=73
+		button.Parent=parent
+		Instance.new("UICorner",button).CornerRadius=UDim.new(0,10)
+		button.Activated:Connect(function()
+			callback()
+			dismiss()
+		end)
+		return button
+	end
+	local all=addButton(panel,isES and "Equipar todo" or "Equip all",60,function()
+		EquipAnimationPack(pack)
+	end)
+	all.BackgroundColor3=currentTheme.accent
+	local subTitle=Instance.new("TextLabel")
+	subTitle.Size=UDim2.new(1,-24,0,28)
+	subTitle.Position=UDim2.fromOffset(12,111)
+	subTitle.BackgroundTransparency=1
+	subTitle.Text=isES and "O equipar solo una parte" or "Or equip one part"
+	subTitle.TextColor3=currentTheme.textDim
+	subTitle.Font=Enum.Font.GothamMedium
+	subTitle.TextSize=13
+	subTitle.TextXAlignment=Enum.TextXAlignment.Left
+	subTitle.ZIndex=72
+	subTitle.Parent=panel
+	local list=Instance.new("ScrollingFrame")
+	list.Size=UDim2.new(1,-20,1,-153)
+	list.Position=UDim2.fromOffset(10,143)
+	list.BackgroundTransparency=1
+	list.ScrollBarThickness=4
+	list.CanvasSize=UDim2.new(0,0,0,0)
+	list.ZIndex=72
+	list.Parent=panel
+	local row=0
+	for _,option in ipairs(animationStateLabels) do
+		local state=option[1]
+		if pack[state] then
+			addButton(list,isES and option[2] or option[3],row*48,function()
+				EquipAnimationPart(pack,state)
+			end)
+			row=row+1
+		end
+	end
+	list.CanvasSize=UDim2.new(0,0,0,row*48)
+end
 function MakeCard(emote, ci, animate)
 	local CARD = currentCardSize
 	local PAD = isMobile and 4 or 6
@@ -421,6 +539,7 @@ function MakeCard(emote, ci, animate)
 			end
 		end)
 		
+		if emote.isAnimationPack then ShowAnimationPackOptions(emote); return end
 		if FriendData and FriendData.currentSyncPartner then
 			FriendData.currentSyncPartner = nil
 		end
@@ -431,6 +550,7 @@ function MakeCard(emote, ci, animate)
 end
 
 function UpdateCards(animate)
+	if removeAnimationButton then removeAnimationButton:Destroy();removeAnimationButton=nil end
 	ClearCards()
 	
 	local startIdx = (page - 1) * perPage + 1
@@ -448,11 +568,30 @@ function UpdateCards(animate)
 	local PAD = isMobile and 4 or 6
 	local NAME_H = math.clamp(CARD * 0.35, 18, 28)
 	local FAV_H = math.clamp(CARD * 0.3, 18, 24)
-	local CARD_TOTAL_H = CARD + NAME_H + FAV_H
+	local KB_H = ((not isMobile) or _isPlaylistMode) and math.clamp(CARD * 0.45, 30, 40) or 0
+	local CARD_TOTAL_H = KB_H + CARD + NAME_H + FAV_H
 	
 	local rows = math.ceil(ci / math.max(cols, 1))
 	scroll.CanvasSize = UDim2.new(0, 0, 0, rows * (CARD_TOTAL_H + PAD) + PAD)
 	scroll.CanvasPosition = Vector2.zero
+
+	if currentTab == "animations" then
+		removeAnimationButton=Instance.new("TextButton")
+		removeAnimationButton.Name="RemoveAnimations"
+		removeAnimationButton.Size=UDim2.new(1,-16,0,40)
+		removeAnimationButton.Position=UDim2.fromOffset(8,rows*(CARD_TOTAL_H+PAD)+PAD)
+		removeAnimationButton.BackgroundColor3=currentTheme.tertiary
+		removeAnimationButton.Text=isES and "Quitar animaciones" or "Remove animations"
+		removeAnimationButton.TextColor3=currentTheme.text
+		removeAnimationButton.Font=Enum.Font.GothamBold
+		removeAnimationButton.TextSize=14
+		removeAnimationButton.ZIndex=3
+		removeAnimationButton.Parent=scroll
+		Instance.new("UICorner",removeAnimationButton).CornerRadius=UDim.new(0,10)
+		removeAnimationButton.Activated:Connect(function() RemoveAnimationPacks() end)
+		scroll.CanvasSize=UDim2.new(0,0,0,rows*(CARD_TOTAL_H+PAD)+PAD+52)
+	end
+
 
 	local _npStart = page * perPage + 1
 	local _npEnd   = math.min((page + 1) * perPage, #filtered)

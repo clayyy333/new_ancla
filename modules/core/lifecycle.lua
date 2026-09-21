@@ -18,11 +18,11 @@ _charAddedConn = player.CharacterAdded:Connect(function(newChar)
 		return
 	end
 	
-	if lastVexroAnimationPack then
+	if ReapplyAnimationSelection then
 		task.wait(0.5)
 		local newAnimate = newChar:WaitForChild("Animate", 5)
 		if newAnimate then
-			pcall(function() EquipAnimationPack(lastVexroAnimationPack) end)
+			pcall(ReapplyAnimationSelection)
 		end
 	end
 	
