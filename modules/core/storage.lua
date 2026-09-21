@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1, context)
 
 DATA_FILE = "VexroEmotes_Data_" .. tostring(player.UserId) .. ".json"
-Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, antiAFK = false, emergencyAnchor = false, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false}
+Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, antiAFK = false, emergencyAnchor = true, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false}
 
 FriendData = {
 	friends        = {},
@@ -63,7 +63,7 @@ function LoadData()
 	_genv().VexroServerAccessible = false
 	pcall(function()
 		-- 1. Load local backup
-		if readfile and isfile and isfile(DATA_FILE) then
+		if readfile and (not isfile or isfile(DATA_FILE)) then
 			local data = HttpService:JSONDecode(readfile(DATA_FILE))
 			if data then
 				Playlists = {}
@@ -94,7 +94,7 @@ function LoadData()
 					Settings.showHUD = data.settings.showHUD ~= false
 					Settings.ambientSound = data.settings.ambientSound ~= false
 					Settings.antiAFK = data.settings.antiAFK == true
-					Settings.emergencyAnchor = data.settings.emergencyAnchor == true
+					Settings.emergencyAnchor = data.settings.emergencyAnchor ~= false
 					Settings.carControlHeight = math.clamp(tonumber(data.settings.carControlHeight) or 8, -10, 50)
 					Settings.carControlSpinSpeed = math.clamp(tonumber(data.settings.carControlSpinSpeed) or 360, 0, 1440)
 					Settings.searchHistory = data.settings.searchHistory or {}
@@ -119,6 +119,11 @@ function LoadData()
 
 	end)
 	
+	local emergencyPreference = _genv()["VexroEmergencyAnchorPreference_" .. tostring(player.UserId)]
+	if type(emergencyPreference) == 'boolean' then
+		Settings.emergencyAnchor = emergencyPreference
+	end
+
 	-- Post-process Favorites and Keybinds
 	FavoritesSet = {}
 	for _, v in ipairs(Favorites) do FavoritesSet[v] = true end

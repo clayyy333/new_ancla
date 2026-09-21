@@ -114,6 +114,6 @@ return function(context)
 	end
 
 	EmergencyAnchorController=Core
-	Core:SetEnabled(Settings.emergencyAnchor==true)
+	Core:SetEnabled(Settings.emergencyAnchor~=false)
 	return true
 end

@@ -335,8 +335,9 @@ do
 	local emergencyTitle = isES and "Ancla de Emergencia" or "Emergency Anchor"
 	local emergencyDesc = isES and "Activa para evitar fling sorpresivo" or "Enable to prevent unexpected flings"
 	local emergencyRow = MakeRow("", emergencyTitle, emergencyDesc, 4)
-	MakePillToggle(emergencyRow, Settings.emergencyAnchor == true, function(v)
+	MakePillToggle(emergencyRow, Settings.emergencyAnchor ~= false, function(v)
 		Settings.emergencyAnchor = v
+		_genv()["VexroEmergencyAnchorPreference_" .. tostring(player.UserId)] = v
 		if EmergencyAnchorController then EmergencyAnchorController:SetEnabled(v) end
 		SaveData()
 	end)
