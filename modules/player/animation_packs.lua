@@ -49,23 +49,45 @@ return function(context)
 		end
 	end
 
-	local function resolveIds(catalogId)
-		local key=tostring(catalogId)
+	local function resolveIds(catalogId,state)
+		local key=state..":"..tostring(catalogId)
 		if resolvedCache[key] then return resolvedCache[key] end
 		local ids={}
+		local matchingIds={}
+		local swimIdleIds={}
 		local ok,objects=pcall(function()
-			return game:GetObjects("rbxassetid://"..key)
+			return game:GetObjects("rbxassetid://"..tostring(catalogId))
 		end)
 		if ok and objects then
 			local function scan(instance)
 				if instance:IsA("Animation") and instance.AnimationId~="" then
 					ids[#ids+1]=instance.AnimationId
+					local parentName=instance.Parent and instance.Parent.Name or ''
+					local clipName=(instance.Name..' '..parentName):lower()
+					local wanted=state:lower()
+					if (state=='Swim' and clipName:find('swim') and not clipName:find('idle')) or (state~='Swim' and (clipName:find(wanted) or (state=='Idle' and clipName:find('pose')))) then
+						matchingIds[#matchingIds+1]=instance.AnimationId
+					end
+					if state=='Swim' and clipName:find('swim') and clipName:find('idle') then
+						swimIdleIds[#swimIdleIds+1]=instance.AnimationId
+					end
 				end
 				for _,child in ipairs(instance:GetChildren()) do scan(child) end
 			end
 			for _,object in ipairs(objects) do scan(object);object:Destroy() end
 		end
-		if #ids==0 then ids[1]="rbxassetid://"..key end
+		if #matchingIds>0 then ids=matchingIds end
+		if #ids==0 then ids[1]="rbxassetid://"..tostring(catalogId) end
+		-- Animate solo debe recibir un clip por estado; Idle admite dos variantes.
+		if state == 'Idle' then
+			while #ids > 2 do table.remove(ids) end
+		elseif state == 'Swim' then
+			local moving=ids[1]
+			ids={moving}
+			if swimIdleIds[1] then ids[2]=swimIdleIds[1] end
+		else
+			while #ids > 1 do table.remove(ids) end
+		end
 		resolvedCache[key]=ids
 		return ids
 	end
@@ -103,12 +125,20 @@ return function(context)
 
 	local function replaceState(animate,state,ids)
 		for _,name in ipairs(states[state]) do
+			local targetIds=ids
+			if state=='Swim' then
+				if name=='swimidle' then
+					if ids[2] then targetIds={ids[2]} else targetIds=nil end
+				else
+					targetIds={ids[1]}
+				end
+			end
 			local folder=animate:FindFirstChild(name)
-			if folder then
+			if folder and targetIds then
 				for _,child in ipairs(folder:GetChildren()) do
 					if child:IsA("Animation") then child:Destroy() end
 				end
-				for index,id in ipairs(ids) do
+				for index,id in ipairs(targetIds) do
 					local animation=Instance.new("Animation")
 					animation.Name="Animation"..index
 					animation.AnimationId=id
@@ -128,7 +158,7 @@ return function(context)
 			local resolved={}
 			for _,state in ipairs(stateOrder) do
 				local entry=selected[state]
-				if entry then resolved[state]=resolveIds(entry.id) end
+				if entry then resolved[state]=resolveIds(entry.id,state) end
 				if request~=thisRequest or getAnimate()~=animate then return end
 			end
 			if request~=thisRequest or getAnimate()~=animate then return end
