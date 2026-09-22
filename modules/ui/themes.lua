@@ -133,7 +133,14 @@ UpdateTabData = nil
 _updateTitleGrad = nil
 
 function RegisterTheme(el, prop, key)
-	if el then themeElements[#themeElements + 1] = {el = el, prop = prop, key = key} end
+	if el then
+		themeElements[#themeElements + 1] = {el = el, prop = prop, key = key}
+		if prop == "BackgroundColor3" and ApplyGUITransparencyElement then
+			task.defer(function()
+				if el and el.Parent then ApplyGUITransparencyElement(el) end
+			end)
+		end
+	end
 end
 
 	return true

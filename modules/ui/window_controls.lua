@@ -83,6 +83,7 @@ UserInputService.InputEnded:Connect(function(input)
 				
 				TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Size = targetSize, BackgroundTransparency = 0}):Play()
 				TweenService:Create(mainStroke, TweenInfo.new(0.35), {Transparency = 0}):Play()
+				task.delay(0.36, function() if ApplyGUITransparency then ApplyGUITransparency() end end)
 				
 				task.delay(0.4, function()
 					main.ClipsDescendants = true

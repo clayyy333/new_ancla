@@ -130,6 +130,8 @@ return {
 		"RunLocalSource",
 		"ReloadLocal",
 		"ApplyTheme",
+		"ApplyGUITransparency",
+		"ApplyGUITransparencyElement",
 		"selectedLang",
 		"isTR",
 		"isES",

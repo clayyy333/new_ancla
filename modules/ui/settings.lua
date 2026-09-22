@@ -2,6 +2,36 @@
 return function(context)
 	setfenv(1, context)
 
+-- Transparencia visual de superficies; no altera textos, imágenes ni bordes.
+ApplyGUITransparencyElement = function(element)
+	if not element or not element:IsA("GuiObject") then return end
+	local base = element:GetAttribute("VexroBaseBackgroundTransparency")
+	if type(base) ~= "number" then
+		base = element.BackgroundTransparency
+		element:SetAttribute("VexroBaseBackgroundTransparency", base)
+	end
+	element.BackgroundTransparency = math.max(base, math.clamp(tonumber(Settings.guiTransparency) or 0, 0, 0.8))
+end
+
+ApplyGUITransparency = function()
+	local visited = {}
+	for _,entry in ipairs(themeElements) do
+		if entry.prop == "BackgroundColor3" and entry.el and entry.el.Parent and not visited[entry.el] then
+			visited[entry.el] = true
+			ApplyGUITransparencyElement(entry.el)
+		end
+	end
+	if main and main.Parent then
+		local glass = Settings.theme == "FrostedGlass" or Settings.theme == "GTAMode"
+		main:SetAttribute("VexroBaseBackgroundTransparency", glass and 0.18 or 0)
+		ApplyGUITransparencyElement(main)
+		local gradient = main:FindFirstChild("VexroGradFrame")
+		if gradient and gradient:IsA("GuiObject") then
+			gradient:SetAttribute("VexroBaseBackgroundTransparency", glass and 0.45 or 0)
+			ApplyGUITransparencyElement(gradient)
+		end
+	end
+end
 -- SETTINGS PANEL
 -- ===============================================================
 
@@ -321,9 +351,97 @@ do
 end
 
 do
+	local transparencyTitle = isES and "Transparencia de la GUI" or "GUI transparency"
+	local transparencyDesc = isES and "Permite ver el juego detrás de la interfaz" or "Lets you see the game behind the interface"
+	local transparencyRow = MakeRow("", transparencyTitle, transparencyDesc, 3, 88)
+
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Size = UDim2.new(0, 48, 0, 24)
+	valueLabel.AnchorPoint = Vector2.new(1, 0)
+	valueLabel.Position = UDim2.new(1, -12, 0, 10)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.TextColor3 = currentTheme.accent
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.TextSize = 13
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+	valueLabel.ZIndex = 9
+	valueLabel.Parent = transparencyRow
+	RegisterTheme(valueLabel, "TextColor3", "accent")
+
+	local slider = Instance.new("TextButton")
+	slider.Size = UDim2.new(1, -24, 0, 18)
+	slider.Position = UDim2.new(0, 12, 1, -25)
+	slider.BackgroundTransparency = 1
+	slider.Text = ""
+	slider.AutoButtonColor = false
+	slider.ZIndex = 9
+	slider.Parent = transparencyRow
+
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(1, 0, 0, 6)
+	track.AnchorPoint = Vector2.new(0, 0.5)
+	track.Position = UDim2.new(0, 0, 0.5, 0)
+	track.BackgroundColor3 = currentTheme.tertiary
+	track.ZIndex = 9
+	track.Parent = slider
+	Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+	RegisterTheme(track, "BackgroundColor3", "tertiary")
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BackgroundColor3 = currentTheme.accent
+	fill.ZIndex = 10
+	fill.Parent = track
+	Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	RegisterTheme(fill, "BackgroundColor3", "accent")
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.fromOffset(18, 18)
+	knob.AnchorPoint = Vector2.new(0.5, 0.5)
+	knob.Position = UDim2.new(0, 0, 0.5, 0)
+	knob.BackgroundColor3 = Color3.new(1, 1, 1)
+	knob.ZIndex = 11
+	knob.Parent = track
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+	local dragging = false
+	local function setFromAlpha(alpha, save)
+		alpha = math.clamp(alpha, 0, 1)
+		local percent = math.floor(alpha * 80 + 0.5)
+		Settings.guiTransparency = percent / 100
+		valueLabel.Text = tostring(percent) .. "%"
+		fill.Size = UDim2.new(alpha, 0, 1, 0)
+		knob.Position = UDim2.new(alpha, 0, 0.5, 0)
+		ApplyGUITransparency()
+		if save then SaveData() end
+	end
+	local function setFromInput(input, save)
+		if slider.AbsoluteSize.X <= 0 then return end
+		setFromAlpha((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, save)
+	end
+	slider.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			setFromInput(input, false)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			setFromInput(input, false)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			dragging = false
+			setFromInput(input, true)
+		end
+	end)
+	setFromAlpha((tonumber(Settings.guiTransparency) or 0) / 0.8, false)
+end
+do
 	local ambientTitle = isES and "Sonido de ambiente" or "Ambient sound"
 	local ambientDesc = isES and "Activa o silencia el ambiente de día y noche" or "Enable or mute daytime and nighttime ambience"
-	local ambientRow = MakeRow("", ambientTitle, ambientDesc, 3)
+	local ambientRow = MakeRow("", ambientTitle, ambientDesc, 4)
 	MakePillToggle(ambientRow, Settings.ambientSound ~= false, function(v)
 		Settings.ambientSound = v
 		if AmbientSoundController then AmbientSoundController:SetEnabled(v) end
@@ -334,7 +452,7 @@ end
 do
 	local emergencyTitle = isES and "Ancla de Emergencia" or "Emergency Anchor"
 	local emergencyDesc = isES and "Activa para evitar fling sorpresivo" or "Enable to prevent unexpected flings"
-	local emergencyRow = MakeRow("", emergencyTitle, emergencyDesc, 4)
+	local emergencyRow = MakeRow("", emergencyTitle, emergencyDesc, 5)
 	MakePillToggle(emergencyRow, Settings.emergencyAnchor ~= false, function(v)
 		Settings.emergencyAnchor = v
 		_genv()["VexroEmergencyAnchorPreference_" .. tostring(player.UserId)] = v
@@ -346,7 +464,7 @@ end
 do
 	local antiAFKTitle = "Anti-AFK"
 	local antiAFKDesc = isES and "Evita la expulsión por inactividad con una interacción cada 10 minutos" or "Prevents idle disconnection with an interaction every 10 minutes"
-	local antiAFKRow = MakeRow("", antiAFKTitle, antiAFKDesc, 5)
+	local antiAFKRow = MakeRow("", antiAFKTitle, antiAFKDesc, 6)
 	MakePillToggle(antiAFKRow, Settings.antiAFK == true, function(v)
 		Settings.antiAFK = v
 		if AntiAFKController then AntiAFKController:SetEnabled(v) end
@@ -354,7 +472,7 @@ do
 	end)
 end
 do
-	local speedRow = MakeRow("113837085020684", L.speed, "", 6, 78)
+	local speedRow = MakeRow("113837085020684", L.speed, "", 7, 78)
 	local speeds = {0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3}
 	local speedIdx = 4
 	for i, s in ipairs(speeds) do if s == Settings.speed then speedIdx = i end end

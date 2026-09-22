@@ -242,8 +242,12 @@ ApplyTheme = function(name)
 		}
 		grad.Rotation = g[3]
 	end
+	if ApplyGUITransparency then
+		task.delay(0.31, function()
+			if main and main.Parent then ApplyGUITransparency() end
+		end)
+	end
 end
-
 mainStroke = Instance.new("UIStroke")
 mainStroke.Color = Color3.new(1, 1, 1)
 mainStroke.Thickness = 3
