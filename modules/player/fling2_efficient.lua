@@ -535,14 +535,22 @@ end
 
 	_fling2EfficientPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leavingPlayer)
 		if Fling2EfficientCore:GetTarget() == leavingPlayer then
-			if Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
-			Fling2EfficientCore:SetTarget(nil)
-			if UpdateFling2Panel then UpdateFling2Panel() end
+			if Fling2AutoController and Fling2AutoController.Running then
+				Fling2AutoController:SkipMissing(leavingPlayer)
+			else
+				if Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
+				Fling2EfficientCore:SetTarget(nil)
+				if UpdateFling2Panel then UpdateFling2Panel() end
+			end
 		end
 	end)
 
 	_fling2EfficientCharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-		if Fling2EfficientCore.Running then Fling2EfficientCore:Stop() end
+		if Fling2AutoController and Fling2AutoController.Running then
+			Fling2AutoController:Stop()
+		elseif Fling2EfficientCore.Running then
+			Fling2EfficientCore:Stop()
+		end
 		Fling2EfficientCore.LastReturnCheckpoint = nil
 		if UpdateFling2Panel then UpdateFling2Panel() end
 	end)
