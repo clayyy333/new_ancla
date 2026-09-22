@@ -66,40 +66,13 @@ function LoadAnimations()
 		local data = type(result) == "table" and (result.data or result)
 		for _, pack in ipairs(data) do
 			if pack.id and pack.name and pack.bundledItems then
-				local function getAnimId(key)
-					local arr = pack.bundledItems[key] or pack.bundledItems[tonumber(key)]
-					if type(arr) == "table" and #arr > 0 then
-						return tonumber(arr[1])
-					elseif type(arr) == "number" then
-						return arr
-					end
-					return nil
-				end
-				
-				local climb = getAnimId("1")
-				local fall = getAnimId("2")
-				local walk = getAnimId("3")
-				local swim = getAnimId("4")
-				local idle = getAnimId("5")
-				local run = getAnimId("6")
-				local jump = getAnimId("7")
-				
-				if idle or walk then
-					table.insert(AnimationPacks, {
-						id = "anim_" .. tostring(pack.id),
-						bundleId = tonumber(pack.id),
-						bundledItems = pack.bundledItems,
-						name = tostring(pack.name),
-						isAnimationPack = true,
-						Idle = idle,
-						Walk = walk,
-						Run = run,
-						Jump = jump,
-						Fall = fall,
-						Climb = climb,
-						Swim = swim
-					})
-				end
+				table.insert(AnimationPacks, {
+					id = "anim_" .. tostring(pack.id),
+					bundleId = tonumber(pack.id),
+					bundledItems = pack.bundledItems,
+					name = tostring(pack.name),
+					isAnimationPack = true
+				})
 			end
 		end
 	end

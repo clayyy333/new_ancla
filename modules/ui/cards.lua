@@ -111,7 +111,7 @@ local function ShowAnimationPackOptions(pack)
 	local row=0
 	for _,option in ipairs(animationStateLabels) do
 		local state=option[1]
-		if pack[state] then
+		if pack.bundleId or pack[state] then
 			addButton(list,isES and option[2] or option[3],row*48,function()
 				EquipAnimationPart(pack,state)
 			end)

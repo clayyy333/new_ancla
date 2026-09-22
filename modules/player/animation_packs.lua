@@ -13,6 +13,14 @@ return function(context)
 	local request=0
 	local resolvedCache={}
 	local bundleCache={}
+	-- Este paquete llega con un orden distinto en bundledItems; IDs comprobados por tipo.
+	local verifiedPacks={
+		[226897222628299]={
+			Idle=79638430446468,Walk=125935884379030,Run=140668178711040,
+			Jump=121044668035612,Fall=90121153486837,
+			Climb=107026478538282,Swim=74464049474878
+		}
+	}
 	local assetTypes={
 		IdleAnimation="Idle",WalkAnimation="Walk",RunAnimation="Run",
 		JumpAnimation="Jump",FallAnimation="Fall",ClimbAnimation="Climb",SwimAnimation="Swim",
@@ -22,6 +30,7 @@ return function(context)
 
 	local function getPackStates(pack)
 		if not pack.bundleId then return pack end -- Paquetes de respaldo con IDs ya clasificados.
+		if verifiedPacks[pack.bundleId] then return verifiedPacks[pack.bundleId] end
 		if bundleCache[pack.bundleId] then return bundleCache[pack.bundleId] end
 		local mapped={}
 		local ok,details=pcall(function()
@@ -222,7 +231,7 @@ return function(context)
 	end
 
 	function EquipAnimationPart(pack,state)
-		if not states[state] or not pack or not pack[state] then return false end
+		if not states[state] or not pack or (not pack.bundleId and not pack[state]) then return false end
 		if not getAnimate() then return false end
 		local mapped=getPackStates(pack)
 		if not mapped or not mapped[state] then
