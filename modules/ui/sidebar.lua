@@ -295,6 +295,7 @@ return function(context)
 		{"flight_control", isES and "Control de vuelo" or "Flight Control"},
 		{"car_control", isES and "Control de auto" or "Car Control"},
 		{"free_car_control", isES and "Control de auto libre" or "Free Car Control"},
+		{"movement_control", isES and "Control de velocidad" or "Speed Control"},
 	}
 	for index, item in ipairs(controlLabels) do
 		local btn, stroke, gradient = CreateTextButton(
