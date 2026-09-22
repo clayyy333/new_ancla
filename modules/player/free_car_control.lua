@@ -3,8 +3,8 @@ return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
 	local Camera=Workspace.CurrentCamera
-	local Core={Running=false,Car=nil,CarName=nil,BV=nil,Speed=120,BoostMultiplier=2.2,TiltResponse=16,LastOwnershipAttempt=0,Boost=false,CamYaw=0,CamPitch=-10,CameraDrag=false,Keys={Forward=false,Back=false,Left=false,Right=false},Mobile={Forward=false,Back=false,Left=false,Right=false},SavedAnchored={},SavedCharacterAnchored={},Status=nil}
-	local heartbeat,cameraConnection,ancestryConnection
+	local Core={Running=false,Car=nil,CarName=nil,BV=nil,Speed=120,BoostMultiplier=2.2,TiltResponse=16,LastOwnershipAttempt=0,Boost=false,CamYaw=0,CamPitch=-10,CameraDrag=false,Keys={Forward=false,Back=false,Left=false,Right=false},Mobile={Forward=false,Back=false,Left=false,Right=false},SavedAnchored={},SavedCharacterAnchored={},PivotOffset=nil,LastControlledPivot=nil,Status=nil}
+	local heartbeat,stepped,rendered,cameraConnection,ancestryConnection
 	local connections={}
 	local function findRoot(model)
 		if not model then return nil end
@@ -35,6 +35,13 @@ return function(context)
 	end
 	local function clearMotion(car)
 		if car then eachPart(car,function(part) part.AssemblyLinearVelocity=Vector3.zero; part.AssemblyAngularVelocity=Vector3.zero end) end
+	end
+	local function hasOccupant(car)
+		if not car then return false end
+		for _,item in ipairs(car:GetDescendants()) do
+			if (item:IsA("VehicleSeat") or item:IsA("Seat")) and item.Occupant then return true end
+		end
+		return false
 	end
 	function Core:GetCarOptions() return listCars() end
 	function Core:SetCar(car) self.Car=car; self.CarName=car and car.Name or nil; return car~=nil end
@@ -107,7 +114,7 @@ return function(context)
 		if SpectatorController and SpectatorController:IsActive() then SpectatorController:Stop() end; if FlightController and FlightController:IsFlying() then FlightController:Stop() end
 		local car=self:GetCar(); if not car or not car.Parent or not isMyCar(car) then return false,isES and "Selecciona un vehículo propio." or "Select an owned vehicle." end
 		local root=findRoot(car); if not root then return false,isES and "El vehículo no tiene una pieza física utilizable." or "The vehicle has no usable physical part." end
-		self.Car=car; self.Running=true; self.LastOwnershipAttempt=0; self.Status=nil; self:PrepareCar(car); self:AnchorCharacter(); self:StartCamera(root); self:CreateForce(root)
+		self.Car=car; self.Running=true; self.LastOwnershipAttempt=0; self.Status=nil; self.PivotOffset=car:IsA("Model") and root.CFrame:ToObjectSpace(car:GetPivot()) or nil; self.LastControlledPivot=nil; self:PrepareCar(car); self:AnchorCharacter(); self:StartCamera(root); self:CreateForce(root)
 		ancestryConnection=car.AncestryChanged:Connect(function(_,parent) if self.Running and (not parent or not car:IsDescendantOf(Workspace)) then self.Status=isES and "El vehículo desapareció." or "The vehicle disappeared."; self:Stop() end end)
 		heartbeat=RunService.Heartbeat:Connect(function(dt)
 			if not self.Running then return end; local current=self.Car; local r=current and findRoot(current); Camera=Workspace.CurrentCamera
@@ -122,15 +129,32 @@ return function(context)
 			if direction.Magnitude>0.001 then velocity=direction.Unit*self.Speed*(self.Boost and self.BoostMultiplier or 1) end
 			self.BV.Velocity=self.BV.Velocity:Lerp(velocity,1-math.exp(-10*dt)); self.BV.MaxForce=Vector3.new(1e6,1e6,1e6)
 			local flat=Vector3.new(look.X,0,look.Z)
-			if flat.Magnitude>0.05 then local desired=CFrame.lookAt(r.Position,r.Position+look,Vector3.yAxis); r.CFrame=r.CFrame:Lerp(desired,1-math.exp(-self.TiltResponse*dt)) end
+			if hasOccupant(current) then
+				local nextPosition=r.Position+velocity*math.min(dt,0.1)
+				local desired=CFrame.lookAt(nextPosition,nextPosition+look,Vector3.yAxis)
+				if current:IsA("Model") and self.PivotOffset then current:PivotTo(desired*self.PivotOffset) else r.CFrame=desired end
+				self.LastControlledPivot=current:IsA("Model") and current:GetPivot() or r.CFrame
+			else
+				self.LastControlledPivot=nil
+				if flat.Magnitude>0.05 then local desired=CFrame.lookAt(r.Position,r.Position+look,Vector3.yAxis); r.CFrame=r.CFrame:Lerp(desired,1-math.exp(-self.TiltResponse*dt)) end
+			end
 			r.AssemblyAngularVelocity=Vector3.zero
 		end)
+		local function holdOccupiedCar()
+			if not self.Running or not self.LastControlledPivot or not hasOccupant(self.Car) then return end
+			local current=self.Car; local r=current and findRoot(current)
+			if not current or not r then return end
+			if current:IsA("Model") then current:PivotTo(self.LastControlledPivot) else r.CFrame=self.LastControlledPivot end
+			r.AssemblyAngularVelocity=Vector3.zero
+		end
+		stepped=RunService.Stepped:Connect(holdOccupiedCar)
+		rendered=RunService.RenderStepped:Connect(holdOccupiedCar)
 		return true
 	end
 	function Core:Stop()
 		self.Running=false; self.Boost=false; self.CameraDrag=false; self.CameraDragInput=nil
-		if heartbeat then heartbeat:Disconnect(); heartbeat=nil end; if ancestryConnection then ancestryConnection:Disconnect(); ancestryConnection=nil end
-		self:DestroyForce(); clearMotion(self.Car); self:RestoreCarAnchors(); self:StopCamera(); self:RestoreCharacter()
+		if heartbeat then heartbeat:Disconnect(); heartbeat=nil end; if stepped then stepped:Disconnect(); stepped=nil end; if rendered then rendered:Disconnect(); rendered=nil end; if ancestryConnection then ancestryConnection:Disconnect(); ancestryConnection=nil end
+		self:DestroyForce(); clearMotion(self.Car); self:RestoreCarAnchors(); self:StopCamera(); self:RestoreCharacter(); self.PivotOffset=nil; self.LastControlledPivot=nil
 		for key in pairs(self.Keys) do self.Keys[key]=false end; for key in pairs(self.Mobile) do self.Mobile[key]=false end
 	end
 	local function setKey(code,value)
