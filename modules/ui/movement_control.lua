@@ -70,6 +70,19 @@ return function(context)
 	local applyJump=button(isES and "Aplicar" or "Apply",UDim2.new(0.25,-4,0,42),UDim2.new(0.49,0,0,104))
 	local restoreJump=button(isES and "Restaurar" or "Restore",UDim2.new(0.25,-4,0,42),UDim2.new(0.75,0,0,104))
 
+	local function setApplied(button,applied)
+		button.Text=applied and (isES and "Aplicada  ✓" or "Applied  ✓") or (isES and "Aplicar" or "Apply")
+		button.BackgroundColor3=applied and currentTheme.accent or currentTheme.tertiary
+	end
+	local function clearForEditing(box,button)
+		box.Focused:Connect(function()
+			box.Text=""
+			setApplied(button,false)
+		end)
+	end
+	clearForEditing(speedInput,applySpeed)
+	clearForEditing(jumpInput,applyJump)
+
 	label(isES and "Teletransporte a jugador" or "Teleport to player",168)
 	local targetButton=button(isES and "Seleccionar jugador" or "Select player",UDim2.new(1,0,0,42),UDim2.new(0,0,0,192))
 	targetButton.TextXAlignment=Enum.TextXAlignment.Left
@@ -124,20 +137,24 @@ return function(context)
 
 	applySpeed.Activated:Connect(function()
 		local ok,result=MovementControlController:SetWalkSpeed(normalized(speedInput))
+		setApplied(applySpeed,ok)
 		statusText(ok and ((isES and "Velocidad aplicada: " or "Speed applied: ")..tostring(result)) or result,ok)
 	end)
 	restoreSpeed.Activated:Connect(function()
 		local ok,result=MovementControlController:RestoreWalkSpeed()
 		if ok then speedInput.Text=tostring(result) end
+		setApplied(applySpeed,false)
 		statusText(ok and (isES and "Velocidad restaurada" or "Speed restored") or result,ok)
 	end)
 	applyJump.Activated:Connect(function()
 		local ok,result=MovementControlController:SetJump(normalized(jumpInput))
+		setApplied(applyJump,ok)
 		statusText(ok and ((isES and "Salto aplicado: " or "Jump applied: ")..tostring(result)) or result,ok)
 	end)
 	restoreJump.Activated:Connect(function()
 		local ok,result=MovementControlController:RestoreJump()
 		if ok then jumpInput.Text=tostring(result) end
+		setApplied(applyJump,false)
 		statusText(ok and (isES and "Salto restaurado" or "Jump restored") or result,ok)
 	end)
 	targetButton.Activated:Connect(function()
