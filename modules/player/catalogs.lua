@@ -87,6 +87,8 @@ function LoadAnimations()
 				if idle or walk then
 					table.insert(AnimationPacks, {
 						id = "anim_" .. tostring(pack.id),
+						bundleId = tonumber(pack.id),
+						bundledItems = pack.bundledItems,
 						name = tostring(pack.name),
 						isAnimationPack = true,
 						Idle = idle,

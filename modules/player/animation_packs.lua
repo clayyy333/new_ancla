@@ -12,6 +12,50 @@ return function(context)
 	local originalAnimate=nil
 	local request=0
 	local resolvedCache={}
+	local bundleCache={}
+	local assetTypes={
+		IdleAnimation="Idle",WalkAnimation="Walk",RunAnimation="Run",
+		JumpAnimation="Jump",FallAnimation="Fall",ClimbAnimation="Climb",SwimAnimation="Swim",
+		["51"]="Idle",["55"]="Walk",["53"]="Run",["52"]="Jump",
+		["50"]="Fall",["48"]="Climb",["54"]="Swim"
+	}
+
+	local function getPackStates(pack)
+		if not pack.bundleId then return pack end -- Paquetes de respaldo con IDs ya clasificados.
+		if bundleCache[pack.bundleId] then return bundleCache[pack.bundleId] end
+		local mapped={}
+		local ok,details=pcall(function()
+			return game:GetService("AssetService"):GetBundleDetailsAsync(pack.bundleId)
+		end)
+		if ok and type(details)=="table" and type(details.Items)=="table" then
+			for _,item in ipairs(details.Items) do
+				local state=assetTypes[tostring(item.AssetType)]
+				if state and tonumber(item.Id) then mapped[state]=tonumber(item.Id) end
+			end
+		end
+		-- Si el ejecutor bloquea AssetService, validar cada ID guardado por su tipo real.
+		if not mapped.Idle and not mapped.Walk then
+			local marketplace=game:GetService("MarketplaceService")
+			for _,items in pairs(pack.bundledItems or {}) do
+				local id=type(items)=="table" and tonumber(items[1]) or tonumber(items)
+				if id then
+					local success,info=pcall(function()
+						return marketplace:GetProductInfoAsync(id,Enum.InfoType.Asset)
+					end)
+					if success and type(info)=="table" then
+						local state=assetTypes[tostring(info.AssetTypeId)]
+						if state then mapped[state]=id end
+					end
+				end
+			end
+		end
+		if not mapped.Idle and not mapped.Walk then
+			warn("[Animations] Could not identify bundle items: "..tostring(pack.bundleId))
+			return nil
+		end
+		bundleCache[pack.bundleId]=mapped
+		return mapped
+	end
 
 	local function getAnimate()
 		local character=player.Character
@@ -180,7 +224,13 @@ return function(context)
 	function EquipAnimationPart(pack,state)
 		if not states[state] or not pack or not pack[state] then return false end
 		if not getAnimate() then return false end
-		selected[state]={id=pack[state],name=pack.name}
+		local mapped=getPackStates(pack)
+		if not mapped or not mapped[state] then
+			Notify(isES and "Animación no disponible" or "Animation unavailable",
+				isES and "No se pudo identificar esta parte del paquete." or "Could not identify this pack part.")
+			return false
+		end
+		selected[state]={id=mapped[state],name=pack.name}
 		applySelection()
 		Notify(isES and "Animación equipada" or "Animation equipped",
 			(pack.name or "").." - "..state)
@@ -189,10 +239,16 @@ return function(context)
 
 	function EquipAnimationPack(pack)
 		if not pack or not getAnimate() then return false end
+		local mapped=getPackStates(pack)
+		if not mapped then
+			Notify(isES and "Paquete no disponible" or "Pack unavailable",
+				isES and "No se pudieron identificar sus animaciones." or "Could not identify its animations.")
+			return false
+		end
 		local count=0
 		for _,state in ipairs(stateOrder) do
-			if pack[state] then
-				selected[state]={id=pack[state],name=pack.name}
+			if mapped[state] then
+				selected[state]={id=mapped[state],name=pack.name}
 				count=count+1
 			else
 				selected[state]=nil
