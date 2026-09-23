@@ -1,6 +1,6 @@
 return function(context)
 	setfenv(1, context)
-	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,Tilt=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SavedAutoRotate=nil,SavedCollisions={}}
+	local C={Target=nil,Distance=3,Height=0,Angle=0,SelfAngle=0,Tilt=0,HeightInitialized=false,HasPositioned=false,Maintaining=false,SoloMaintaining=false,SoloBaseCFrame=nil,SavedAutoRotate=nil,SavedCollisions={}}
 	local connections={}
 	local function rig(p)
 		local character=p and p.Character
@@ -21,7 +21,7 @@ return function(context)
 	end
 	function C:SetTarget(target)
 		if typeof(target)~="Instance"or not target:IsA("Player")or target==player then return false end
-		if self.Maintaining then self:Release()end
+		if self.Maintaining or self.SoloMaintaining then self:Release()end
 		self.Target=target;self.HasPositioned=false;self.HeightInitialized=false
 		return true
 	end
@@ -31,7 +31,7 @@ return function(context)
 	function C:GetAngle()return self.Angle end
 	function C:GetSelfAngle()return self.SelfAngle end
 	function C:GetTilt()return self.Tilt end
-	function C:IsMaintaining()return self.Maintaining end
+	function C:IsMaintaining()return self.Maintaining or self.SoloMaintaining end
 	function C:SetDistance(v)self.Distance=math.round(math.clamp(tonumber(v)or self.Distance,-15,15)*10)/10 end
 	function C:SetHeight(v)self.Height=math.round(math.clamp(tonumber(v)or self.Height,-8,8)*10)/10;self.HeightInitialized=true end
 	function C:SetAngle(v)self.Angle=((tonumber(v)or self.Angle)+180)%360-180 end
@@ -71,7 +71,25 @@ return function(context)
 		root.CFrame=CFrame.lookAt(position,look)*CFrame.Angles(0,math.rad(self.SelfAngle),0)*CFrame.Angles(math.rad(self.Tilt),0,0)
 		return true
 	end
+	function C:_ApplySolo()
+		local humanoid,root=rig(player)
+		if not humanoid or not root or not self.SoloBaseCFrame then return false end
+		if humanoid.Sit then humanoid.Sit=false end
+		self:_DisableCollisions()
+		local basePosition=self.SoloBaseCFrame.Position
+		local forward=Vector3.new(self.SoloBaseCFrame.LookVector.X,0,self.SoloBaseCFrame.LookVector.Z)
+		if forward.Magnitude<0.001 then forward=Vector3.new(0,0,-1)else forward=forward.Unit end
+		local baseFrame=CFrame.lookAt(basePosition,basePosition+forward)
+		local orbit=baseFrame*CFrame.Angles(0,math.rad(self.Angle),0)
+		local position=(orbit*CFrame.new(0,self.Height,-self.Distance)).Position
+		local look=Vector3.new(basePosition.X,position.Y,basePosition.Z)
+		if (look-position).Magnitude<0.001 then look=position-forward end
+		root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+		root.CFrame=CFrame.lookAt(position,look)*CFrame.Angles(0,math.rad(self.SelfAngle),0)*CFrame.Angles(math.rad(self.Tilt),0,0)
+		return true
+	end
 	function C:Position()
+		if self.SoloMaintaining then self:Release()end
 		if not self.Target or self.Target==player then return false,isES and"Selecciona otro jugador."or"Select another player."end
 		local humanoid,root=rig(player);local _,targetRoot=rig(self.Target)
 		if not root then return false,isES and"Tu personaje no está disponible."or"Your character is unavailable."end
@@ -82,8 +100,17 @@ return function(context)
 		humanoid.AutoRotate=false;self.Maintaining=true;self.HasPositioned=true;self:_DisableCollisions();self:_Apply()
 		return true,isES and"Ubicación mantenida."or"Location maintained."
 	end
+	function C:PositionSolo()
+		local humanoid,root=rig(player)
+		if not humanoid or not root then return false,isES and"Tu personaje no esta disponible."or"Your character is unavailable."end
+		if self.Maintaining then self:Release()end
+		if self.SavedAutoRotate==nil then self.SavedAutoRotate=humanoid.AutoRotate end
+		self.SoloBaseCFrame=root.CFrame;self.SoloMaintaining=true;self.HasPositioned=true
+		humanoid.AutoRotate=false;self:_DisableCollisions();self:_ApplySolo()
+		return true,isES and"Ubicacion individual mantenida."or"Solo location maintained."
+	end
 	function C:Release()
-		self.Maintaining=false
+		self.Maintaining=false;self.SoloMaintaining=false;self.SoloBaseCFrame=nil
 		self:_RestoreCollisions()
 		local humanoid=rig(player)
 		if humanoid and self.SavedAutoRotate~=nil then humanoid.AutoRotate=self.SavedAutoRotate end
@@ -91,7 +118,7 @@ return function(context)
 		return true,isES and"Ubicación liberada."or"Location released."
 	end
 	local function changed(self)
-		if self.Maintaining then self:_Apply()end
+		if self.SoloMaintaining then self:_ApplySolo()elseif self.Maintaining then self:_Apply()end
 		return true
 	end
 	function C:AdjustDistance(v)self:SetDistance(self.Distance+v);return changed(self)end
@@ -99,10 +126,10 @@ return function(context)
 	function C:AdjustAngle(v)self:SetAngle(self.Angle+v);return changed(self)end
 	function C:AdjustSelfAngle(v)self:SetSelfAngle(self.SelfAngle+v);return changed(self)end
 	function C:AdjustTilt(v)self:SetTilt(self.Tilt+v);return changed(self)end
-	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.Tilt,self.HeightInitialized=3,0,0,0,0,false;if self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then local anchor=bodyAnchor(self.Target,targetRoot);self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
-	connections[#connections+1]=RunService.Heartbeat:Connect(function()if C.Maintaining and not C:_Apply()then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
-	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then C:Release();C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
-	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SavedAutoRotate=nil;table.clear(C.SavedCollisions);C.HasPositioned=false end)
+	function C:Reset()self.Distance,self.Height,self.Angle,self.SelfAngle,self.Tilt,self.HeightInitialized=3,0,0,0,0,false;if self.SoloMaintaining then self:_ApplySolo()elseif self.Maintaining then local _,root=rig(player);local _,targetRoot=rig(self.Target);if root and targetRoot then local anchor=bodyAnchor(self.Target,targetRoot);self.Height=math.clamp(root.Position.Y-anchor.Position.Y,-8,8);self.HeightInitialized=true end;self:_Apply()end;return true end
+	connections[#connections+1]=RunService.Heartbeat:Connect(function()local ok=true;if C.SoloMaintaining then ok=C:_ApplySolo()elseif C.Maintaining then ok=C:_Apply()end;if not ok then C:Release();if UpdateCouplesPanel then UpdateCouplesPanel(isES and"No se pudo mantener la ubicación."or"Could not maintain location.")end end end)
+	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p)if C.Target==p then if C.Maintaining then C:Release()end;C.Target=nil;C.HasPositioned=false;if UpdateCouplesPanel then UpdateCouplesPanel(isES and"El jugador salió."or"The player left.")end end end)
+	connections[#connections+1]=player.CharacterAdded:Connect(function()C.Maintaining=false;C.SoloMaintaining=false;C.SoloBaseCFrame=nil;C.SavedAutoRotate=nil;table.clear(C.SavedCollisions);C.HasPositioned=false end)
 	function C:Destroy()self:Release();for _,connection in ipairs(connections)do connection:Disconnect()end;table.clear(connections)end
 	CouplesPositionController=C
 	return true
