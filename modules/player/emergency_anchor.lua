@@ -19,6 +19,7 @@ return function(context)
 			or (Fling2EfficientCore and (Fling2EfficientCore.Running or Fling2EfficientCore.Stopping))
 			or (CouplesPositionController and CouplesPositionController:IsMaintaining())
 			or (FlightController and FlightController:IsFlying())
+			or (VerticalControlController and VerticalControlController:IsRunning())
 	end
 
 	function Core:Reset()
