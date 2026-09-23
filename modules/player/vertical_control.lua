@@ -1,7 +1,7 @@
 -- Desplazamiento vertical experimental con emote aislado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,Track=nil,Animation=nil,Connection=nil,CharacterConnection=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil}
+	local Core={Running=false,Offset=-100,Checkpoint=nil,Track=nil,Animation=nil,Connection=nil,CharacterConnection=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,SavedCollisions={}}
 	local EMOTE_ID=110348711077449
 	local function rig()
 		local character=player.Character
@@ -22,18 +22,37 @@ return function(context)
 		if self.Running then self:Apply()end
 		return true,value
 	end
-	function Core:Apply()
+	function Core:SetCharacterCollisions(disabled)
+		local character=player.Character
+		if disabled then
+			table.clear(self.SavedCollisions)
+			if character then
+				for _,part in ipairs(character:GetDescendants())do
+					if part:IsA("BasePart")then self.SavedCollisions[part]=part.CanCollide;part.CanCollide=false end
+				end
+			end
+		else
+			for part,canCollide in pairs(self.SavedCollisions)do
+				if part.Parent then part.CanCollide=canCollide end
+			end
+			table.clear(self.SavedCollisions)
+		end
+	end
+	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
-		local _,humanoid,root=rig()
+		local character,humanoid,root=rig()
 		if not humanoid or humanoid.Health<=0 or not root then return false end
 		if humanoid.Sit then humanoid.Sit=false end
+		for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end;part.CanCollide=false end end
 		local currentFrame=root.CFrame
-		local currentVelocity=root.AssemblyLinearVelocity
+		local direction=humanoid.MoveDirection
+		local step=direction.Magnitude>.01 and direction.Unit*humanoid.WalkSpeed*math.min(tonumber(dt)or 0,.1)or Vector3.zero
 		local targetY=self.Checkpoint.Position.Y+self.Offset
-		root.CFrame=CFrame.new(currentFrame.Position.X,targetY,currentFrame.Position.Z)*currentFrame.Rotation
-		root.AssemblyLinearVelocity=Vector3.new(currentVelocity.X,0,currentVelocity.Z)
+		root.CFrame=CFrame.new(currentFrame.Position.X+step.X,targetY,currentFrame.Position.Z+step.Z)*currentFrame.Rotation
+		root.AssemblyLinearVelocity=Vector3.zero
+		root.AssemblyAngularVelocity=Vector3.zero
 		if self.CameraAnchor and self.CameraAnchor.Parent then
-			self.CameraAnchor.CFrame=CFrame.new(currentFrame.Position.X,self.Checkpoint.Position.Y+2,currentFrame.Position.Z)*currentFrame.Rotation
+			self.CameraAnchor.CFrame=CFrame.new(root.Position.X,self.Checkpoint.Position.Y+2,root.Position.Z)*root.CFrame.Rotation
 		end
 		return true
 	end
@@ -99,12 +118,13 @@ return function(context)
 		local _,humanoid,root=rig()
 		if not humanoid or humanoid.Health<=0 or not root then return false,isES and"Tu personaje no esta disponible."or"Your character is unavailable."end
 		self.Checkpoint=root.CFrame
+		self:SetCharacterCollisions(true)
 		self.Running=true
 		self:LockCamera()
 		self:PlayEmote()
 		self:Apply()
-		self.Connection=RunService.Heartbeat:Connect(function()
-			if not self:Apply()then self:Stop(false)end
+		self.Connection=RunService.Heartbeat:Connect(function(dt)
+			if not self:Apply(dt)then self:Stop(false)end
 		end)
 		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
 		return true,self.Status
@@ -113,6 +133,7 @@ return function(context)
 		local wasRunning=self.Running
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
+		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
 		if self.Track then pcall(function()self.Track:Stop(.12)end);self.Track=nil end
 		if self.Animation then self.Animation:Destroy();self.Animation=nil end
