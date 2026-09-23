@@ -271,6 +271,9 @@ function VR7OriginalCore:Start()
 
 	local attackerHumanoid, attackerRoot = getParts(attackerCharacter)
 	local _, targetRoot = getParts(targetCharacter)
+	if not targetRoot and not (Fling2AutoController and Fling2AutoController.Running) then
+		targetRoot = TargetRootResolver:Resolve(self.SelectedTarget, 1)
+	end
 
 	if not attackerRoot then
 		return false, "Tu personaje no está disponible."

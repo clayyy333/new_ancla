@@ -247,6 +247,7 @@ function ObjectFling2DeltaCore:Start()
 	end
 
 	local targetRoot = getPlayerRoot(self.SelectedPlayer)
+	if not targetRoot then targetRoot = TargetRootResolver:Resolve(self.SelectedPlayer, 1) end
 	if not targetRoot then
 		return false, "Selecciona un jugador con personaje cargado."
 	end

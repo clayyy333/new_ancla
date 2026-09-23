@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 
-	local controller={Target=nil}
+	local controller={Target=nil,WalkSpeedEnabled=false,DesiredWalkSpeed=nil}
 	local savedHumanoid=nil
 	local defaults=nil
 	local Workspace=game:GetService("Workspace")
@@ -30,6 +30,8 @@ return function(context)
 		local current=capture(humanoid())
 		value=math.clamp(tonumber(value) or 0,0,99999)
 		if not current then return false,"Personaje no disponible" end
+		self.DesiredWalkSpeed=value
+		self.WalkSpeedEnabled=true
 		current.WalkSpeed=value
 		return true,value
 	end
@@ -37,6 +39,8 @@ return function(context)
 	function controller:RestoreWalkSpeed()
 		local current=capture(humanoid())
 		if not current or not defaults then return false,"Personaje no disponible" end
+		self.WalkSpeedEnabled=false
+		self.DesiredWalkSpeed=nil
 		current.WalkSpeed=defaults.WalkSpeed
 		return true,defaults.WalkSpeed
 	end
@@ -128,12 +132,31 @@ return function(context)
 		return defaults
 	end
 
+	local speedConnection=RunService.Heartbeat:Connect(function()
+		if not controller.WalkSpeedEnabled or controller.DesiredWalkSpeed==nil then return end
+		local current=humanoid()
+		if current and current.WalkSpeed~=controller.DesiredWalkSpeed then
+			current.WalkSpeed=controller.DesiredWalkSpeed
+		end
+	end)
+
+	function controller:Destroy()
+		self.WalkSpeedEnabled=false
+		self.DesiredWalkSpeed=nil
+		if speedConnection then speedConnection:Disconnect();speedConnection=nil end
+	end
+
 	player.CharacterAdded:Connect(function(character)
 		savedHumanoid=nil
 		defaults=nil
 		task.defer(function()
 			local current=character:WaitForChild("Humanoid",5)
-			if current then capture(current) end
+			if current then
+				capture(current)
+				if controller.WalkSpeedEnabled and controller.DesiredWalkSpeed~=nil then
+					current.WalkSpeed=controller.DesiredWalkSpeed
+				end
+			end
 		end)
 	end)
 	capture(humanoid())
