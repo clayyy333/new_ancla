@@ -472,7 +472,18 @@ do
 	end)
 end
 do
-	local speedRow = MakeRow("113837085020684", L.speed, "", 7, 78)
+	local shortcutTitle=isES and "Activar Atajo de usuarios" or "Enable user shortcut"
+	local shortcutDesc=isES and "Toca o haz clic sobre un personaje para elegir su objetivo" or "Tap or click a character to choose its target"
+	local shortcutRow=MakeRow("",shortcutTitle,shortcutDesc,7)
+	MakePillToggle(shortcutRow,Settings.userShortcut==true,function(v)
+		Settings.userShortcut=v
+		if UserShortcutController then UserShortcutController:SetEnabled(v) end
+		SaveData()
+	end)
+end
+
+do
+	local speedRow = MakeRow("113837085020684", L.speed, "", 8, 78)
 	local speeds = {0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3}
 	local speedIdx = 4
 	for i, s in ipairs(speeds) do if s == Settings.speed then speedIdx = i end end

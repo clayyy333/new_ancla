@@ -50,6 +50,26 @@ do
 local savedPos, savedSize = nil, nil
 local iconDragging, iconDragStart, iconStartPos = false, nil, nil
 
+OpenMainWindow = function()
+	miniIcon.Visible = false
+	if main.Visible and main.AbsoluteSize.X > 2 and main.AbsoluteSize.Y > 2 then return end
+	main.Visible = true
+	main.ClipsDescendants = true
+	main.Size = UDim2.new(0, 0, 0, 0)
+	main.BackgroundTransparency = 1
+	main.Rotation = 0
+	local targetSize = savedSize or GetDefaultSize()
+	local targetPos = savedPos or UDim2.fromScale(0.5, 0.5)
+	main.Position = targetPos
+	TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Size = targetSize, BackgroundTransparency = 0}):Play()
+	TweenService:Create(mainStroke, TweenInfo.new(0.35), {Transparency = 0}):Play()
+	task.delay(0.36, function() if ApplyGUITransparency then ApplyGUITransparency() end end)
+	task.delay(0.4, function()
+		main.ClipsDescendants = true
+		if currentTab ~= "settings" then Refresh(true) end
+	end)
+end
+
 miniIcon.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		iconDragging = true
@@ -124,6 +144,7 @@ local function _CleanupScript()
 	pcall(function() if RemoveAnimationPacks then RemoveAnimationPacks(true) end end)
 	pcall(function() if EmergencyAnchorController then EmergencyAnchorController:Destroy() end end)
 	pcall(function() if MovementControlController then MovementControlController:Destroy() end end)
+	pcall(function() if UserShortcutController then UserShortcutController:Destroy() end end)
 	pcall(function() if AutoAnchorCore then AutoAnchorCore:Destroy() end end)
 	pcall(function() if AnchorCore then AnchorCore:Destroy() end end)
 	pcall(function() if Fling2Core then Fling2Core:Stop() end end)
