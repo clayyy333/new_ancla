@@ -5,6 +5,8 @@ return function(context)
 	local controller={Target=nil}
 	local savedHumanoid=nil
 	local defaults=nil
+	local Workspace=game:GetService("Workspace")
+	local RunService=game:GetService("RunService")
 
 	local function humanoid()
 		local character=player.Character
@@ -62,17 +64,62 @@ return function(context)
 		self.Target=target
 	end
 
+	local function findCharacterRoot(character)
+		if not character then return nil end
+		for _,name in ipairs({"HumanoidRootPart","LowerTorso","Torso","UpperTorso"}) do
+			local part=character:FindFirstChild(name)
+			if part and part:IsA("BasePart") then return part end
+		end
+		return character.PrimaryPart
+	end
+
+	local function getCharacterPivot(character)
+		if not character or not character.Parent then return nil end
+		local ok,pivot=pcall(function() return character:GetPivot() end)
+		if not ok or typeof(pivot)~="CFrame" then return nil end
+		local position=pivot.Position
+		if position.X~=position.X or position.Y~=position.Y or position.Z~=position.Z then return nil end
+		return pivot
+	end
+
+	local function resolveTargetFrame(target)
+		local deadline=os.clock()+3
+		local fallback=nil
+		repeat
+			local targetCharacter=target.Character or Workspace:FindFirstChild(target.Name)
+			local targetRoot=findCharacterRoot(targetCharacter)
+			if targetRoot then return targetRoot.CFrame,targetRoot end
+			fallback=getCharacterPivot(targetCharacter) or fallback
+			if fallback then
+				pcall(function() Workspace:RequestStreamAroundAsync(fallback.Position,0.25) end)
+			end
+			task.wait(0.1)
+		until os.clock()>=deadline or not target.Parent
+		return fallback,nil
+	end
+
 	function controller:Teleport()
 		local target=self.Target
 		if not target or not target.Parent then return false,"Selecciona un jugador" end
 		local character=player.Character
-		local root=character and character:FindFirstChild("HumanoidRootPart")
-		local targetCharacter=target.Character
-		local targetRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-		if not root or not targetRoot then return false,"HumanoidRootPart no disponible" end
-		character:PivotTo(targetRoot.CFrame)
+		local root=findCharacterRoot(character)
+		if not root then return false,"Tu HumanoidRootPart no está disponible" end
+		local targetFrame,targetRoot=resolveTargetFrame(target)
+		if not targetFrame then return false,"El servidor no replicó la ubicación del jugador" end
+		character:PivotTo(targetFrame)
 		root.AssemblyLinearVelocity=Vector3.zero
 		root.AssemblyAngularVelocity=Vector3.zero
+		pcall(function() Workspace:RequestStreamAroundAsync(targetFrame.Position,1) end)
+		for _=1,4 do
+			RunService.Heartbeat:Wait()
+			local latestRoot=findCharacterRoot(target.Character)
+			if latestRoot then
+				targetRoot=latestRoot
+				character:PivotTo(targetRoot.CFrame)
+				root.AssemblyLinearVelocity=Vector3.zero
+				root.AssemblyAngularVelocity=Vector3.zero
+			end
+		end
 		return true,"Teletransporte completado"
 	end
 

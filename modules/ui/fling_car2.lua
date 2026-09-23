@@ -135,6 +135,7 @@ return function(context)
 	end
 	tryAutomaticStart = function()
 		if autoStarting or CarFling2Delta.Running or CarFling2Xeno.Running then return end
+		if CarFlingAutoCoordinator.Owner ~= "car2" then return end
 		local selected = autoDelta and CarFling2Delta or (autoXeno and CarFling2Xeno or nil)
 		if not selected or not selected:GetCar() or not selected:GetPlayer() then return end
 		autoStarting = true
@@ -146,12 +147,22 @@ return function(context)
 	autoDeltaButton.MouseButton1Click:Connect(function()
 		autoDelta = not autoDelta
 		if autoDelta then autoXeno = false end
+		if autoDelta and CarFling2Delta:GetPlayer() then
+			CarFlingAutoCoordinator:Claim("car2")
+		elseif not autoXeno then
+			CarFlingAutoCoordinator:Release("car2")
+		end
 		UpdateCarFling2Panel()
 		tryAutomaticStart()
 	end)
 	autoXenoButton.MouseButton1Click:Connect(function()
 		autoXeno = not autoXeno
 		if autoXeno then autoDelta = false end
+		if autoXeno and CarFling2Xeno:GetPlayer() then
+			CarFlingAutoCoordinator:Claim("car2")
+		elseif not autoDelta then
+			CarFlingAutoCoordinator:Release("car2")
+		end
 		UpdateCarFling2Panel()
 		tryAutomaticStart()
 	end)
@@ -170,7 +181,9 @@ return function(context)
 	local function refreshPlayers()
 		clearOptions(playerList)
 		for _, target in ipairs(Players:GetPlayers()) do if target ~= player then makeOption(playerList, target.DisplayName.."  (@"..target.Name..")", function()
-			CarFling2Delta:SetPlayer(target); CarFling2Xeno:SetPlayer(target); playerList.Visible=false; UpdateCarFling2Panel(); task.defer(tryAutomaticStart)
+			CarFling2Delta:SetPlayer(target); CarFling2Xeno:SetPlayer(target)
+			if autoDelta or autoXeno then CarFlingAutoCoordinator:Claim("car2") end
+			playerList.Visible=false; UpdateCarFling2Panel(); task.defer(tryAutomaticStart)
 		end) end end
 	end
 	carButton.MouseButton1Click:Connect(function()
@@ -197,7 +210,10 @@ return function(context)
 	end)
 	local carDiscoveryElapsed = 0
 	_carFling2UiConn = RunService.Heartbeat:Connect(function(dt)
-		if not carFling2Panel.Visible then return end
+		if not autoDelta and not autoXeno then
+			carDiscoveryElapsed = 0
+			return
+		end
 		carDiscoveryElapsed = carDiscoveryElapsed + dt
 		if carDiscoveryElapsed >= 0.25 then
 			carDiscoveryElapsed = 0

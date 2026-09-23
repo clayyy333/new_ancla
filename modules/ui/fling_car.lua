@@ -135,6 +135,7 @@ return function(context)
 	end
 	tryAutomaticStart = function()
 		if autoStarting or CarFling.Running or CarFlingXeno.Running then return end
+		if CarFlingAutoCoordinator.Owner ~= "car1" then return end
 		local selected = autoDelta and CarFling or (autoXeno and CarFlingXeno or nil)
 		if not selected or not selected:GetCar() or not selected:GetPlayer() then return end
 		autoStarting = true
@@ -146,12 +147,22 @@ return function(context)
 	autoDeltaButton.MouseButton1Click:Connect(function()
 		autoDelta = not autoDelta
 		if autoDelta then autoXeno = false end
+		if autoDelta and CarFling:GetPlayer() then
+			CarFlingAutoCoordinator:Claim("car1")
+		elseif not autoXeno then
+			CarFlingAutoCoordinator:Release("car1")
+		end
 		UpdateCarFlingPanel()
 		tryAutomaticStart()
 	end)
 	autoXenoButton.MouseButton1Click:Connect(function()
 		autoXeno = not autoXeno
 		if autoXeno then autoDelta = false end
+		if autoXeno and CarFlingXeno:GetPlayer() then
+			CarFlingAutoCoordinator:Claim("car1")
+		elseif not autoDelta then
+			CarFlingAutoCoordinator:Release("car1")
+		end
 		UpdateCarFlingPanel()
 		tryAutomaticStart()
 	end)
@@ -170,7 +181,9 @@ return function(context)
 	local function refreshPlayers()
 		clearOptions(playerList)
 		for _, target in ipairs(Players:GetPlayers()) do if target ~= player then makeOption(playerList, target.DisplayName.."  (@"..target.Name..")", function()
-			CarFling:SetPlayer(target); CarFlingXeno:SetPlayer(target); playerList.Visible=false; UpdateCarFlingPanel(); task.defer(tryAutomaticStart)
+			CarFling:SetPlayer(target); CarFlingXeno:SetPlayer(target)
+			if autoDelta or autoXeno then CarFlingAutoCoordinator:Claim("car1") end
+			playerList.Visible=false; UpdateCarFlingPanel(); task.defer(tryAutomaticStart)
 		end) end end
 	end
 	carButton.MouseButton1Click:Connect(function()
@@ -196,7 +209,10 @@ return function(context)
 	end)
 	local carDiscoveryElapsed = 0
 	_carFlingUiConn = RunService.Heartbeat:Connect(function(dt)
-		if not carFlingPanel.Visible then return end
+		if not autoDelta and not autoXeno then
+			carDiscoveryElapsed = 0
+			return
+		end
 		carDiscoveryElapsed = carDiscoveryElapsed + dt
 		if carDiscoveryElapsed >= 0.25 then
 			carDiscoveryElapsed = 0
