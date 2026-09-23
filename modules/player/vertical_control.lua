@@ -27,9 +27,14 @@ return function(context)
 		local _,humanoid,root=rig()
 		if not humanoid or humanoid.Health<=0 or not root then return false end
 		if humanoid.Sit then humanoid.Sit=false end
-		root.AssemblyLinearVelocity=Vector3.zero
-		root.AssemblyAngularVelocity=Vector3.zero
-		root.CFrame=self.Checkpoint+Vector3.new(0,self.Offset,0)
+		local currentFrame=root.CFrame
+		local currentVelocity=root.AssemblyLinearVelocity
+		local targetY=self.Checkpoint.Position.Y+self.Offset
+		root.CFrame=CFrame.new(currentFrame.Position.X,targetY,currentFrame.Position.Z)*currentFrame.Rotation
+		root.AssemblyLinearVelocity=Vector3.new(currentVelocity.X,0,currentVelocity.Z)
+		if self.CameraAnchor and self.CameraAnchor.Parent then
+			self.CameraAnchor.CFrame=CFrame.new(currentFrame.Position.X,self.Checkpoint.Position.Y+2,currentFrame.Position.Z)*currentFrame.Rotation
+		end
 		return true
 	end
 	function Core:LockCamera()
