@@ -91,7 +91,7 @@ return function(context)
 		local ok,objects=pcall(function() return PlayerGui:GetGuiObjectsAtPosition(position.X,position.Y) end)
 		if not ok then return false end
 		for _,object in ipairs(objects) do
-			if object.Visible and object:IsA("GuiObject") then return true end
+			if object.Visible and object:IsA("GuiObject") and object:IsDescendantOf(gui) then return true end
 		end
 		return false
 	end
@@ -106,12 +106,12 @@ return function(context)
 		selectedPlayer=target;identity.Text=target.DisplayName.."\n@"..target.Name;modal.Visible=true
 	end
 	local pressed=nil
-	UserShortcutController.InputConnection=UserInputService.InputBegan:Connect(function(input,processed)
-		if processed or not UserShortcutController:IsEnabled() then return end
+	UserShortcutController.InputConnection=UserInputService.InputBegan:Connect(function(input)
+		if not UserShortcutController:IsEnabled() then return end
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then pressed={input=input,position=input.Position,time=os.clock()} end
 	end)
 	local ended=UserInputService.InputEnded:Connect(function(input)
-		if not pressed or pressed.input~=input then return end
+		if not pressed or pressed.input.UserInputType~=input.UserInputType then return end
 		local start=pressed;pressed=nil
 		if os.clock()-start.time>.45 or (input.Position-start.position).Magnitude>12 then return end
 		selectAt(input.Position)
