@@ -83,7 +83,7 @@ return function(context)
 	end
 
 	local function resolveTargetFrame(target)
-		local deadline=os.clock()+3
+		local deadline=os.clock()+1
 		local fallback=nil
 		repeat
 			local targetCharacter=target.Character or Workspace:FindFirstChild(target.Name)
