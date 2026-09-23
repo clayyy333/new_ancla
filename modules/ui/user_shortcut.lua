@@ -95,32 +95,70 @@ return function(context)
 		end
 		return false
 	end
+	local mouse=player:GetMouse()
+	local function projectedTarget(position,camera)
+		local closest,closestDistance=nil,math.huge
+		for _,candidate in ipairs(Players:GetPlayers()) do
+			local character=candidate~=player and candidate.Character or nil
+			if character then
+				for _,part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						local screen,onScreen=camera:WorldToScreenPoint(part.Position)
+						if onScreen and screen.Z>0 then
+							local distance=(Vector2.new(screen.X,screen.Y)-Vector2.new(position.X,position.Y)).Magnitude
+							if distance<closestDistance and distance<=70 then closest,closestDistance=candidate,distance end
+						end
+					end
+				end
+			end
+		end
+		return closest
+	end
+	local function targetAt(position)
+		local direct=mouse and playerFromPart(mouse.Target)
+		if direct then return direct end
+		local camera=Workspace.CurrentCamera;if not camera then return nil end
+		local ray=camera:ScreenPointToRay(position.X,position.Y)
+		local direction=ray.Direction.Unit
+		local origin=ray.Origin
+		local remaining=5000
+		local excluded=player.Character and{player.Character}or{}
+		for _=1,12 do
+			local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances=excluded;params.IgnoreWater=true
+			local result=Workspace:Raycast(origin,direction*remaining,params)
+			if not result then break end
+			local target=playerFromPart(result.Instance)
+			if target then return target end
+			table.insert(excluded,result.Instance)
+			local travelled=(result.Position-origin).Magnitude+.05
+			remaining-=travelled;if remaining<=0 then break end
+			origin=result.Position+direction*.05
+		end
+		return projectedTarget(position,camera)
+	end
 	local function selectAt(position)
 		if not UserShortcutController:IsEnabled() or modal.Visible or overInterface(position) then return end
-		local camera=Workspace.CurrentCamera;if not camera then return end
-		local ray=camera:ScreenPointToRay(position.X,position.Y)
-		local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances=player.Character and{player.Character}or{}
-		local result=Workspace:Raycast(ray.Origin,ray.Direction*5000,params)
-		local target=result and playerFromPart(result.Instance)
+		local target=targetAt(position)
 		if not target then return end
 		selectedPlayer=target;identity.Text=target.DisplayName.."\n@"..target.Name;modal.Visible=true
 	end
 	local pressed=nil
-	UserShortcutController.InputConnection=UserInputService.InputBegan:Connect(function(input)
+	local began=UserInputService.InputBegan:Connect(function(input)
 		if not UserShortcutController:IsEnabled() then return end
-		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then pressed={input=input,position=input.Position,time=os.clock()} end
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then pressed={kind=input.UserInputType,position=input.Position,time=os.clock()} end
 	end)
 	local ended=UserInputService.InputEnded:Connect(function(input)
-		if not pressed or pressed.input.UserInputType~=input.UserInputType then return end
+		if not pressed or pressed.kind~=input.UserInputType then return end
 		local start=pressed;pressed=nil
-		if os.clock()-start.time>.45 or (input.Position-start.position).Magnitude>12 then return end
+		if os.clock()-start.time>1 or (input.Position-start.position).Magnitude>18 then return end
 		selectAt(input.Position)
 	end)
-	local oldDestroy=UserShortcutController.Destroy
-	function UserShortcutController:Destroy()
-		if ended then ended:Disconnect();ended=nil end
-		oldDestroy(self)
-	end
+	local touchTap=UserInputService.TouchTap:Connect(function(positions)
+		if positions and positions[1] then selectAt(positions[1]) end
+	end)
+	table.insert(UserShortcutController.Connections,began)
+	table.insert(UserShortcutController.Connections,ended)
+	table.insert(UserShortcutController.Connections,touchTap)
 	UserShortcutController.Modal=modal
 	return true
 end
