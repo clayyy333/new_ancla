@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1, context)
 
 DATA_FILE = "VexroEmotes_Data_" .. tostring(player.UserId) .. ".json"
-Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, guiTransparency = 0, antiAFK = false, emergencyAnchor = true, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false}
+Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, guiTransparency = 0, antiAFK = false, emergencyAnchor = false, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false}
 
 FriendData = {
 	friends        = {},
@@ -95,7 +95,7 @@ function LoadData()
 					Settings.ambientSound = data.settings.ambientSound ~= false
 					Settings.guiTransparency = math.clamp(tonumber(data.settings.guiTransparency) or 0, 0, 0.8)
 					Settings.antiAFK = data.settings.antiAFK == true
-					Settings.emergencyAnchor = data.settings.emergencyAnchor ~= false
+					Settings.emergencyAnchor = data.settings.emergencyAnchor == true
 					Settings.carControlHeight = math.clamp(tonumber(data.settings.carControlHeight) or 8, -10, 50)
 					Settings.carControlSpinSpeed = math.clamp(tonumber(data.settings.carControlSpinSpeed) or 360, 0, 1440)
 					Settings.searchHistory = data.settings.searchHistory or {}
