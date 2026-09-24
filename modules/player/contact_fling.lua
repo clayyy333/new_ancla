@@ -2,6 +2,8 @@
 return function(context)
     setfenv(1,context)
 
+    local CONTACT_ANGULAR_FORCE=60000
+
     local C={
         Running=false,
         PhysicsConnections={},
@@ -52,9 +54,9 @@ return function(context)
             -- Se toma antes de inyectar el impulso: conserva marcha, salto y TP legítimos.
             local currentVelocity=root.AssemblyLinearVelocity
             local sampleDistance=self.StepPosition and (root.Position-self.StepPosition).Magnitude or 0
-            local safeHorizontal=math.max(80,humanoid.WalkSpeed*3)
+            local safeHorizontal=math.max(120,humanoid.WalkSpeed*5)
             local currentHorizontal=Vector3.new(currentVelocity.X,0,currentVelocity.Z).Magnitude
-            if currentHorizontal<safeHorizontal and math.abs(currentVelocity.Y)<100 and sampleDistance<4 then
+            if currentHorizontal<safeHorizontal and math.abs(currentVelocity.Y)<140 and sampleDistance<7 then
                 self.LastSafeCFrame=root.CFrame
                 self.LastSafeVelocity=currentVelocity
             end
@@ -66,7 +68,7 @@ return function(context)
             if flat.Magnitude>0.05 then
                 self.DesiredRotation=CFrame.lookAt(Vector3.zero,flat.Unit).Rotation
             end
-            root.AssemblyAngularVelocity=Vector3.new(900000000,900000000,900000000)
+            root.AssemblyAngularVelocity=Vector3.new(0,CONTACT_ANGULAR_FORCE,0)
         end))
 
         -- Compensa solo la rotación visible; conserva posición, salto y velocidad de marcha.
@@ -77,17 +79,17 @@ return function(context)
             local stepDistance=self.StepPosition and (position-self.StepPosition).Magnitude or 0
             local horizontalSpeed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
             local verticalSpeed=math.abs(velocity.Y)
-            local allowedHorizontal=math.max(80,humanoid.WalkSpeed*3)
-            local escaped=stepDistance>1.5 or horizontalSpeed>allowedHorizontal or verticalSpeed>110
+            local allowedHorizontal=math.max(140,humanoid.WalkSpeed*6)
+            local escaped=stepDistance>4 or horizontalSpeed>allowedHorizontal or verticalSpeed>160
 
             if escaped then
                 local fallback=self.LastSafeCFrame or CFrame.new(self.StepPosition or position)
                 position=fallback.Position
                 local legitimate=self.LastSafeVelocity or Vector3.zero
                 root.AssemblyLinearVelocity=Vector3.new(
-                    math.clamp(legitimate.X,-90,90),
-                    math.clamp(legitimate.Y,-100,100),
-                    math.clamp(legitimate.Z,-90,90)
+                    math.clamp(legitimate.X,-120,120),
+                    math.clamp(legitimate.Y,-140,140),
+                    math.clamp(legitimate.Z,-120,120)
                 )
             end
 
