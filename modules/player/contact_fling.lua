@@ -8,6 +8,9 @@ return function(context)
         Connections={},
         SavedAutoRotate=nil,
         DesiredRotation=nil,
+        StepPosition=nil,
+        StepVelocity=nil,
+        LastSafeCFrame=nil,
     }
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
@@ -35,12 +38,24 @@ return function(context)
 
         self.SavedAutoRotate=humanoid.AutoRotate
         self.DesiredRotation=root.CFrame.Rotation
+        self.StepPosition=root.Position
+        self.StepVelocity=root.AssemblyLinearVelocity
+        self.LastSafeCFrame=root.CFrame
         humanoid.AutoRotate=false
 
         -- La velocidad angular permanece en el cuerpo completo. No busca objetivos ni
         -- espera eventos Touched: la propia colisión física transmite el impulso.
         table.insert(self.PhysicsConnections,RunService.PreSimulation:Connect(function()
             if not self.Running or not root.Parent or humanoid.Health<=0 then return end
+            -- Se toma antes de inyectar el impulso: conserva marcha, salto y TP legítimos.
+            local currentVelocity=root.AssemblyLinearVelocity
+            local sampleDistance=self.StepPosition and (root.Position-self.StepPosition).Magnitude or 0
+            if currentVelocity.Magnitude<180 and sampleDistance<12 then
+                self.LastSafeCFrame=root.CFrame
+            end
+            self.StepPosition=root.Position
+            self.StepVelocity=currentVelocity
+
             local move=humanoid.MoveDirection
             local flat=Vector3.new(move.X,0,move.Z)
             if flat.Magnitude>0.05 then
@@ -52,7 +67,25 @@ return function(context)
         -- Compensa solo la rotación visible; conserva posición, salto y velocidad de marcha.
         table.insert(self.PhysicsConnections,RunService.PostSimulation:Connect(function()
             if not self.Running or not root.Parent then return end
-            root.CFrame=CFrame.new(root.Position)*(self.DesiredRotation or root.CFrame.Rotation)
+            local position=root.Position
+            local velocity=root.AssemblyLinearVelocity
+            local stepDistance=self.StepPosition and (position-self.StepPosition).Magnitude or 0
+            local horizontalSpeed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
+            local verticalSpeed=math.abs(velocity.Y)
+            local escaped=stepDistance>3.5 or horizontalSpeed>180 or verticalSpeed>170
+
+            if escaped then
+                local fallback=self.LastSafeCFrame or CFrame.new(self.StepPosition or position)
+                position=fallback.Position
+                local legitimate=self.StepVelocity or Vector3.zero
+                root.AssemblyLinearVelocity=Vector3.new(
+                    math.clamp(legitimate.X,-90,90),
+                    math.clamp(legitimate.Y,-100,100),
+                    math.clamp(legitimate.Z,-90,90)
+                )
+            end
+
+            root.CFrame=CFrame.new(position)*(self.DesiredRotation or root.CFrame.Rotation)
         end))
 
         update(isES and "Activo: cuerpo físico pasivo" or "Active: passive physical body")
@@ -82,6 +115,9 @@ return function(context)
         if humanoid and self.SavedAutoRotate~=nil then humanoid.AutoRotate=self.SavedAutoRotate end
         self.DesiredRotation=nil
         self.SavedAutoRotate=nil
+        self.StepPosition=nil
+        self.StepVelocity=nil
+        self.LastSafeCFrame=nil
         update(isES and "Fling por contacto desactivado" or "Contact Fling disabled")
     end
 
@@ -102,6 +138,9 @@ return function(context)
         disconnect(C.PhysicsConnections)
         C.DesiredRotation=nil
         C.SavedAutoRotate=nil
+        C.StepPosition=nil
+        C.StepVelocity=nil
+        C.LastSafeCFrame=nil
     end))
 
     ContactFlingController=C
