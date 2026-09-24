@@ -71,7 +71,7 @@ return function(context)
 		heartbeatButton.Active=manualEnabled
 		testButton.Active=not automaticBusy
 		description.Text=message or (AnchorCore.TestEnabled
-			and (isES and "Ancla test reforzada activa" or "Reinforced Test Anchor active")
+			and (isES and "Ancla activa" or "Anchor active")
 			or (AnchorCore.HeartbeatEnabled and not AnchorCore.AnclaEnabled
 			and (isES and "Heartbeat está preparado; se aplicará al activar Ancla." or "Heartbeat is ready; it applies when Anchor is enabled.")
 			or (isES and "Controles de estabilidad del personaje" or "Character stability controls")))
