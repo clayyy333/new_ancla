@@ -131,6 +131,7 @@ end)
 
 local function _CleanupScript()
 	pcall(function() if FlingReturnGuard then FlingReturnGuard:Destroy() end end)
+	pcall(function() if ContactFlingController then ContactFlingController:Destroy() end end)
 	pcall(function() if FlightController then FlightController:Destroy() end end)
 	pcall(function() if CarControlController then CarControlController:Destroy() end end)
 	pcall(function() if FreeCarController then FreeCarController:Destroy() end end)

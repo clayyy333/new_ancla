@@ -262,6 +262,7 @@ return function(context)
 
 	local flingLabels = {
 		{"fling2", "Fling"},
+		{"contact_fling", isES and "Fling por contacto" or "Contact Fling"},
 		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
 		{"fling_car2", isES and "Fling con vehículo 2" or "Fling with Car 2"},
 		{"fling_object", isES and "Fling con objeto" or "Object Fling"},
