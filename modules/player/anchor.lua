@@ -2,9 +2,10 @@
 return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
-	local Core={AnclaEnabled=false,AntiSeatEnabled=false,HeartbeatEnabled=false,Checkpoint=nil,GuardianEnabled=false}
+	local Core={AnclaEnabled=false,AntiSeatEnabled=false,HeartbeatEnabled=false,TestEnabled=false,Checkpoint=nil,TestCheckpoint=nil,GuardianEnabled=false}
 	local connections={}
 	local alignPosition,alignAttachment
+	local testRoot,testRootWasAnchored
 	local spawn=Workspace:FindFirstChild("SpawnLocation_city")
 	local SafePos=spawn and spawn:FindFirstChild("SafePos")
 	local ExceptionTrigger=spawn and spawn:FindFirstChild("ExceptionTrigger")
@@ -17,6 +18,50 @@ return function(context)
 	local function getRoot()
 		local character=player.Character
 		return character and character:FindFirstChild("HumanoidRootPart")
+	end
+	local function cleanAllPhysics()
+		local character=player.Character
+		if not character then return end
+		for _,part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.AssemblyLinearVelocity=Vector3.zero
+				part.AssemblyAngularVelocity=Vector3.zero
+				part.Velocity=Vector3.zero
+				part.RotVelocity=Vector3.zero
+			end
+		end
+	end
+	local function lockTestRoot(root)
+		if not root then return end
+		if testRoot~=root then
+			if testRoot and testRoot.Parent then testRoot.Anchored=testRootWasAnchored==true end
+			testRoot=root
+			testRootWasAnchored=root.Anchored
+		end
+		root.Anchored=true
+		if Core.TestCheckpoint then root.CFrame=Core.TestCheckpoint end
+		root.AssemblyLinearVelocity=Vector3.zero
+		root.AssemblyAngularVelocity=Vector3.zero
+		root.Velocity=Vector3.zero
+		root.RotVelocity=Vector3.zero
+	end
+	local function unlockTestRoot()
+		if testRoot and testRoot.Parent then
+			testRoot.Anchored=testRootWasAnchored==true
+			testRoot.AssemblyLinearVelocity=Vector3.zero
+			testRoot.AssemblyAngularVelocity=Vector3.zero
+		end
+		testRoot=nil
+		testRootWasAnchored=nil
+	end
+	local function testAntiSeat()
+		local character=player.Character
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		if not humanoid then return end
+		pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false) end)
+		humanoid.Sit=false
+		humanoid.PlatformStand=false
+		humanoid:ChangeState(Enum.HumanoidStateType.Running)
 	end
 	local function createAlignPosition(root)
 		if alignPosition then return end
@@ -54,6 +99,7 @@ return function(context)
 	function Core:SetAncla(enabled)
 		enabled=enabled and true or false
 		if enabled==self.AnclaEnabled then return true end
+		if enabled and self.TestEnabled then self:SetTest(false) end
 		if enabled then
 			local root=getRoot()
 			if not root then return false,isES and "Tu personaje no está disponible." or "Your character is unavailable." end
@@ -79,18 +125,74 @@ return function(context)
 		refresh()
 		return true
 	end
+	function Core:SetTest(enabled)
+		enabled=enabled and true or false
+		if enabled==self.TestEnabled then return true end
+		if enabled then
+			local root=getRoot()
+			if not root then return false,isES and "Tu personaje no está disponible." or "Your character is unavailable." end
+			if self.AnclaEnabled then self:SetAncla(false) end
+			if self.AntiSeatEnabled then self:SetAntiSeat(false) end
+			if self.HeartbeatEnabled then self:SetHeartbeat(false) end
+			self.TestCheckpoint=root.CFrame
+			self.TestEnabled=true
+			createAlignPosition(root)
+			lockTestRoot(root)
+			testAntiSeat()
+			cleanAllPhysics()
+		else
+			self.TestEnabled=false
+			destroyAlignPosition()
+			unlockTestRoot()
+			local character=player.Character
+			local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid then pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end) end
+			self.TestCheckpoint=nil
+		end
+		refresh()
+		return true
+	end
+	function Core:ToggleTest() return self:SetTest(not self.TestEnabled) end
 	function Core:ToggleAncla() return self:SetAncla(not self.AnclaEnabled) end
 	function Core:ToggleAntiSeat() return self:SetAntiSeat(not self.AntiSeatEnabled) end
 	function Core:ToggleHeartbeat() return self:SetHeartbeat(not self.HeartbeatEnabled) end
 	function Core:Destroy()
-		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.GuardianEnabled=false,false,false,false
+		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.TestEnabled,self.GuardianEnabled=false,false,false,false,false
 		destroyAlignPosition()
+		unlockTestRoot()
+		self.TestCheckpoint=nil
+		local character=player.Character
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid then pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end) end
 		for _,connection in ipairs(connections) do pcall(function() connection:Disconnect() end) end
 		table.clear(connections)
 	end
 
+	connections[#connections+1]=RunService.PreSimulation:Connect(function()
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		lockTestRoot(getRoot())
+		cleanAllPhysics()
+		testAntiSeat()
+	end)
+	connections[#connections+1]=RunService.Stepped:Connect(function()
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		lockTestRoot(getRoot())
+		cleanAllPhysics()
+		testAntiSeat()
+	end)
+	connections[#connections+1]=RunService.Heartbeat:Connect(function()
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		lockTestRoot(getRoot())
+		cleanAllPhysics()
+		testAntiSeat()
+	end)
+	connections[#connections+1]=RunService.RenderStepped:Connect(function()
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		lockTestRoot(getRoot())
+		testAntiSeat()
+	end)
 	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)
-		if not Core.AntiSeatEnabled or obj.Name~="SeatWeld" then return end
+		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
 		local model=obj:FindFirstAncestorOfClass("Model")
 		if model and isTarget(model) then pcall(function() obj:Destroy() end) end
 	end)

@@ -120,7 +120,7 @@ return function(context)
 	autoDescription.Size = UDim2.new(1, 0, 0, 40)
 	autoDescription.Position = UDim2.new(0, 0, 0, 52)
 	autoDescription.BackgroundTransparency = 1
-	autoDescription.Text = isES and "Recorre continuamente a todos los jugadores válidos, cambiando de objetivo cada 3 segundos." or "Continuously cycles through valid players, changing target every 3 seconds."
+	autoDescription.Text = isES and "Recorre continuamente a todos los jugadores válidos, cambiando de objetivo cada segundo." or "Continuously cycles through valid players, changing target every second."
 	autoDescription.TextColor3 = currentTheme.textDim
 	autoDescription.Font = Enum.Font.GothamMedium
 	autoDescription.TextSize = isMobile and 10 or 12

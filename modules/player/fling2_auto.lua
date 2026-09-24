@@ -54,7 +54,7 @@ return function(context)
 		task.spawn(function()
 			while self.Running and self.Cycle==cycle do
 				local started=os.clock()
-				while self.Running and self.Cycle==cycle and os.clock()-started<3 do
+				while self.Running and self.Cycle==cycle and os.clock()-started<1 do
 					if not validTarget(self.CurrentTarget) then break end
 					task.wait(0.1)
 				end
@@ -74,7 +74,7 @@ return function(context)
 					end
 					show((isES and "Objetivo automático: " or "Automatic target: ")..following.DisplayName)
 				else
-					-- No esperar tres segundos si no hay un objetivo válido.
+					-- No esperar un segundo si no hay un objetivo válido.
 					task.wait(0.1)
 				end
 			end
