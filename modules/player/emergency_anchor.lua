@@ -77,6 +77,7 @@ return function(context)
 				if anchored then
 					AnchorCore:SetAntiSeat(true)
 					AnchorCore:SetHeartbeat(true)
+					if ShowEmergencyAnchorAlert then ShowEmergencyAnchorAlert() end
 				end
 			end
 			self.LastPosition=checkpoint.Position
