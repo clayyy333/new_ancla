@@ -11,6 +11,7 @@ return function(context)
         StepPosition=nil,
         StepVelocity=nil,
         LastSafeCFrame=nil,
+        LastSafeVelocity=Vector3.zero,
     }
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
@@ -41,6 +42,7 @@ return function(context)
         self.StepPosition=root.Position
         self.StepVelocity=root.AssemblyLinearVelocity
         self.LastSafeCFrame=root.CFrame
+        self.LastSafeVelocity=root.AssemblyLinearVelocity
         humanoid.AutoRotate=false
 
         -- La velocidad angular permanece en el cuerpo completo. No busca objetivos ni
@@ -50,11 +52,14 @@ return function(context)
             -- Se toma antes de inyectar el impulso: conserva marcha, salto y TP legítimos.
             local currentVelocity=root.AssemblyLinearVelocity
             local sampleDistance=self.StepPosition and (root.Position-self.StepPosition).Magnitude or 0
-            if currentVelocity.Magnitude<180 and sampleDistance<12 then
+            local safeHorizontal=math.max(80,humanoid.WalkSpeed*3)
+            local currentHorizontal=Vector3.new(currentVelocity.X,0,currentVelocity.Z).Magnitude
+            if currentHorizontal<safeHorizontal and math.abs(currentVelocity.Y)<100 and sampleDistance<4 then
                 self.LastSafeCFrame=root.CFrame
+                self.LastSafeVelocity=currentVelocity
             end
             self.StepPosition=root.Position
-            self.StepVelocity=currentVelocity
+            self.StepVelocity=self.LastSafeVelocity
 
             local move=humanoid.MoveDirection
             local flat=Vector3.new(move.X,0,move.Z)
@@ -72,12 +77,13 @@ return function(context)
             local stepDistance=self.StepPosition and (position-self.StepPosition).Magnitude or 0
             local horizontalSpeed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
             local verticalSpeed=math.abs(velocity.Y)
-            local escaped=stepDistance>3.5 or horizontalSpeed>180 or verticalSpeed>170
+            local allowedHorizontal=math.max(80,humanoid.WalkSpeed*3)
+            local escaped=stepDistance>1.5 or horizontalSpeed>allowedHorizontal or verticalSpeed>110
 
             if escaped then
                 local fallback=self.LastSafeCFrame or CFrame.new(self.StepPosition or position)
                 position=fallback.Position
-                local legitimate=self.StepVelocity or Vector3.zero
+                local legitimate=self.LastSafeVelocity or Vector3.zero
                 root.AssemblyLinearVelocity=Vector3.new(
                     math.clamp(legitimate.X,-90,90),
                     math.clamp(legitimate.Y,-100,100),
@@ -86,6 +92,7 @@ return function(context)
             end
 
             root.CFrame=CFrame.new(position)*(self.DesiredRotation or root.CFrame.Rotation)
+            root.AssemblyAngularVelocity=Vector3.zero
         end))
 
         update(isES and "Activo: cuerpo físico pasivo" or "Active: passive physical body")
@@ -118,6 +125,7 @@ return function(context)
         self.StepPosition=nil
         self.StepVelocity=nil
         self.LastSafeCFrame=nil
+        self.LastSafeVelocity=Vector3.zero
         update(isES and "Fling por contacto desactivado" or "Contact Fling disabled")
     end
 
@@ -141,6 +149,7 @@ return function(context)
         C.StepPosition=nil
         C.StepVelocity=nil
         C.LastSafeCFrame=nil
+        C.LastSafeVelocity=Vector3.zero
     end))
 
     ContactFlingController=C
