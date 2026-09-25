@@ -1,8 +1,7 @@
--- Desplazamiento vertical experimental con emote aislado.
+-- Desplazamiento vertical persistente compatible con el emote seleccionado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,Track=nil,Animation=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,SavedCollisions={}}
-	local EMOTE_ID=110348711077449
+	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -90,32 +89,22 @@ return function(context)
 		if self.CameraAnchor then self.CameraAnchor:Destroy();self.CameraAnchor=nil end
 		self.SavedCameraType=nil;self.SavedCameraSubject=nil
 	end
-	function Core:ClearEmote()
-		if self.Track then pcall(function()self.Track:Stop(0)end);self.Track=nil end
-		if self.Animation then pcall(function()self.Animation:Destroy()end);self.Animation=nil end
-	end
-	function Core:PlayEmote()
-		self:ClearEmote()
-		local _,humanoid=rig()
-		if not humanoid then return false end
-		local animator=humanoid:FindFirstChildOfClass("Animator")or humanoid:WaitForChild("Animator",2)
-		if not animator then return false end
-		local animation
-		local okObjects,objects=pcall(function()return game:GetObjects("rbxassetid://"..EMOTE_ID)end)
-		if okObjects and objects and #objects>0 then
-			local source=objects[1]:IsA("Animation")and objects[1]or objects[1]:FindFirstChildWhichIsA("Animation",true)
-			if source then animation=source:Clone()end
-			for _,object in ipairs(objects)do pcall(function()object:Destroy()end)end
+	function Core:CaptureSelectedEmote()
+		local selected=_genv().lastVexroEmote
+		if type(selected)=="table" and selected.id then
+			self.SelectedEmoteId=selected.id
+			self.SelectedEmoteName=selected.name or tostring(selected.id)
+			return true
 		end
-		if not animation then animation=Instance.new("Animation");animation.AnimationId="rbxassetid://"..EMOTE_ID end
-		animation.Name="VerticalControlEmote"
-		local ok,track=pcall(function()return animator:LoadAnimation(animation)end)
-		if not ok or not track then animation:Destroy();return false end
-		track.Priority=Enum.AnimationPriority.Action4
-		track.Looped=true
-		track:Play(.12)
-		self.Animation,self.Track=animation,track
-		return true
+		return self.SelectedEmoteId~=nil
+	end
+	function Core:RestoreSelectedEmote()
+		self:CaptureSelectedEmote()
+		if not self.SelectedEmoteId or type(PlayEmote)~="function" then return false end
+		local ok=pcall(function()
+			PlayEmote(self.SelectedEmoteId,self.SelectedEmoteName or tostring(self.SelectedEmoteId),true)
+		end)
+		return ok
 	end
 	function Core:Start(value)
 		if self.Running then return true end
@@ -127,16 +116,16 @@ return function(context)
 		self:SetCharacterCollisions(true)
 		self.Running=true
 		self:LockCamera()
-		self:PlayEmote()
+		self:CaptureSelectedEmote()
 		self:Apply()
 		self.EmoteClock=0
 		self.Connection=RunService.Heartbeat:Connect(function(dt)
 			if not self.Running then return end
 			if not self:Apply(dt)then return end
 			self.EmoteClock=self.EmoteClock+(tonumber(dt)or 0)
-			if self.EmoteClock>=0.35 then
+			if self.EmoteClock>=0.15 then
 				self.EmoteClock=0
-				if not self.Track or not self.Track.IsPlaying then self:PlayEmote() end
+				self:CaptureSelectedEmote()
 			end
 		end)
 		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
@@ -148,7 +137,6 @@ return function(context)
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
-		self:ClearEmote()
 		local checkpoint=self.Checkpoint
 		self.Checkpoint=nil
 		self.LastAppliedCFrame=nil
@@ -171,7 +159,6 @@ return function(context)
 	end
 	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
 		if not Core.Running then return end
-		Core:ClearEmote()
 		table.clear(Core.SavedCollisions)
 		Core.Status=isES and"Reiniciando desplazamiento vertical..."or"Restarting vertical displacement..."
 	end)
@@ -191,7 +178,7 @@ return function(context)
 			Core:Apply(0)
 			for _=1,5 do
 				if not Core.Running then return end
-				if Core:PlayEmote() then break end
+				if Core:RestoreSelectedEmote() then break end
 				task.wait(.35)
 			end
 			Core:Apply(0)
