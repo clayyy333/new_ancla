@@ -1,7 +1,7 @@
 -- Desplazamiento vertical persistente compatible con el emote seleccionado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,SavedCollisions={}}
+	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -37,20 +37,66 @@ return function(context)
 			table.clear(self.SavedCollisions)
 		end
 	end
+	function Core:IsAnchorHolding(root)
+		return (root and root.Anchored)
+			or (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.TestEnabled))
+			or (AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy))
+	end
+	function Core:RestoreVisualOffset()
+		local joint=self.VisualJoint
+		if joint and joint.Parent then
+			if self.VisualC0 then joint.C0=self.VisualC0 end
+			if self.VisualC1 then joint.C1=self.VisualC1 end
+		end
+		self.VisualJoint=nil
+		self.VisualC0=nil
+		self.VisualC1=nil
+	end
+	function Core:ApplyVisualOffset(character,root)
+		local joint=self.VisualJoint
+		if not joint or not joint.Parent or (joint.Part0~=root and joint.Part1~=root) then
+			self:RestoreVisualOffset()
+			for _,candidate in ipairs(character:GetDescendants())do
+				if candidate:IsA("Motor6D")and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+			end
+			if not joint then return false end
+			self.VisualJoint=joint
+			self.VisualC0=joint.C0
+			self.VisualC1=joint.C1
+		end
+		local shift=CFrame.new(0,self.Offset,0)
+		if joint.Part0==root then
+			joint.C0=self.VisualC0*shift
+		else
+			joint.C1=self.VisualC1*shift:Inverse()
+		end
+		return true
+	end
 	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
 		local character,humanoid,root=rig()
 		if not humanoid or humanoid.Health<=0 or not root then return false end
 		if humanoid.Sit then humanoid.Sit=false end
 		for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end;part.CanCollide=false end end
-		local currentFrame=root.CFrame
-		local direction=humanoid.MoveDirection
-		local step=direction.Magnitude>.01 and direction.Unit*humanoid.WalkSpeed*math.min(tonumber(dt)or 0,.1)or Vector3.zero
-		local targetY=self.Checkpoint.Position.Y+self.Offset
-		root.CFrame=CFrame.new(currentFrame.Position.X+step.X,targetY,currentFrame.Position.Z+step.Z)*currentFrame.Rotation
-		self.LastAppliedCFrame=root.CFrame
-		root.AssemblyLinearVelocity=Vector3.zero
-		root.AssemblyAngularVelocity=Vector3.zero
+
+		if self:IsAnchorHolding(root) then
+			-- El HRP y la burbuja permanecen arriba; solo el cuerpo visual baja.
+			self:ApplyVisualOffset(character,root)
+			root.AssemblyLinearVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
+			self.LastAppliedCFrame=root.CFrame
+		else
+			self:RestoreVisualOffset()
+			local currentFrame=root.CFrame
+			local direction=humanoid.MoveDirection
+			local step=direction.Magnitude>.01 and direction.Unit*humanoid.WalkSpeed*math.min(tonumber(dt)or 0,.1)or Vector3.zero
+			local targetY=self.Checkpoint.Position.Y+self.Offset
+			root.CFrame=CFrame.new(currentFrame.Position.X+step.X,targetY,currentFrame.Position.Z+step.Z)*currentFrame.Rotation
+			self.LastAppliedCFrame=root.CFrame
+			root.AssemblyLinearVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
+		end
+
 		if self.CameraAnchor and self.CameraAnchor.Parent then
 			self.CameraAnchor.CFrame=CFrame.new(root.Position.X,self.Checkpoint.Position.Y+2,root.Position.Z)*root.CFrame.Rotation
 		end
@@ -135,6 +181,7 @@ return function(context)
 		local wasRunning=self.Running
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
+		self:RestoreVisualOffset()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
 		local checkpoint=self.Checkpoint
@@ -159,6 +206,7 @@ return function(context)
 	end
 	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
 		if not Core.Running then return end
+		Core:RestoreVisualOffset()
 		table.clear(Core.SavedCollisions)
 		Core.Status=isES and"Reiniciando desplazamiento vertical..."or"Restarting vertical displacement..."
 	end)
@@ -168,7 +216,7 @@ return function(context)
 			local root=character:WaitForChild("HumanoidRootPart",8)
 			if not Core.Running or not root or not Core.Checkpoint then return end
 			local restored=Core.LastAppliedCFrame or (Core.Checkpoint*CFrame.new(0,Core.Offset,0))
-			root.CFrame=restored
+			root.CFrame=Core:IsAnchorHolding(root) and Core.Checkpoint or restored
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
 			local humanoid=character:WaitForChild("Humanoid",8)
