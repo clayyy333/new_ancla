@@ -3,6 +3,8 @@ return function(context)
     setfenv(1,context)
 
     local ANGULAR_FORCE=900000000
+    local HANDLE_OFFSET=Vector3.new(0,0,-2.25)
+    local SELF_RECOIL_LIMIT=160
     local C={
         Running=false,
         SelectedAccessory=nil,
@@ -11,6 +13,7 @@ return function(context)
         RuntimeInstances={},
         PhysicsConnections={},
         Connections={},
+        SafeRootVelocity=Vector3.zero,
     }
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
@@ -84,6 +87,7 @@ return function(context)
         self.SelectedAccessory=nil
         self.Handle=nil
         self.RestoreData=nil
+        self.SafeRootVelocity=Vector3.zero
     end
 
     function C:_PrepareCharacter(character)
@@ -115,10 +119,11 @@ return function(context)
         handle.Massless=false
         handle.LocalTransparencyModifier=1
         handle.CustomPhysicalProperties=PhysicalProperties.new(100,0,0,100,100)
-        handle.CFrame=root.CFrame
+        handle.CFrame=root.CFrame*CFrame.new(HANDLE_OFFSET)
 
         local rootAttachment=Instance.new("Attachment")
         rootAttachment.Name="ContactFlingRootAttachment"
+        rootAttachment.Position=HANDLE_OFFSET
         rootAttachment.Parent=root
         table.insert(self.RuntimeInstances,rootAttachment)
 
@@ -132,6 +137,7 @@ return function(context)
         align.Attachment0=handleAttachment
         align.Attachment1=rootAttachment
         align.ApplyAtCenterOfMass=true
+        align.ReactionForceEnabled=false
         align.MaxForce=math.huge
         align.MaxVelocity=math.huge
         align.Responsiveness=200
@@ -163,11 +169,25 @@ return function(context)
         table.insert(self.PhysicsConnections,RunService.PreSimulation:Connect(function()
             if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
             handle.AssemblyAngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
-            if (handle.Position-root.Position).Magnitude>5 then handle.CFrame=root.CFrame end
+            local expected=(root.CFrame*CFrame.new(HANDLE_OFFSET)).Position
+            if (handle.Position-expected).Magnitude>5 then
+                handle.CFrame=CFrame.new(expected)*root.CFrame.Rotation
+            end
         end))
         table.insert(self.PhysicsConnections,RunService.Heartbeat:Connect(function()
             if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
             handle.AssemblyAngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
+        end))
+        table.insert(self.PhysicsConnections,RunService.PostSimulation:Connect(function()
+            if not self.Running or self.Handle~=handle or not root.Parent then return end
+            local velocity=root.AssemblyLinearVelocity
+            if velocity.Magnitude<=SELF_RECOIL_LIMIT then
+                self.SafeRootVelocity=velocity
+            else
+                -- El accesorio no debe transferir su propio retroceso al personaje local.
+                root.AssemblyLinearVelocity=self.SafeRootVelocity
+                root.AssemblyAngularVelocity=Vector3.zero
+            end
         end))
 
         update((isES and "Activo con accesorio: " or "Active with accessory: ")..accessory.Name)
