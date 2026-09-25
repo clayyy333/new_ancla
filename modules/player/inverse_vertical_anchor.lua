@@ -26,6 +26,9 @@ return function(context)
   local shift=CFrame.new(0,self.Distance+self.VisualAltitude,0)
   if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
   if self.CameraAnchor and self.CameraAnchor.Parent then self.CameraAnchor.CFrame=self.Origin*CFrame.new(0,self.VisualAltitude+2,0)end
+  local camera=workspace.CurrentCamera
+  local visualSubject=character:FindFirstChild("Head")or character:FindFirstChild("UpperTorso")or character:FindFirstChild("Torso")
+  if camera and visualSubject then camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=visualSubject end
   return true
  end
  function C:CreateCamera()
