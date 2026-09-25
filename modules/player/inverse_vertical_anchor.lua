@@ -27,7 +27,7 @@ return function(context)
   if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
   local camera=workspace.CurrentCamera
   if camera then
-   local targetPos=self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0)
+   local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
    local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
    local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.CameraDistance))
    camera.CameraType=Enum.CameraType.Scriptable
@@ -37,9 +37,9 @@ return function(context)
   return true
  end
  function C:CreateCamera()
-  local camera=workspace.CurrentCamera;if not camera or not self.Origin then return end
+  local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not self.Origin or not root then return end
   self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
-  local targetPos=self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0)
+  local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
   local offset=camera.CFrame.Position-targetPos
   self.CameraDistance=math.clamp(offset.Magnitude,2,500)
   self.Yaw=math.atan2(offset.X,offset.Z)
