@@ -73,9 +73,18 @@ return function(context)
   if VerticalControlController and VerticalControlController:IsRunning()then VerticalControlController:Stop(true)end
   if not AnchorCore then return false,isES and"El controlador de Ancla no esta disponible."or"Anchor controller is unavailable."end
   if AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
+  if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
   local camera=workspace.CurrentCamera
   if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame end
-  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero;self.Running=true
+  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);self.Running=true
+  -- Permite que la posicion inferior replique antes de aplicar Anchored.
+  root.Anchored=false
+  for _=1,6 do
+   if not self.Running or not root.Parent then return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
+   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+   RunService.Heartbeat:Wait()
+  end
+  root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   local anchored,message=AnchorCore:SetTest(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
   AnchorCore.TestCheckpoint=self.Lower;self:CreateCamera();self:Apply()
   RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:Apply()end end)
