@@ -1,10 +1,20 @@
 -- Test 1: HRP fisico abajo, cuerpo visual y camara arriba.
 return function(context)
  setfenv(1,context)
- local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
+ local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
  local function finite(v)v=tonumber(v);return v and v==v and math.abs(v)<math.huge and v or nil end
  local function rig()local c=player.Character;return c,c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")end
  local function refresh(m)C.Status=m or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
+ function C:CaptureSelectedEmote()
+  local selected=_genv().lastVexroEmote
+  if type(selected)=="table"and selected.id then self.SelectedEmoteId=selected.id;self.SelectedEmoteName=selected.name or tostring(selected.id);return true end
+  return self.SelectedEmoteId~=nil
+ end
+ function C:RestoreSelectedEmote()
+  self:CaptureSelectedEmote()
+  if not self.SelectedEmoteId or type(PlayEmote)~="function"then return false end
+  return pcall(function()PlayEmote(self.SelectedEmoteId,self.SelectedEmoteName or tostring(self.SelectedEmoteId),true)end)
+ end
  function C:IsRunning()return self.Running end
  function C:GetDistance()return self.Distance end
  function C:GetVisualAltitude()return self.VisualAltitude end
@@ -40,7 +50,8 @@ return function(context)
   local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not self.Origin or not root then return end
   self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
   local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
-  local offset=camera.CFrame.Position-targetPos
+  local sourceFrame=self.SavedCameraCFrame or camera.CFrame
+  local offset=sourceFrame.Position-targetPos
   self.CameraDistance=math.clamp(offset.Magnitude,2,500)
   self.Yaw=math.atan2(offset.X,offset.Z)
   self.Pitch=math.clamp(-math.asin(math.clamp(offset.Y/self.CameraDistance,-1,1)),math.rad(-80),math.rad(80))
@@ -76,17 +87,21 @@ return function(context)
   if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
   local camera=workspace.CurrentCamera
   if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame end
-  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);self.Running=true
-  -- Permite que la posicion inferior replique antes de aplicar Anchored.
+  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);self:CaptureSelectedEmote();self.Running=true
+  -- Primero realiza un TP normal completo; la camara del juego baja con el personaje.
   root.Anchored=false
-  for _=1,6 do
+  local teleportDeadline=os.clock()+.6
+  repeat
    if not self.Running or not root.Parent then return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
    root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
    RunService.Heartbeat:Wait()
-  end
+  until os.clock()>=teleportDeadline
   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   local anchored,message=AnchorCore:SetTest(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
+  -- Despues del anclaje, coloca el cuerpo/emote y la camara en la referencia inicial.
   AnchorCore.TestCheckpoint=self.Lower;self:CreateCamera();self:Apply()
+  for _=1,3 do if self:RestoreSelectedEmote()then break end;task.wait(.1)end
+  self:Apply()
   RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:Apply()end end)
   local function overGui(position)
    if UserInputService:GetFocusedTextBox()then return true end
