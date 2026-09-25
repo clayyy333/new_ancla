@@ -4,7 +4,8 @@ return function(context)
 
     local ANGULAR_FORCE=900000000
     local HANDLE_OFFSET=Vector3.new(0,0,-2.25)
-    local SELF_RECOIL_LIMIT=160
+    local SELF_RECOIL_LIMIT=120
+    local SELF_RECOIL_DELTA=35
     local C={
         Running=false,
         SelectedAccessory=nil,
@@ -14,6 +15,7 @@ return function(context)
         PhysicsConnections={},
         Connections={},
         SafeRootVelocity=Vector3.zero,
+        FrameRootVelocity=Vector3.zero,
     }
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
@@ -88,6 +90,7 @@ return function(context)
         self.Handle=nil
         self.RestoreData=nil
         self.SafeRootVelocity=Vector3.zero
+        self.FrameRootVelocity=Vector3.zero
     end
 
     function C:_PrepareCharacter(character)
@@ -121,29 +124,10 @@ return function(context)
         handle.CustomPhysicalProperties=PhysicalProperties.new(100,0,0,100,100)
         handle.CFrame=root.CFrame*CFrame.new(HANDLE_OFFSET)
 
-        local rootAttachment=Instance.new("Attachment")
-        rootAttachment.Name="ContactFlingRootAttachment"
-        rootAttachment.Position=HANDLE_OFFSET
-        rootAttachment.Parent=root
-        table.insert(self.RuntimeInstances,rootAttachment)
-
         local handleAttachment=Instance.new("Attachment")
         handleAttachment.Name="ContactFlingHandleAttachment"
         handleAttachment.Parent=handle
         table.insert(self.RuntimeInstances,handleAttachment)
-
-        local align=Instance.new("AlignPosition")
-        align.Name="ContactFlingAlignPosition"
-        align.Attachment0=handleAttachment
-        align.Attachment1=rootAttachment
-        align.ApplyAtCenterOfMass=true
-        align.ReactionForceEnabled=false
-        align.MaxForce=math.huge
-        align.MaxVelocity=math.huge
-        align.Responsiveness=200
-        align.RigidityEnabled=true
-        align.Parent=handle
-        table.insert(self.RuntimeInstances,align)
 
         local angular=Instance.new("AngularVelocity")
         angular.Name="ContactFlingAngularVelocity"
@@ -166,13 +150,24 @@ return function(context)
             end
         end
 
+        self.SafeRootVelocity=root.AssemblyLinearVelocity
+        self.FrameRootVelocity=self.SafeRootVelocity
+
+        table.insert(self.PhysicsConnections,character.DescendantAdded:Connect(function(part)
+            if not self.Running or self.Handle~=handle or not part:IsA("BasePart") or part==handle then return end
+            local constraint=Instance.new("NoCollisionConstraint")
+            constraint.Name="ContactFlingNoCollision"
+            constraint.Part0=handle
+            constraint.Part1=part
+            constraint.Parent=handle
+            table.insert(self.RuntimeInstances,constraint)
+        end))
         table.insert(self.PhysicsConnections,RunService.PreSimulation:Connect(function()
             if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
+            self.FrameRootVelocity=root.AssemblyLinearVelocity
+            handle.CFrame=root.CFrame*CFrame.new(HANDLE_OFFSET)
+            handle.AssemblyLinearVelocity=root.AssemblyLinearVelocity+(root.CFrame.LookVector*90)
             handle.AssemblyAngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
-            local expected=(root.CFrame*CFrame.new(HANDLE_OFFSET)).Position
-            if (handle.Position-expected).Magnitude>5 then
-                handle.CFrame=CFrame.new(expected)*root.CFrame.Rotation
-            end
         end))
         table.insert(self.PhysicsConnections,RunService.Heartbeat:Connect(function()
             if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
@@ -181,12 +176,12 @@ return function(context)
         table.insert(self.PhysicsConnections,RunService.PostSimulation:Connect(function()
             if not self.Running or self.Handle~=handle or not root.Parent then return end
             local velocity=root.AssemblyLinearVelocity
-            if velocity.Magnitude<=SELF_RECOIL_LIMIT then
-                self.SafeRootVelocity=velocity
-            else
-                -- El accesorio no debe transferir su propio retroceso al personaje local.
-                root.AssemblyLinearVelocity=self.SafeRootVelocity
+            local recoil=(velocity-self.FrameRootVelocity).Magnitude
+            if recoil>SELF_RECOIL_DELTA or velocity.Magnitude>SELF_RECOIL_LIMIT then
+                root.AssemblyLinearVelocity=self.FrameRootVelocity
                 root.AssemblyAngularVelocity=Vector3.zero
+            else
+                self.SafeRootVelocity=velocity
             end
         end))
 
