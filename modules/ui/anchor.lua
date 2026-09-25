@@ -1,7 +1,7 @@
 -- Vista Ancla integrada en la GUI principal.
 return function(context)
 	setfenv(1,context)
-	anchorPanel=Instance.new("Frame")
+	anchorPanel=Instance.new("ScrollingFrame");anchorPanel.BorderSizePixel=0;anchorPanel.ScrollBarThickness=3;anchorPanel.ScrollingDirection=Enum.ScrollingDirection.Y;anchorPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;anchorPanel.CanvasSize=UDim2.new();anchorPanel.Active=true
 	anchorPanel.Name="AnchorPanel"
 	anchorPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
 	anchorPanel.Position=UDim2.new(0,8,0,titleH+8)

@@ -1,7 +1,7 @@
 -- Vista de Fling con moto Xeno integrada en la GUI principal.
 return function(context)
 	setfenv(1,context)
-	motoFlingXenoPanel=Instance.new("Frame")
+	motoFlingXenoPanel=Instance.new("ScrollingFrame");motoFlingXenoPanel.BorderSizePixel=0;motoFlingXenoPanel.ScrollBarThickness=3;motoFlingXenoPanel.ScrollingDirection=Enum.ScrollingDirection.Y;motoFlingXenoPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;motoFlingXenoPanel.CanvasSize=UDim2.new();motoFlingXenoPanel.Active=true
 	motoFlingXenoPanel.Name="MotoFlingXenoPanel"
 	motoFlingXenoPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
 	motoFlingXenoPanel.Position=UDim2.new(0,8,0,titleH+8)

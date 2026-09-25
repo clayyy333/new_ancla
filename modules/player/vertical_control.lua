@@ -1,7 +1,7 @@
 -- Desplazamiento vertical experimental con emote aislado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,Track=nil,Animation=nil,Connection=nil,CharacterConnection=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,SavedCollisions={}}
+	local Core={Running=false,Offset=-100,Checkpoint=nil,Track=nil,Animation=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,SavedCollisions={}}
 	local EMOTE_ID=110348711077449
 	local function rig()
 		local character=player.Character
@@ -49,6 +49,7 @@ return function(context)
 		local step=direction.Magnitude>.01 and direction.Unit*humanoid.WalkSpeed*math.min(tonumber(dt)or 0,.1)or Vector3.zero
 		local targetY=self.Checkpoint.Position.Y+self.Offset
 		root.CFrame=CFrame.new(currentFrame.Position.X+step.X,targetY,currentFrame.Position.Z+step.Z)*currentFrame.Rotation
+		self.LastAppliedCFrame=root.CFrame
 		root.AssemblyLinearVelocity=Vector3.zero
 		root.AssemblyAngularVelocity=Vector3.zero
 		if self.CameraAnchor and self.CameraAnchor.Parent then
@@ -89,7 +90,12 @@ return function(context)
 		if self.CameraAnchor then self.CameraAnchor:Destroy();self.CameraAnchor=nil end
 		self.SavedCameraType=nil;self.SavedCameraSubject=nil
 	end
+	function Core:ClearEmote()
+		if self.Track then pcall(function()self.Track:Stop(0)end);self.Track=nil end
+		if self.Animation then pcall(function()self.Animation:Destroy()end);self.Animation=nil end
+	end
 	function Core:PlayEmote()
+		self:ClearEmote()
 		local _,humanoid=rig()
 		if not humanoid then return false end
 		local animator=humanoid:FindFirstChildOfClass("Animator")or humanoid:WaitForChild("Animator",2)
@@ -123,8 +129,15 @@ return function(context)
 		self:LockCamera()
 		self:PlayEmote()
 		self:Apply()
+		self.EmoteClock=0
 		self.Connection=RunService.Heartbeat:Connect(function(dt)
-			if not self:Apply(dt)then self:Stop(false)end
+			if not self.Running then return end
+			if not self:Apply(dt)then return end
+			self.EmoteClock=self.EmoteClock+(tonumber(dt)or 0)
+			if self.EmoteClock>=0.35 then
+				self.EmoteClock=0
+				if not self.Track or not self.Track.IsPlaying then self:PlayEmote() end
+			end
 		end)
 		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
 		return true,self.Status
@@ -135,10 +148,10 @@ return function(context)
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
-		if self.Track then pcall(function()self.Track:Stop(.12)end);self.Track=nil end
-		if self.Animation then self.Animation:Destroy();self.Animation=nil end
+		self:ClearEmote()
 		local checkpoint=self.Checkpoint
 		self.Checkpoint=nil
+		self.LastAppliedCFrame=nil
 		if restore~=false and checkpoint then
 			local _,humanoid,root=rig()
 			if root then
@@ -151,8 +164,41 @@ return function(context)
 		self.Status=isES and"Personaje restaurado."or"Character restored."
 		return wasRunning,self.Status
 	end
-	function Core:Destroy()self:Stop(true);if self.CharacterConnection then self.CharacterConnection:Disconnect();self.CharacterConnection=nil end end
-	Core.CharacterConnection=player.CharacterRemoving:Connect(function()if Core.Running then Core:Stop(false)end end)
+	function Core:Destroy()
+		self:Stop(true)
+		if self.CharacterConnection then self.CharacterConnection:Disconnect();self.CharacterConnection=nil end
+		if self.CharacterAddedConnection then self.CharacterAddedConnection:Disconnect();self.CharacterAddedConnection=nil end
+	end
+	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
+		if not Core.Running then return end
+		Core:ClearEmote()
+		table.clear(Core.SavedCollisions)
+		Core.Status=isES and"Reiniciando desplazamiento vertical..."or"Restarting vertical displacement..."
+	end)
+	Core.CharacterAddedConnection=player.CharacterAdded:Connect(function(character)
+		if not Core.Running then return end
+		task.spawn(function()
+			local root=character:WaitForChild("HumanoidRootPart",8)
+			if not Core.Running or not root or not Core.Checkpoint then return end
+			local restored=Core.LastAppliedCFrame or (Core.Checkpoint*CFrame.new(0,Core.Offset,0))
+			root.CFrame=restored
+			root.AssemblyLinearVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
+			local humanoid=character:WaitForChild("Humanoid",8)
+			if not Core.Running or not humanoid then return end
+			humanoid:WaitForChild("Animator",4)
+			Core:SetCharacterCollisions(true)
+			Core:Apply(0)
+			for _=1,5 do
+				if not Core.Running then return end
+				if Core:PlayEmote() then break end
+				task.wait(.35)
+			end
+			Core:Apply(0)
+			Core.Status=isES and"Desplazamiento vertical restaurado."or"Vertical displacement restored."
+			if UpdateVerticalControlPanel then UpdateVerticalControlPanel(Core.Status) end
+		end)
+	end)
 	VerticalControlController=Core
 	return true
 end

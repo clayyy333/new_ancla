@@ -1,7 +1,7 @@
 -- Vista de Fling con moto integrada en la GUI principal.
 return function(context)
 	setfenv(1,context)
-	motoFlingPanel=Instance.new("Frame")
+	motoFlingPanel=Instance.new("ScrollingFrame");motoFlingPanel.BorderSizePixel=0;motoFlingPanel.ScrollBarThickness=3;motoFlingPanel.ScrollingDirection=Enum.ScrollingDirection.Y;motoFlingPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;motoFlingPanel.CanvasSize=UDim2.new();motoFlingPanel.Active=true
 	motoFlingPanel.Name="MotoFlingPanel"
 	motoFlingPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
 	motoFlingPanel.Position=UDim2.new(0,8,0,titleH+8)

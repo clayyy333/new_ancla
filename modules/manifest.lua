@@ -90,6 +90,7 @@ return {
 		"ui/combo_queue",
 		"player/friend_follow",
 		"ui/friend_follow",
+		"ui/mobile_typography",
 	},
 	sharedNames = {
 		"LocalEmoteFollow",
@@ -245,6 +246,7 @@ return {
 		"FreeCarController",
 		"MovementControlController",
 		"UserShortcutController",
+		"MobileTypographyController",
 		"VerticalControlController",
 		"AmbientSoundController",
 		"AntiAFKController",

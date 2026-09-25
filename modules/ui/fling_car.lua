@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1, context)
 
-	carFlingPanel = Instance.new("Frame")
+	carFlingPanel=Instance.new("ScrollingFrame");carFlingPanel.BorderSizePixel=0;carFlingPanel.ScrollBarThickness=3;carFlingPanel.ScrollingDirection=Enum.ScrollingDirection.Y;carFlingPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;carFlingPanel.CanvasSize=UDim2.new();carFlingPanel.Active=true
 	carFlingPanel.Name = "CarFlingPanel"
 	carFlingPanel.Size = UDim2.new(1, -16, 1, -(titleH + 20))
 	carFlingPanel.Position = UDim2.new(0, 8, 0, titleH + 8)

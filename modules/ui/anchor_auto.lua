@@ -1,7 +1,7 @@
 -- Vista de Ancla automatica integrada.
 return function(context)
 	setfenv(1,context)
-	autoAnchorPanel=Instance.new("Frame")
+	autoAnchorPanel=Instance.new("ScrollingFrame");autoAnchorPanel.BorderSizePixel=0;autoAnchorPanel.ScrollBarThickness=3;autoAnchorPanel.ScrollingDirection=Enum.ScrollingDirection.Y;autoAnchorPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;autoAnchorPanel.CanvasSize=UDim2.new();autoAnchorPanel.Active=true
 	autoAnchorPanel.Name="AutoAnchorPanel"
 	autoAnchorPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
 	autoAnchorPanel.Position=UDim2.new(0,8,0,titleH+8)
