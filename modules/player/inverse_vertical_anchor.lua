@@ -1,7 +1,7 @@
 -- Test 1: HRP fisico abajo, cuerpo visual y camara arriba.
 return function(context)
  setfenv(1,context)
- local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
+ local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
  local function finite(v)v=tonumber(v);return v and v==v and math.abs(v)<math.huge and v or nil end
  local function rig()local c=player.Character;return c,c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")end
  local function refresh(m)C.Status=m or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
@@ -25,23 +25,30 @@ return function(context)
   local joint=self:GetJoint(character,root);if not joint then return false end
   local shift=CFrame.new(0,self.Distance+self.VisualAltitude,0)
   if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
-  if self.CameraAnchor and self.CameraAnchor.Parent then self.CameraAnchor.CFrame=self.Origin*CFrame.new(0,self.VisualAltitude+2,0)end
-  local camera=workspace.CurrentCamera
-  local visualSubject=character:FindFirstChild("Head")or character:FindFirstChild("UpperTorso")or character:FindFirstChild("Torso")
-  if camera and visualSubject then camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=visualSubject end
+  if self.CameraAnchor and self.CameraAnchor.Parent then
+   local desired=self.Origin*CFrame.new(0,self.VisualAltitude+2,0)
+   local previous=self.LastCameraAnchorPosition
+   self.CameraAnchor.CFrame=desired
+   local camera=workspace.CurrentCamera
+   if previous and camera and camera.CameraSubject==self.CameraAnchor then
+    local delta=desired.Position-previous
+    if delta.Magnitude>.001 then camera.CFrame=camera.CFrame+delta end
+   end
+   self.LastCameraAnchorPosition=desired.Position
+  end
   return true
  end
  function C:CreateCamera()
   local camera=workspace.CurrentCamera;if not camera then return end
-  self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject
+  self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
   local anchor=Instance.new("Part");anchor.Name="InverseVerticalCameraAnchor";anchor.Size=Vector3.new(1,1,1);anchor.Transparency=1;anchor.Anchored=true;anchor.CanCollide=false;anchor.CanTouch=false;anchor.CanQuery=false;anchor.CFrame=self.Origin*CFrame.new(0,self.VisualAltitude+2,0);anchor.Parent=workspace
-  self.CameraAnchor=anchor;camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=anchor
+  self.CameraAnchor=anchor;self.LastCameraAnchorPosition=anchor.Position;camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=anchor;if self.SavedCameraCFrame then camera.CFrame=self.SavedCameraCFrame end
  end
  function C:RestoreCamera()
   local camera=workspace.CurrentCamera
   if camera then camera.CameraType=self.SavedCameraType or Enum.CameraType.Custom;if self.SavedCameraSubject and self.SavedCameraSubject.Parent then camera.CameraSubject=self.SavedCameraSubject else local _,h=rig();if h then camera.CameraSubject=h end end end
   if self.CameraAnchor then self.CameraAnchor:Destroy();self.CameraAnchor=nil end
-  self.SavedCameraType=nil;self.SavedCameraSubject=nil
+  self.SavedCameraType=nil;self.SavedCameraSubject=nil;self.SavedCameraCFrame=nil;self.LastCameraAnchorPosition=nil
  end
  function C:SetDistance(v)
   v=finite(v);if not v or v<0 then return false,isES and"Escribe una distancia valida mayor o igual a 0."or"Enter a valid distance greater than or equal to 0."end
@@ -61,6 +68,8 @@ return function(context)
   if VerticalControlController and VerticalControlController:IsRunning()then VerticalControlController:Stop(true)end
   if not AnchorCore then return false,isES and"El controlador de Ancla no esta disponible."or"Anchor controller is unavailable."end
   if AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
+  local camera=workspace.CurrentCamera
+  if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame end
   self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero;self.Running=true
   local anchored,message=AnchorCore:SetTest(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
   AnchorCore.TestCheckpoint=self.Lower;self:CreateCamera();self:Apply()
