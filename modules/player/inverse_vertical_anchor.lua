@@ -1,7 +1,7 @@
 -- Test 1: HRP fisico abajo, cuerpo visual y camara arriba.
 return function(context)
  setfenv(1,context)
- local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
+ local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,SavedCollisions={},Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
  local function finite(v)v=tonumber(v);return v and v==v and math.abs(v)<math.huge and v or nil end
  local function rig()local c=player.Character;return c,c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")end
  local function refresh(m)C.Status=m or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
@@ -18,6 +18,16 @@ return function(context)
  function C:IsRunning()return self.Running end
  function C:GetDistance()return self.Distance end
  function C:GetVisualAltitude()return self.VisualAltitude end
+ function C:SetCharacterCollisions(disabled)
+  local character=player.Character
+  if disabled then
+   table.clear(self.SavedCollisions)
+   if character then for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then self.SavedCollisions[part]=part.CanCollide;part.CanCollide=false end end end
+  else
+   for part,canCollide in pairs(self.SavedCollisions)do if part.Parent then part.CanCollide=canCollide end end
+   table.clear(self.SavedCollisions)
+  end
+ end
  function C:RestoreVisual()
   if self.Joint and self.Joint.Parent then if self.C0 then self.Joint.C0=self.C0 end;if self.C1 then self.Joint.C1=self.C1 end end
   self.Joint=nil;self.C0=nil;self.C1=nil
@@ -99,10 +109,9 @@ return function(context)
   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   local anchored,message=AnchorCore:SetTest(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
   -- Despues del anclaje, coloca el cuerpo/emote y la camara en la referencia inicial.
-  AnchorCore.TestCheckpoint=self.Lower;self:CreateCamera();self:Apply()
-  for _=1,3 do if self:RestoreSelectedEmote()then break end;task.wait(.1)end
-  self:Apply()
+  AnchorCore.TestCheckpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply()
   RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:Apply()end end)
+  self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
   local function overGui(position)
    if UserInputService:GetFocusedTextBox()then return true end
    local ok,objects=pcall(function()return playerGui:GetGuiObjectsAtPosition(position.X,position.Y)end);if not ok then return false end
@@ -124,18 +133,18 @@ return function(context)
  function C:Stop(restore)
   local was=self.Running;self.Running=false
   for _,connection in ipairs(self.Connections)do pcall(function()connection:Disconnect()end)end;table.clear(self.Connections)
-  self:RestoreVisual();self:RestoreCamera();if AnchorCore and AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
+  self:RestoreVisual();self:SetCharacterCollisions(false);self:RestoreCamera();if AnchorCore and AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
   local origin=self.Origin;self.Origin=nil;self.Lower=nil
   if restore~=false and origin then local _,_,root=rig();if root then root.CFrame=origin;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end end
   self.Status=isES and"Test 1 desactivado; posicion restaurada."or"Test 1 disabled; position restored.";refresh();return was,self.Status
  end
  function C:Destroy()self:Stop(true);if self.Removing then self.Removing:Disconnect()end;if self.Added then self.Added:Disconnect()end end
- C.Removing=player.CharacterRemoving:Connect(function()if C.Running then C:RestoreVisual()end end)
+ C.Removing=player.CharacterRemoving:Connect(function()if C.Running then C:RestoreVisual();table.clear(C.SavedCollisions)end end)
  C.Added=player.CharacterAdded:Connect(function(character)
   if not C.Running or not C.Lower then return end
   task.defer(function()
    local root=character:WaitForChild("HumanoidRootPart",8);local humanoid=character:WaitForChild("Humanoid",8);if not C.Running or not root or not humanoid then return end
-   root.CFrame=C.Lower;if AnchorCore then AnchorCore.TestCheckpoint=C.Lower;if not AnchorCore.TestEnabled then AnchorCore:SetTest(true)end end;task.wait(.15);C:Apply()
+   root.CFrame=C.Lower;if AnchorCore then AnchorCore.TestCheckpoint=C.Lower;if not AnchorCore.TestEnabled then AnchorCore:SetTest(true)end end;task.wait(.15);C:SetCharacterCollisions(true);C:Apply()
   end)
  end)
  InverseVerticalController=C
