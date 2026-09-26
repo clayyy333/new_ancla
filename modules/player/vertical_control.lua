@@ -154,7 +154,6 @@ return function(context)
 	end
 	function Core:Start(value)
 		if self.Running then return true end
-		if InverseVerticalController and InverseVerticalController:IsRunning() then InverseVerticalController:Stop(true) end
 		local valid,message=self:SetOffset(value)
 		if not valid then return false,message end
 		local _,humanoid,root=rig()
