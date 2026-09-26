@@ -1,4 +1,4 @@
--- Test 1: HRP fisico abajo, cuerpo visual y camara arriba.
+-- Test 1: HRP fisico arriba, cuerpo visual y camara en la posicion inicial.
 return function(context)
  setfenv(1,context)
  local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,SavedCollisions={},Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
@@ -43,7 +43,7 @@ return function(context)
   if not self.Running or not self.Origin then return false end
   local character,humanoid,root=rig();if not character or not humanoid or humanoid.Health<=0 or not root then return false end
   local joint=self:GetJoint(character,root);if not joint then return false end
-  local shift=CFrame.new(0,self.Distance+self.VisualAltitude,0)
+  local shift=CFrame.new(0,-self.Distance+self.VisualAltitude,0)
   if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
   root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   return true
@@ -51,7 +51,7 @@ return function(context)
  function C:UpdateCamera()
   if not self.Running then return end
   local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not root then return end
-  local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
+  local targetPos=root.Position+Vector3.new(0,-self.Distance+self.VisualAltitude+2,0)
   local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
   local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.CameraDistance))
   camera.CameraType=Enum.CameraType.Scriptable
@@ -61,7 +61,7 @@ return function(context)
  function C:CreateCamera()
   local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not self.Origin or not root then return end
   self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
-  local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
+  local targetPos=root.Position+Vector3.new(0,-self.Distance+self.VisualAltitude+2,0)
   local sourceFrame=self.SavedCameraCFrame or camera.CFrame
   local offset=sourceFrame.Position-targetPos
   self.CameraDistance=math.clamp(offset.Magnitude,2,500)
@@ -81,7 +81,7 @@ return function(context)
  function C:SetDistance(v)
   v=finite(v);if not v or v<0 then return false,isES and"Escribe una distancia valida mayor o igual a 0."or"Enter a valid distance greater than or equal to 0."end
   self.Distance=v
-  if self.Running and self.Origin then self.Lower=self.Origin*CFrame.new(0,-v,0);if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=self.Lower end;local _,_,root=rig();if root then root.CFrame=self.Lower end;self:Apply();self:UpdateCamera()end
+  if self.Running and self.Origin then self.Lower=self.Origin*CFrame.new(0,v,0);if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=self.Lower end;local _,_,root=rig();if root then root.CFrame=self.Lower end;self:Apply();self:UpdateCamera()end
   return true,v
  end
  function C:SetVisualAltitude(v)
@@ -99,8 +99,8 @@ return function(context)
   if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
   local camera=workspace.CurrentCamera
   if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame end
-  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,-self.Distance,0);self:CaptureSelectedEmote();self.Running=true
-  -- Primero realiza un TP normal completo; la camara del juego baja con el personaje.
+  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,self.Distance,0);self:CaptureSelectedEmote();self.Running=true
+  -- Primero desplaza el personaje completo hacia arriba.
   root.Anchored=false
   local teleportDeadline=os.clock()+.6
   repeat
@@ -111,7 +111,7 @@ return function(context)
   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   local anchored,message=AnchorCore:SetAncla(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
   AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
-  -- Despues del anclaje, coloca el cuerpo/emote y la camara en la referencia inicial.
+  -- Despues del anclaje, desplaza visualmente cuerpo/emote hacia abajo hasta la referencia inicial.
   AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply();self:UpdateCamera()
   RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:UpdateCamera()end end)
   self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
