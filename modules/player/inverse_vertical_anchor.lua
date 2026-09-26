@@ -45,16 +45,18 @@ return function(context)
   local joint=self:GetJoint(character,root);if not joint then return false end
   local shift=CFrame.new(0,self.Distance+self.VisualAltitude,0)
   if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
-  local camera=workspace.CurrentCamera
-  if camera then
-   local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
-   local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
-   local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.CameraDistance))
-   camera.CameraType=Enum.CameraType.Scriptable
-   camera.CFrame=CFrame.lookAt(cameraPos,targetPos)
-   camera.Focus=CFrame.new(targetPos)
-  end
+  root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   return true
+ end
+ function C:UpdateCamera()
+  if not self.Running then return end
+  local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not root then return end
+  local targetPos=root.Position+Vector3.new(0,self.Distance+self.VisualAltitude+2,0)
+  local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
+  local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.CameraDistance))
+  camera.CameraType=Enum.CameraType.Scriptable
+  camera.CFrame=CFrame.lookAt(cameraPos,targetPos)
+  camera.Focus=CFrame.new(targetPos)
  end
  function C:CreateCamera()
   local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not self.Origin or not root then return end
@@ -79,12 +81,12 @@ return function(context)
  function C:SetDistance(v)
   v=finite(v);if not v or v<0 then return false,isES and"Escribe una distancia valida mayor o igual a 0."or"Enter a valid distance greater than or equal to 0."end
   self.Distance=v
-  if self.Running and self.Origin then self.Lower=self.Origin*CFrame.new(0,-v,0);if AnchorCore and AnchorCore.TestEnabled then AnchorCore.TestCheckpoint=self.Lower end;local _,_,root=rig();if root then root.CFrame=self.Lower end;self:Apply()end
+  if self.Running and self.Origin then self.Lower=self.Origin*CFrame.new(0,-v,0);if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=self.Lower end;local _,_,root=rig();if root then root.CFrame=self.Lower end;self:Apply();self:UpdateCamera()end
   return true,v
  end
  function C:SetVisualAltitude(v)
   v=finite(v);if not v then return false,isES and"Escribe una altitud visual valida."or"Enter a valid visual altitude."end
-  self.VisualAltitude=v;if self.Running then self:Apply()end;return true,v
+  self.VisualAltitude=v;if self.Running then self:Apply();self:UpdateCamera()end;return true,v
  end
  function C:Start(distance,altitude)
   if self.Running then return true,self.Status end
@@ -107,10 +109,11 @@ return function(context)
    RunService.Heartbeat:Wait()
   until os.clock()>=teleportDeadline
   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-  local anchored,message=AnchorCore:SetTest(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
+  local anchored,message=AnchorCore:SetAncla(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
+  AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
   -- Despues del anclaje, coloca el cuerpo/emote y la camara en la referencia inicial.
-  AnchorCore.TestCheckpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply()
-  RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:Apply()end end)
+  AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply();self:UpdateCamera()
+  RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:UpdateCamera()end end)
   self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
   local function overGui(position)
    if UserInputService:GetFocusedTextBox()then return true end
@@ -133,7 +136,7 @@ return function(context)
  function C:Stop(restore)
   local was=self.Running;self.Running=false
   for _,connection in ipairs(self.Connections)do pcall(function()connection:Disconnect()end)end;table.clear(self.Connections)
-  self:RestoreVisual();self:SetCharacterCollisions(false);self:RestoreCamera();if AnchorCore and AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
+  self:RestoreVisual();self:SetCharacterCollisions(false);self:RestoreCamera();if AnchorCore then if AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(false)end;if AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(false)end;if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end end
   local origin=self.Origin;self.Origin=nil;self.Lower=nil
   if restore~=false and origin then local _,_,root=rig();if root then root.CFrame=origin;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end end
   self.Status=isES and"Test 1 desactivado; posicion restaurada."or"Test 1 disabled; position restored.";refresh();return was,self.Status
@@ -144,7 +147,7 @@ return function(context)
   if not C.Running or not C.Lower then return end
   task.defer(function()
    local root=character:WaitForChild("HumanoidRootPart",8);local humanoid=character:WaitForChild("Humanoid",8);if not C.Running or not root or not humanoid then return end
-   root.CFrame=C.Lower;if AnchorCore then AnchorCore.TestCheckpoint=C.Lower;if not AnchorCore.TestEnabled then AnchorCore:SetTest(true)end end;task.wait(.15);C:SetCharacterCollisions(true);C:Apply()
+   root.CFrame=C.Lower;if AnchorCore then if not AnchorCore.AnclaEnabled then AnchorCore:SetAncla(true)end;AnchorCore.Checkpoint=C.Lower;if not AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(true)end;if not AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(true)end end;task.wait(.15);C:SetCharacterCollisions(true);C:Apply();C:UpdateCamera()
   end)
  end)
  InverseVerticalController=C
