@@ -88,7 +88,7 @@ return function(context)
   if AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
   if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
   local camera=workspace.CurrentCamera
-  if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame end
+  if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame;camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
   self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,self.Distance,0);self:CaptureSelectedEmote();self.Running=true
   -- Primero desplaza el personaje completo hacia arriba.
   root.Anchored=false
@@ -96,13 +96,22 @@ return function(context)
   repeat
    if not self.Running or not root.Parent then return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
    root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+   if camera and self.SavedCameraCFrame then camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
    RunService.Heartbeat:Wait()
   until os.clock()>=teleportDeadline
   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-  local anchored,message=AnchorCore:SetAncla(true);if not anchored then self.Running=false;root.CFrame=self.Origin;return false,message end
+  local anchored,message=AnchorCore:SetAncla(true);if not anchored then self.Running=false;root.CFrame=self.Origin;self:RestoreCamera();return false,message end
   AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
   -- Despues del anclaje, desplaza visualmente cuerpo/emote hacia abajo hasta la referencia inicial.
-  AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply();self:UpdateCamera()
+  AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true)
+  -- Estabiliza primero el cuerpo/emote mientras la camara permanece congelada.
+  for _=1,8 do
+   self:Apply()
+   if camera and self.SavedCameraCFrame then camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
+   RunService.Heartbeat:Wait()
+  end
+  -- Solo despues conecta la perspectiva a la ubicacion visual.
+  self:CreateCamera();self:UpdateCamera()
   self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
   self.Status=isES and"Test 1 activo."or"Test 1 active.";refresh();return true,self.Status
  end
