@@ -49,25 +49,15 @@ return function(context)
   return true
  end
  function C:UpdateCamera()
-  if not self.Running then return end
-  local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not root then return end
-  local targetPos=root.Position+Vector3.new(0,-self.Distance+self.VisualAltitude+2,0)
-  local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
-  local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.CameraDistance))
-  camera.CameraType=Enum.CameraType.Scriptable
-  camera.CFrame=CFrame.lookAt(cameraPos,targetPos)
-  camera.Focus=CFrame.new(targetPos)
+  if not self.Running or not self.CameraAnchor or not self.CameraAnchor.Parent or not self.Origin then return end
+  self.CameraAnchor.CFrame=CFrame.new(self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0))*self.Origin.Rotation
  end
  function C:CreateCamera()
-  local camera=workspace.CurrentCamera;local _,_,root=rig();if not camera or not self.Origin or not root then return end
+  local camera=workspace.CurrentCamera;if not camera or not self.Origin then return end
   self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
-  local targetPos=root.Position+Vector3.new(0,-self.Distance+self.VisualAltitude+2,0)
-  local sourceFrame=self.SavedCameraCFrame or camera.CFrame
-  local offset=sourceFrame.Position-targetPos
-  self.CameraDistance=math.clamp(offset.Magnitude,2,500)
-  self.Yaw=math.atan2(offset.X,offset.Z)
-  self.Pitch=math.clamp(-math.asin(math.clamp(offset.Y/self.CameraDistance,-1,1)),math.rad(-80),math.rad(80))
-  camera.CameraType=Enum.CameraType.Scriptable
+  if self.CameraAnchor then self.CameraAnchor:Destroy()end
+  local anchor=Instance.new("Part");anchor.Name="InverseVerticalCameraAnchor";anchor.Size=Vector3.new(1,1,1);anchor.Transparency=1;anchor.Anchored=true;anchor.CanCollide=false;anchor.CanTouch=false;anchor.CanQuery=false;anchor.CFrame=CFrame.new(self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0))*self.Origin.Rotation;anchor.Parent=workspace
+  self.CameraAnchor=anchor;camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=anchor
  end
  function C:RestoreCamera()
   local camera=workspace.CurrentCamera
@@ -113,24 +103,7 @@ return function(context)
   AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
   -- Despues del anclaje, desplaza visualmente cuerpo/emote hacia abajo hasta la referencia inicial.
   AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true);self:CreateCamera();self:Apply();self:UpdateCamera()
-  RunService:BindToRenderStep("VexroInverseVerticalCamera",Enum.RenderPriority.Last.Value,function()if C.Running then C:UpdateCamera()end end)
   self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
-  local function overGui(position)
-   if UserInputService:GetFocusedTextBox()then return true end
-   local ok,objects=pcall(function()return playerGui:GetGuiObjectsAtPosition(position.X,position.Y)end);if not ok then return false end
-   for _,object in ipairs(objects)do local current=object;while current and current~=playerGui do if current:IsA("GuiButton")or current:IsA("TextBox")or current:IsA("ScrollingFrame")then return true end;current=current.Parent end end
-   return false
-  end
-  self.Connections[#self.Connections+1]=UserInputService.InputBegan:Connect(function(input)if C.Running and input.UserInputType==Enum.UserInputType.MouseButton2 and not overGui(input.Position)then C.Rotating=true;pcall(function()UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition end)end end)
-  self.Connections[#self.Connections+1]=UserInputService.InputEnded:Connect(function(input)if input.UserInputType==Enum.UserInputType.MouseButton2 then C.Rotating=false;pcall(function()UserInputService.MouseBehavior=Enum.MouseBehavior.Default end)end end)
-  self.Connections[#self.Connections+1]=UserInputService.InputChanged:Connect(function(input)
-   if not C.Running then return end
-   if C.Rotating and input.UserInputType==Enum.UserInputType.MouseMovement then C.Yaw-=input.Delta.X*.006;C.Pitch=math.clamp(C.Pitch-input.Delta.Y*.006,math.rad(-80),math.rad(80))end
-   if input.UserInputType==Enum.UserInputType.MouseWheel and not overGui(UserInputService:GetMouseLocation())then C.CameraDistance=math.clamp(C.CameraDistance-input.Position.Z*2,2,500)end
-  end)
-  self.Connections[#self.Connections+1]=UserInputService.TouchStarted:Connect(function(touch)if C.Running and not C.ActiveTouch and not overGui(touch.Position)then C.ActiveTouch=touch;C.LastTouch=touch.Position end end)
-  self.Connections[#self.Connections+1]=UserInputService.TouchMoved:Connect(function(touch)if C.Running and touch==C.ActiveTouch and C.LastTouch then local delta=touch.Position-C.LastTouch;C.LastTouch=touch.Position;C.Yaw-=delta.X*.007;C.Pitch=math.clamp(C.Pitch-delta.Y*.007,math.rad(-80),math.rad(80))end end)
-  self.Connections[#self.Connections+1]=UserInputService.TouchEnded:Connect(function(touch)if touch==C.ActiveTouch then C.ActiveTouch=nil;C.LastTouch=nil end end)
   self.Status=isES and"Test 1 activo."or"Test 1 active.";refresh();return true,self.Status
  end
  function C:Stop(restore)
