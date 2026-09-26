@@ -1,7 +1,7 @@
 -- Desplazamiento vertical persistente compatible con el emote seleccionado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
+	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualRenderConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -56,8 +56,16 @@ return function(context)
 		local joint=self.VisualJoint
 		if not joint or not joint.Parent or (joint.Part0~=root and joint.Part1~=root) then
 			self:RestoreVisualOffset()
-			for _,candidate in ipairs(character:GetDescendants())do
-				if candidate:IsA("Motor6D")and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+			joint=root:FindFirstChildWhichIsA("Motor6D")
+			if not joint then
+				for _,candidate in ipairs(character:GetDescendants())do
+					if candidate:IsA("Motor6D")and(candidate.Name=="RootJoint"or candidate.Name=="Root")and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+				end
+			end
+			if not joint then
+				for _,candidate in ipairs(character:GetDescendants())do
+					if candidate:IsA("Motor6D")and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+				end
 			end
 			if not joint then return false end
 			self.VisualJoint=joint
@@ -174,6 +182,12 @@ return function(context)
 				self:CaptureSelectedEmote()
 			end
 		end)
+		-- El Animator puede actualizar el rig despues del Heartbeat; reafirma el offset al final del frame.
+		self.VisualRenderConnection=RunService.RenderStepped:Connect(function()
+			if not self.Running then return end
+			local character,currentHumanoid,currentRoot=rig()
+			if character and currentHumanoid and currentHumanoid.Health>0 and currentRoot and self:IsAnchorHolding(currentRoot)then self:ApplyVisualOffset(character,currentRoot)end
+		end)
 		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
 		return true,self.Status
 	end
@@ -181,6 +195,7 @@ return function(context)
 		local wasRunning=self.Running
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
+		if self.VisualRenderConnection then self.VisualRenderConnection:Disconnect();self.VisualRenderConnection=nil end
 		self:RestoreVisualOffset()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
