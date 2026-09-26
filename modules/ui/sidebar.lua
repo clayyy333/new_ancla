@@ -281,7 +281,6 @@ return function(context)
 	local anchorLabels = {
 		{"anchor", isES and "Ancla" or "Anchor"},
 		{"anchor_auto", isES and "Ancla automática" or "Automatic Anchor"},
-		{"inverse_vertical_anchor", "Test 1"},
 	}
 	for index, item in ipairs(anchorLabels) do
 		local btn, stroke, gradient = CreateTextButton(
