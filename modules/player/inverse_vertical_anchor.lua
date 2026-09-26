@@ -1,137 +1,144 @@
--- Test 1: HRP fisico arriba, cuerpo visual y camara en la posicion inicial.
+-- Test 1 local: personaje fisico arriba y clon visual en la posicion inicial.
 return function(context)
  setfenv(1,context)
- local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,Lower=nil,Joint=nil,C0=nil,C1=nil,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,LastCameraAnchorPosition=nil,Yaw=0,Pitch=0,CameraDistance=12,Rotating=false,ActiveTouch=nil,LastTouch=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,SavedCollisions={},Connections={},Status=isES and "Test 1 desactivado."or"Test 1 disabled."}
+ local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,PhysicalPosition=nil,VisualClone=nil,CloneTrack=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,SavedCollisions={},SavedTransparency={},Connections={},SelectedEmoteId=nil,SelectedEmoteName=nil,Status=isES and"Test 1 desactivado."or"Test 1 disabled."}
  local function finite(v)v=tonumber(v);return v and v==v and math.abs(v)<math.huge and v or nil end
- local function rig()local c=player.Character;return c,c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")end
- local function refresh(m)C.Status=m or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
+ local function rig()local character=player.Character;return character,character and character:FindFirstChildOfClass("Humanoid"),character and character:FindFirstChild("HumanoidRootPart")end
+ local function refresh(message)C.Status=message or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
+ function C:IsRunning()return self.Running end
+ function C:GetDistance()return self.Distance end
+ function C:GetVisualAltitude()return self.VisualAltitude end
  function C:CaptureSelectedEmote()
   local selected=_genv().lastVexroEmote
   if type(selected)=="table"and selected.id then self.SelectedEmoteId=selected.id;self.SelectedEmoteName=selected.name or tostring(selected.id);return true end
   return self.SelectedEmoteId~=nil
  end
- function C:RestoreSelectedEmote()
-  self:CaptureSelectedEmote()
-  if not self.SelectedEmoteId or type(PlayEmote)~="function"then return false end
-  return pcall(function()PlayEmote(self.SelectedEmoteId,self.SelectedEmoteName or tostring(self.SelectedEmoteId),true)end)
- end
- function C:IsRunning()return self.Running end
- function C:GetDistance()return self.Distance end
- function C:GetVisualAltitude()return self.VisualAltitude end
  function C:SetCharacterCollisions(disabled)
   local character=player.Character
   if disabled then
    table.clear(self.SavedCollisions)
    if character then for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then self.SavedCollisions[part]=part.CanCollide;part.CanCollide=false end end end
   else
-   for part,canCollide in pairs(self.SavedCollisions)do if part.Parent then part.CanCollide=canCollide end end
+   for part,value in pairs(self.SavedCollisions)do if part.Parent then part.CanCollide=value end end
    table.clear(self.SavedCollisions)
   end
  end
- function C:RestoreVisual()
-  if self.Joint and self.Joint.Parent then if self.C0 then self.Joint.C0=self.C0 end;if self.C1 then self.Joint.C1=self.C1 end end
-  self.Joint=nil;self.C0=nil;self.C1=nil
- end
- function C:GetJoint(character,root)
-  if self.Joint and self.Joint.Parent and(self.Joint.Part0==root or self.Joint.Part1==root)then return self.Joint end
-  self:RestoreVisual()
-  for _,j in ipairs(character:GetDescendants())do
-   if j:IsA("Motor6D")and(j.Part0==root or j.Part1==root)then self.Joint=j;self.C0=j.C0;self.C1=j.C1;return j end
+ function C:SetOriginalVisible(visible)
+  local character=player.Character
+  if visible then
+   for part,value in pairs(self.SavedTransparency)do if part.Parent then part.LocalTransparencyModifier=value end end
+   table.clear(self.SavedTransparency)
+  elseif character then
+   table.clear(self.SavedTransparency)
+   for _,part in ipairs(character:GetDescendants())do
+    if part:IsA("BasePart")then self.SavedTransparency[part]=part.LocalTransparencyModifier;part.LocalTransparencyModifier=1 end
+   end
   end
  end
- function C:Apply()
-  if not self.Running or not self.Origin then return false end
-  local character,humanoid,root=rig();if not character or not humanoid or humanoid.Health<=0 or not root then return false end
-  local joint=self:GetJoint(character,root);if not joint then return false end
-  local shift=CFrame.new(0,-self.Distance+self.VisualAltitude,0)
-  if joint.Part0==root then joint.C0=self.C0*shift else joint.C1=self.C1*shift:Inverse()end
-  root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+ function C:DestroyClone()
+  if self.CloneTrack then pcall(function()self.CloneTrack:Stop(0)end);self.CloneTrack=nil end
+  if self.VisualClone then self.VisualClone:Destroy();self.VisualClone=nil end
+ end
+ function C:CreateClone(character)
+  self:DestroyClone()
+  local wasArchivable=character.Archivable;character.Archivable=true
+  local ok,clone=pcall(function()return character:Clone()end)
+  character.Archivable=wasArchivable
+  if not ok or not clone then return false end
+  clone.Name="VexroTest1Visual"
+  for _,object in ipairs(clone:GetDescendants())do
+   if object:IsA("Script")or object:IsA("LocalScript")or object:IsA("Tool")then object:Destroy()
+   elseif object:IsA("BasePart")then object.Anchored=(object.Name=="HumanoidRootPart");object.CanCollide=false;object.CanTouch=false;object.CanQuery=false;object.Massless=true;object.LocalTransparencyModifier=0 end
+  end
+  local cloneRoot=clone:FindFirstChild("HumanoidRootPart")
+  local cloneHumanoid=clone:FindFirstChildOfClass("Humanoid")
+  if not cloneRoot or not cloneHumanoid then clone:Destroy();return false end
+  cloneRoot.Transparency=1;cloneHumanoid.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None;cloneHumanoid.BreakJointsOnDeath=false
+  clone.Parent=workspace;clone:PivotTo(self.Origin*CFrame.new(0,self.VisualAltitude,0));self.VisualClone=clone
+  if self.SelectedEmoteId then
+   local animator=cloneHumanoid:FindFirstChildOfClass("Animator")or Instance.new("Animator",cloneHumanoid)
+   local animation=Instance.new("Animation");animation.AnimationId="rbxassetid://"..tostring(self.SelectedEmoteId):gsub("^rbxassetid://","")
+   local loaded,track=pcall(function()return animator:LoadAnimation(animation)end);animation:Destroy()
+   if loaded and track then track.Looped=true;track.Priority=Enum.AnimationPriority.Action4;track:Play(0.1);self.CloneTrack=track end
+  end
   return true
  end
- function C:UpdateCamera()
-  if not self.Running or not self.CameraAnchor or not self.CameraAnchor.Parent or not self.Origin then return end
-  self.CameraAnchor.CFrame=CFrame.new(self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0))*self.Origin.Rotation
+ function C:UpdateVisual()
+  if not self.Running or not self.Origin or not self.VisualClone or not self.VisualClone.Parent then return false end
+  self.VisualClone:PivotTo(self.Origin*CFrame.new(0,self.VisualAltitude,0))
+  if self.CloneTrack and not self.CloneTrack.IsPlaying then pcall(function()self.CloneTrack:Play(0.1)end)end
+  return true
  end
- function C:CreateCamera()
-  local camera=workspace.CurrentCamera;if not camera or not self.Origin then return end
-  self.SavedCameraType=self.SavedCameraType or camera.CameraType;self.SavedCameraSubject=self.SavedCameraSubject or camera.CameraSubject;self.SavedCameraCFrame=self.SavedCameraCFrame or camera.CFrame
-  if self.CameraAnchor then self.CameraAnchor:Destroy()end
-  local anchor=Instance.new("Part");anchor.Name="InverseVerticalCameraAnchor";anchor.Size=Vector3.new(1,1,1);anchor.Transparency=1;anchor.Anchored=true;anchor.CanCollide=false;anchor.CanTouch=false;anchor.CanQuery=false;anchor.CFrame=CFrame.new(self.Origin.Position+Vector3.new(0,self.VisualAltitude+2,0))*self.Origin.Rotation;anchor.Parent=workspace
-  self.CameraAnchor=anchor;camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=anchor
+ function C:AttachCamera()
+  local camera=workspace.CurrentCamera
+  local humanoid=self.VisualClone and self.VisualClone:FindFirstChildOfClass("Humanoid")
+  if not camera or not humanoid then return false end
+  camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=humanoid
+  return true
  end
  function C:RestoreCamera()
   local camera=workspace.CurrentCamera
-  if camera then camera.CameraType=self.SavedCameraType or Enum.CameraType.Custom;if self.SavedCameraSubject and self.SavedCameraSubject.Parent then camera.CameraSubject=self.SavedCameraSubject else local _,h=rig();if h then camera.CameraSubject=h end end end
-  if self.CameraAnchor then self.CameraAnchor:Destroy();self.CameraAnchor=nil end
-  RunService:UnbindFromRenderStep("VexroInverseVerticalCamera")
-  self.Rotating=false;self.ActiveTouch=nil;self.LastTouch=nil
-  pcall(function()UserInputService.MouseBehavior=Enum.MouseBehavior.Default end)
-  self.SavedCameraType=nil;self.SavedCameraSubject=nil;self.SavedCameraCFrame=nil;self.LastCameraAnchorPosition=nil
+  if camera then
+   camera.CameraType=self.SavedCameraType or Enum.CameraType.Custom
+   if self.SavedCameraSubject and self.SavedCameraSubject.Parent then camera.CameraSubject=self.SavedCameraSubject else local _,humanoid=rig();if humanoid then camera.CameraSubject=humanoid end end
+   if self.SavedCameraCFrame then camera.CFrame=self.SavedCameraCFrame end
+  end
+  self.SavedCameraType=nil;self.SavedCameraSubject=nil;self.SavedCameraCFrame=nil
  end
- function C:SetDistance(v)
-  v=finite(v);if not v or v<0 then return false,isES and"Escribe una distancia valida mayor o igual a 0."or"Enter a valid distance greater than or equal to 0."end
-  self.Distance=v
-  if self.Running and self.Origin then self.Lower=self.Origin*CFrame.new(0,v,0);if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=self.Lower end;local _,_,root=rig();if root then root.CFrame=self.Lower end;self:Apply();self:UpdateCamera()end
-  return true,v
+ function C:SetDistance(value)
+  value=finite(value);if not value or value<0 then return false,isES and"Escribe una distancia valida mayor o igual a 0."or"Enter a valid distance greater than or equal to 0."end
+  self.Distance=value
+  if self.Running and self.Origin then
+   self.PhysicalPosition=self.Origin*CFrame.new(0,value,0)
+   if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=self.PhysicalPosition end
+   local _,_,root=rig();if root then root.CFrame=self.PhysicalPosition end
+  end
+  return true,value
  end
- function C:SetVisualAltitude(v)
-  v=finite(v);if not v then return false,isES and"Escribe una altitud visual valida."or"Enter a valid visual altitude."end
-  self.VisualAltitude=v;if self.Running then self:Apply();self:UpdateCamera()end;return true,v
+ function C:SetVisualAltitude(value)
+  value=finite(value);if not value then return false,isES and"Escribe una altitud visual valida."or"Enter a valid visual altitude."end
+  self.VisualAltitude=value;if self.Running then self:UpdateVisual()end;return true,value
  end
  function C:Start(distance,altitude)
   if self.Running then return true,self.Status end
-  local ok,msg=self:SetDistance(distance);if not ok then return false,msg end;ok,msg=self:SetVisualAltitude(altitude);if not ok then return false,msg end
+  local ok,message=self:SetDistance(distance);if not ok then return false,message end
+  ok,message=self:SetVisualAltitude(altitude);if not ok then return false,message end
   local character,humanoid,root=rig();if not character or not humanoid or humanoid.Health<=0 or not root then return false,isES and"Tu personaje no esta disponible."or"Your character is unavailable."end
   if AutoAnchorCore and(AutoAnchorCore.Mode or AutoAnchorCore.Busy)then return false,isES and"Desactiva primero el Ancla automatica."or"Disable Automatic Anchor first."end
   if VerticalControlController and VerticalControlController:IsRunning()then VerticalControlController:Stop(true)end
   if not AnchorCore then return false,isES and"El controlador de Ancla no esta disponible."or"Anchor controller is unavailable."end
-  if AnchorCore.TestEnabled then AnchorCore:SetTest(false)end
-  if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
+  if AnchorCore.TestEnabled then AnchorCore:SetTest(false)end;if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end
   local camera=workspace.CurrentCamera
   if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame;camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
-  self.Origin=root.CFrame;self.Lower=self.Origin*CFrame.new(0,self.Distance,0);self:CaptureSelectedEmote();self.Running=true
-  -- Primero desplaza el personaje completo hacia arriba.
+  self.Origin=root.CFrame;self.PhysicalPosition=self.Origin*CFrame.new(0,self.Distance,0);self:CaptureSelectedEmote();self.Running=true
+  if not self:CreateClone(character)then self.Running=false;self:RestoreCamera();return false,isES and"No se pudo crear la imagen visual del personaje."or"The visual character could not be created."end
+  self:SetOriginalVisible(false);self:SetCharacterCollisions(true)
   root.Anchored=false
-  local teleportDeadline=os.clock()+.6
+  local deadline=os.clock()+0.35
   repeat
-   if not self.Running or not root.Parent then return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
-   root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+   if not self.Running or not root.Parent then self:Stop(false);return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
+   root.CFrame=self.PhysicalPosition;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
    if camera and self.SavedCameraCFrame then camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
    RunService.Heartbeat:Wait()
-  until os.clock()>=teleportDeadline
-  root.CFrame=self.Lower;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-  local anchored,message=AnchorCore:SetAncla(true);if not anchored then self.Running=false;root.CFrame=self.Origin;self:RestoreCamera();return false,message end
-  AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
-  -- Despues del anclaje, desplaza visualmente cuerpo/emote hacia abajo hasta la referencia inicial.
-  AnchorCore.Checkpoint=self.Lower;self:SetCharacterCollisions(true)
-  -- Estabiliza primero el cuerpo/emote mientras la camara permanece congelada.
-  for _=1,8 do
-   self:Apply()
-   if camera and self.SavedCameraCFrame then camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
-   RunService.Heartbeat:Wait()
-  end
-  -- Solo despues conecta la perspectiva a la ubicacion visual.
-  self:CreateCamera();self:UpdateCamera()
-  self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:Apply()end end)
-  self.Status=isES and"Test 1 activo."or"Test 1 active.";refresh();return true,self.Status
+  until os.clock()>=deadline
+  local anchored,anchorMessage=AnchorCore:SetAncla(true)
+  if not anchored then self:Stop(true);return false,anchorMessage end
+  AnchorCore.Checkpoint=self.PhysicalPosition;AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
+  self:UpdateVisual();self:AttachCamera()
+  self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:UpdateVisual()end end)
+  self.Status=isES and"Test 1 activo (visual local)."or"Test 1 active (local visual).";refresh();return true,self.Status
  end
  function C:Stop(restore)
-  local was=self.Running;self.Running=false
+  local wasRunning=self.Running;self.Running=false
   for _,connection in ipairs(self.Connections)do pcall(function()connection:Disconnect()end)end;table.clear(self.Connections)
-  self:RestoreVisual();self:SetCharacterCollisions(false);self:RestoreCamera();if AnchorCore then if AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(false)end;if AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(false)end;if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end end
-  local origin=self.Origin;self.Origin=nil;self.Lower=nil
+  self:SetOriginalVisible(true);self:SetCharacterCollisions(false);self:RestoreCamera();self:DestroyClone()
+  if AnchorCore then if AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(false)end;if AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(false)end;if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end end
+  local origin=self.Origin;self.Origin=nil;self.PhysicalPosition=nil
   if restore~=false and origin then local _,_,root=rig();if root then root.CFrame=origin;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end end
-  self.Status=isES and"Test 1 desactivado; posicion restaurada."or"Test 1 disabled; position restored.";refresh();return was,self.Status
+  self.Status=isES and"Test 1 desactivado; posicion restaurada."or"Test 1 disabled; position restored.";refresh();return wasRunning,self.Status
  end
- function C:Destroy()self:Stop(true);if self.Removing then self.Removing:Disconnect()end;if self.Added then self.Added:Disconnect()end end
- C.Removing=player.CharacterRemoving:Connect(function()if C.Running then C:RestoreVisual();table.clear(C.SavedCollisions)end end)
- C.Added=player.CharacterAdded:Connect(function(character)
-  if not C.Running or not C.Lower then return end
-  task.defer(function()
-   local root=character:WaitForChild("HumanoidRootPart",8);local humanoid=character:WaitForChild("Humanoid",8);if not C.Running or not root or not humanoid then return end
-   root.CFrame=C.Lower;if AnchorCore then if not AnchorCore.AnclaEnabled then AnchorCore:SetAncla(true)end;AnchorCore.Checkpoint=C.Lower;if not AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(true)end;if not AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(true)end end;task.wait(.15);C:SetCharacterCollisions(true);C:Apply();C:UpdateCamera()
-  end)
- end)
+ function C:Destroy()self:Stop(true);if self.Removing then self.Removing:Disconnect()end end
+ C.Removing=player.CharacterRemoving:Connect(function()if C.Running then C:Stop(false)end end)
  InverseVerticalController=C
  return true
 end
