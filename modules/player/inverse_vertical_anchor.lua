@@ -1,7 +1,7 @@
 -- Test 1 local: personaje fisico arriba y clon visual en la posicion inicial.
 return function(context)
  setfenv(1,context)
- local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,PhysicalPosition=nil,VisualClone=nil,CloneTrack=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,SavedCollisions={},SavedTransparency={},Connections={},SelectedEmoteId=nil,SelectedEmoteName=nil,Status=isES and"Test 1 desactivado."or"Test 1 disabled."}
+ local C={Running=false,Distance=100,VisualAltitude=0,Origin=nil,PhysicalPosition=nil,HoverAttachment=nil,HoverPosition=nil,HoverOrientation=nil,VisualClone=nil,CloneTrack=nil,SavedCameraType=nil,SavedCameraSubject=nil,SavedCameraCFrame=nil,SavedCollisions={},SavedTransparency={},Connections={},SelectedEmoteId=nil,SelectedEmoteName=nil,Status=isES and"Test 1 desactivado."or"Test 1 disabled."}
  local function finite(v)v=tonumber(v);return v and v==v and math.abs(v)<math.huge and v or nil end
  local function rig()local character=player.Character;return character,character and character:FindFirstChildOfClass("Humanoid"),character and character:FindFirstChild("HumanoidRootPart")end
  local function refresh(message)C.Status=message or C.Status;if UpdateInverseVerticalPanel then UpdateInverseVerticalPanel(C.Status)end end
@@ -38,6 +38,18 @@ return function(context)
  function C:DestroyClone()
   if self.CloneTrack then pcall(function()self.CloneTrack:Stop(0)end);self.CloneTrack=nil end
   if self.VisualClone then self.VisualClone:Destroy();self.VisualClone=nil end
+ end
+ function C:DestroyHover()
+  if self.HoverPosition then self.HoverPosition:Destroy();self.HoverPosition=nil end
+  if self.HoverOrientation then self.HoverOrientation:Destroy();self.HoverOrientation=nil end
+  if self.HoverAttachment then self.HoverAttachment:Destroy();self.HoverAttachment=nil end
+ end
+ function C:CreateHover(root,target)
+  self:DestroyHover()
+  local attachment=Instance.new("Attachment");attachment.Name="VexroTest1Hover";attachment.Parent=root
+  local position=Instance.new("AlignPosition");position.Name="VexroTest1HoverPosition";position.Mode=Enum.PositionAlignmentMode.OneAttachment;position.Attachment0=attachment;position.Position=target.Position;position.MaxForce=1000000000;position.MaxVelocity=math.huge;position.Responsiveness=200;position.RigidityEnabled=true;position.Parent=root
+  local orientation=Instance.new("AlignOrientation");orientation.Name="VexroTest1HoverOrientation";orientation.Mode=Enum.OrientationAlignmentMode.OneAttachment;orientation.Attachment0=attachment;orientation.CFrame=target.Rotation;orientation.MaxTorque=1000000000;orientation.MaxAngularVelocity=math.huge;orientation.Responsiveness=200;orientation.RigidityEnabled=true;orientation.Parent=root
+  self.HoverAttachment=attachment;self.HoverPosition=position;self.HoverOrientation=orientation
  end
  function C:CreateClone(character)
   self:DestroyClone()
@@ -111,27 +123,33 @@ return function(context)
   local camera=workspace.CurrentCamera
   if camera then self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject;self.SavedCameraCFrame=camera.CFrame;camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
   self.Origin=root.CFrame;self.PhysicalPosition=self.Origin*CFrame.new(0,self.Distance,0);self:CaptureSelectedEmote();self.Running=true
-  if not self:CreateClone(character)then self.Running=false;self:RestoreCamera();return false,isES and"No se pudo crear la imagen visual del personaje."or"The visual character could not be created."end
-  self:SetOriginalVisible(false);self:SetCharacterCollisions(true)
-  root.Anchored=false
-  local deadline=os.clock()+0.35
+  -- 1. Sube como un desplazamiento normal y sostenlo sin usar Anchored.
+  root.Anchored=false;self:CreateHover(root,self.PhysicalPosition)
+  local deadline=os.clock()+0.45
   repeat
    if not self.Running or not root.Parent then self:Stop(false);return false,isES and"Se interrumpio el desplazamiento."or"Displacement was interrupted."end
    root.CFrame=self.PhysicalPosition;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
    if camera and self.SavedCameraCFrame then camera.CameraType=Enum.CameraType.Scriptable;camera.CFrame=self.SavedCameraCFrame end
    RunService.Heartbeat:Wait()
   until os.clock()>=deadline
+  -- 2. Crea y reproduce primero la imagen/emote en la ubicacion inicial.
+  if not self:CreateClone(character)then self:Stop(true);return false,isES and"No se pudo crear la imagen visual del personaje."or"The visual character could not be created."end
+  self:SetOriginalVisible(false);self:SetCharacterCollisions(true);self:UpdateVisual();self:AttachCamera()
+  for _=1,8 do
+   if not self.Running then return false,self.Status end
+   self:UpdateVisual();RunService.Heartbeat:Wait()
+  end
+  -- 3. Solo cuando el resultado visual ya esta estable activa el ancla completa.
   local anchored,anchorMessage=AnchorCore:SetAncla(true)
   if not anchored then self:Stop(true);return false,anchorMessage end
-  AnchorCore.Checkpoint=self.PhysicalPosition;AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true)
-  self:UpdateVisual();self:AttachCamera()
+  AnchorCore.Checkpoint=self.PhysicalPosition;AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true);self:DestroyHover()
   self.Connections[#self.Connections+1]=RunService.Heartbeat:Connect(function()if C.Running then C:UpdateVisual()end end)
   self.Status=isES and"Test 1 activo (visual local)."or"Test 1 active (local visual).";refresh();return true,self.Status
  end
  function C:Stop(restore)
   local wasRunning=self.Running;self.Running=false
   for _,connection in ipairs(self.Connections)do pcall(function()connection:Disconnect()end)end;table.clear(self.Connections)
-  self:SetOriginalVisible(true);self:SetCharacterCollisions(false);self:RestoreCamera();self:DestroyClone()
+  self:SetOriginalVisible(true);self:SetCharacterCollisions(false);self:RestoreCamera();self:DestroyClone();self:DestroyHover()
   if AnchorCore then if AnchorCore.HeartbeatEnabled then AnchorCore:SetHeartbeat(false)end;if AnchorCore.AntiSeatEnabled then AnchorCore:SetAntiSeat(false)end;if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false)end end
   local origin=self.Origin;self.Origin=nil;self.PhysicalPosition=nil
   if restore~=false and origin then local _,_,root=rig();if root then root.CFrame=origin;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end end
