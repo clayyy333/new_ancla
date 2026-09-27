@@ -6,7 +6,7 @@ return function(context)
 	local connections={}
 	local alignPosition,alignAttachment
 	local testRoot,testRootWasAnchored,testAttachment,testPosition,testOrientation
-	local testRootConnections={},testImmediateGuard=false
+	local testRootConnections,testImmediateGuard={},false
 	local testCollisions={}
 	local spawn=Workspace:FindFirstChild("SpawnLocation_city")
 	local SafePos=spawn and spawn:FindFirstChild("SafePos")
