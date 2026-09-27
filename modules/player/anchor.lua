@@ -337,7 +337,8 @@ return function(context)
 		lockTestRoot(getRoot())
 		testAntiSeat()
 	end)
-	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
+	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)
+		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
 		local model=obj:FindFirstAncestorOfClass("Model")
 		if model and isTarget(model) then pcall(function() obj:Destroy() end) end
 	end)
