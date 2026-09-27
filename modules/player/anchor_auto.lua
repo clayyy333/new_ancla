@@ -7,6 +7,7 @@ return function(context)
 		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
 	end
 	local function enableAnchorSuite()
+		if AnchorCore.TestEnabled then AnchorCore:SetTest(false) end
 		local ok,err=AnchorCore:SetAncla(true)
 		if not ok then return false,err end
 		AnchorCore:SetAntiSeat(true)
