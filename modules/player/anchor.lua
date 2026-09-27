@@ -308,24 +308,34 @@ return function(context)
 			testAntiSeat()
 		end
 	end)
-	connections[#connections+1]=RunService.PreSimulation:Connect(function()
-		if not Core.TestEnabled or not Core.TestCheckpoint then return end
-		lockTestRoot(getRoot())
-		cleanAllPhysics()
-		testAntiSeat()
-	end)
+	do
+		local ok,signal=pcall(function() return RunService.PreSimulation end)
+		if ok and signal then
+			connections[#connections+1]=signal:Connect(function()
+				if not Core.TestEnabled or not Core.TestCheckpoint then return end
+				lockTestRoot(getRoot())
+				cleanAllPhysics()
+				testAntiSeat()
+			end)
+		end
+	end
 	connections[#connections+1]=RunService.Stepped:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
-	connections[#connections+1]=RunService.PostSimulation:Connect(function()
-		if not Core.TestEnabled or not Core.TestCheckpoint then return end
-		lockTestRoot(getRoot())
-		cleanAllPhysics()
-		testAntiSeat()
-	end)
+	do
+		local ok,signal=pcall(function() return RunService.PostSimulation end)
+		if ok and signal then
+			connections[#connections+1]=signal:Connect(function()
+				if not Core.TestEnabled or not Core.TestCheckpoint then return end
+				lockTestRoot(getRoot())
+				cleanAllPhysics()
+				testAntiSeat()
+			end)
+		end
+	end
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
