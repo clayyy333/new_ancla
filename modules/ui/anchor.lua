@@ -23,7 +23,7 @@ return function(context)
 	padding.Parent=card
 
 	local description=Instance.new("TextLabel")
-	description.Size=UDim2.new(1,0,0,30)
+	description.Size=UDim2.new(1,-132,0,30)
 	description.BackgroundTransparency=1
 	description.Text=isES and "Controles de estabilidad del personaje" or "Character stability controls"
 	description.TextColor3=currentTheme.textDim
@@ -33,6 +33,20 @@ return function(context)
 	description.ZIndex=8
 	description.Parent=card
 	RegisterTheme(description,"TextColor3","textDim")
+	local forceReturnButton=Instance.new("TextButton")
+	forceReturnButton.Size=UDim2.new(0,124,0,30)
+	forceReturnButton.Position=UDim2.new(1,-124,0,0)
+	forceReturnButton.BackgroundColor3=currentTheme.tertiary
+	forceReturnButton.TextColor3=currentTheme.text
+	forceReturnButton.Text=isES and "Forzar regreso" or "Force return"
+	forceReturnButton.Font=Enum.Font.GothamBold
+	forceReturnButton.TextSize=isMobile and 10 or 12
+	forceReturnButton.AutoButtonColor=false
+	forceReturnButton.ZIndex=8
+	forceReturnButton.Parent=card
+	Instance.new("UICorner",forceReturnButton).CornerRadius=UDim.new(0,9)
+	RegisterTheme(forceReturnButton,"BackgroundColor3","tertiary")
+	RegisterTheme(forceReturnButton,"TextColor3","text")
 
 	local function makeButton(y)
 		local button=Instance.new("TextButton")
@@ -94,6 +108,15 @@ return function(context)
 	testButton.MouseButton1Click:Connect(function()
 		local ok,err=AnchorCore:ToggleTest()
 		UpdateAnchorPanel(ok and nil or err)
+	end)
+	forceReturnButton.MouseButton1Click:Connect(function()
+		if not AnchorForceReturn or AnchorForceReturn.Busy then return end
+		local ok,message=AnchorForceReturn:Force(2)
+		UpdateAnchorPanel(message)
+		forceReturnButton.BackgroundColor3=ok and currentTheme.accent or currentTheme.tertiary
+		task.delay(0.4,function()
+			if forceReturnButton.Parent then forceReturnButton.BackgroundColor3=currentTheme.tertiary end
+		end)
 	end)
 	UpdateAnchorPanel()
 	return true
