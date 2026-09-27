@@ -74,7 +74,7 @@ return function(context)
 			end
 		end
 	end
-	local function
+	local function suppressTestCollisions()
 		local character=player.Character
 		if not character then return end
 		for _,part in ipairs(character:GetDescendants()) do
@@ -84,7 +84,7 @@ return function(context)
 			end
 		end
 	end
-	local function
+	local function restoreTestCollisions()
 		for part,value in pairs(testCollisions) do
 			if part and part.Parent then pcall(function() part.CanCollide=value end) end
 		end
