@@ -5,7 +5,9 @@ return function(context)
 	local Core={AnclaEnabled=false,AntiSeatEnabled=false,HeartbeatEnabled=false,TestEnabled=false,Checkpoint=nil,TestCheckpoint=nil,GuardianEnabled=false}
 	local connections={}
 	local alignPosition,alignAttachment
-	local testRoot,testRootWasAnchored
+	local testRoot,testRootWasAnchored,testAttachment,testPosition,testOrientation
+	local testRootConnections={},testImmediateGuard=false
+	local testCollisions={}
 	local spawn=Workspace:FindFirstChild("SpawnLocation_city")
 	local SafePos=spawn and spawn:FindFirstChild("SafePos")
 	local ExceptionTrigger=spawn and spawn:FindFirstChild("ExceptionTrigger")
@@ -19,6 +21,75 @@ return function(context)
 		local character=player.Character
 		return character and character:FindFirstChild("HumanoidRootPart")
 	end
+	local function belongsToCharacter(instance,character)
+		return instance and character and instance:IsDescendantOf(character)
+	end
+	local function externalLinkTouchesCharacter(link,character)
+		if link:IsA("JointInstance") then
+			local a,b=link.Part0,link.Part1
+			return (belongsToCharacter(a,character) or belongsToCharacter(b,character))
+				and not (belongsToCharacter(a,character) and belongsToCharacter(b,character))
+		end
+		if link:IsA("Constraint") then
+			local a0,a1=link.Attachment0,link.Attachment1
+			return (belongsToCharacter(a0,character) or belongsToCharacter(a1,character))
+				and not (belongsToCharacter(a0,character) and belongsToCharacter(a1,character))
+		end
+		return false
+	end
+	local function removeExternalTestLinks(scanWorkspace)
+		local character=player.Character
+		if not character then return end
+		local humanoid=character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.Sit=false
+			humanoid.PlatformStand=false
+			pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false) end)
+			local state=humanoid:GetState()
+			if state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Physics
+				or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+		end
+		for _,part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				for _,joint in ipairs(part:GetJoints()) do
+					if joint.Name=="SeatWeld" or externalLinkTouchesCharacter(joint,character) then
+						pcall(function() joint:Destroy() end)
+					end
+				end
+			end
+		end
+		if scanWorkspace then
+			for _,link in ipairs(Workspace:GetDescendants()) do
+				if link.Name=="SeatWeld" then
+					local p0=link:IsA("JointInstance") and link.Part0
+					local p1=link:IsA("JointInstance") and link.Part1
+					if belongsToCharacter(p0,character) or belongsToCharacter(p1,character) then
+						pcall(function() link:Destroy() end)
+					end
+				elseif externalLinkTouchesCharacter(link,character) then
+					pcall(function() link:Destroy() end)
+				end
+			end
+		end
+	end
+	local function suppressTestCollisions()
+		local character=player.Character
+		if not character then return end
+		for _,part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				if testCollisions[part]==nil then testCollisions[part]=part.CanCollide end
+				part.CanCollide=false
+			end
+		end
+	end
+	local function restoreTestCollisions()
+		for part,value in pairs(testCollisions) do
+			if part and part.Parent then pcall(function() part.CanCollide=value end) end
+		end
+		table.clear(testCollisions)
+	end
 	local function cleanAllPhysics()
 		local character=player.Character
 		if not character then return end
@@ -31,12 +102,70 @@ return function(context)
 			end
 		end
 	end
+	local function destroyTestForces()
+		if testPosition then pcall(function() testPosition:Destroy() end); testPosition=nil end
+		if testOrientation then pcall(function() testOrientation:Destroy() end); testOrientation=nil end
+		if testAttachment then pcall(function() testAttachment:Destroy() end); testAttachment=nil end
+	end
+	local function createTestForces(root)
+		destroyTestForces()
+		testAttachment=Instance.new("Attachment")
+		testAttachment.Name="AnclaTestAttachment"
+		testAttachment.Parent=root
+		testPosition=Instance.new("AlignPosition")
+		testPosition.Name="AnclaTestPosition"
+		testPosition.Mode=Enum.PositionAlignmentMode.OneAttachment
+		testPosition.Attachment0=testAttachment
+		testPosition.Position=Core.TestCheckpoint.Position
+		testPosition.MaxForce=1e12
+		testPosition.MaxVelocity=math.huge
+		testPosition.Responsiveness=200
+		testPosition.RigidityEnabled=true
+		testPosition.ApplyAtCenterOfMass=true
+		testPosition.Parent=root
+		testOrientation=Instance.new("AlignOrientation")
+		testOrientation.Name="AnclaTestOrientation"
+		testOrientation.Mode=Enum.OrientationAlignmentMode.OneAttachment
+		testOrientation.Attachment0=testAttachment
+		testOrientation.CFrame=Core.TestCheckpoint.Rotation
+		testOrientation.MaxTorque=1e12
+		testOrientation.MaxAngularVelocity=math.huge
+		testOrientation.Responsiveness=200
+		testOrientation.RigidityEnabled=true
+		testOrientation.Parent=root
+	end
+	local function disconnectTestRootWatch()
+		for _,connection in ipairs(testRootConnections) do
+			pcall(function() connection:Disconnect() end)
+		end
+		table.clear(testRootConnections)
+	end
+	local function bindTestRootWatch(root)
+		disconnectTestRootWatch()
+		local function correctImmediately()
+			if testImmediateGuard or not Core.TestEnabled or not Core.TestCheckpoint or testRoot~=root or not root.Parent then return end
+			testImmediateGuard=true
+			root.Anchored=true
+			root.CFrame=Core.TestCheckpoint
+			root.AssemblyLinearVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
+			root.Velocity=Vector3.zero
+			root.RotVelocity=Vector3.zero
+			testImmediateGuard=false
+		end
+		testRootConnections[#testRootConnections+1]=root:GetPropertyChangedSignal("Anchored"):Connect(correctImmediately)
+		testRootConnections[#testRootConnections+1]=root:GetPropertyChangedSignal("CFrame"):Connect(correctImmediately)
+		testRootConnections[#testRootConnections+1]=root:GetPropertyChangedSignal("AssemblyLinearVelocity"):Connect(correctImmediately)
+		testRootConnections[#testRootConnections+1]=root:GetPropertyChangedSignal("AssemblyAngularVelocity"):Connect(correctImmediately)
+	end
 	local function lockTestRoot(root)
 		if not root then return end
 		if testRoot~=root then
 			if testRoot and testRoot.Parent then testRoot.Anchored=testRootWasAnchored==true end
 			testRoot=root
 			testRootWasAnchored=root.Anchored
+		createTestForces(root)
+		bindTestRootWatch(root)
 		end
 		root.Anchored=true
 		if Core.TestCheckpoint then root.CFrame=Core.TestCheckpoint end
@@ -46,6 +175,8 @@ return function(context)
 		root.RotVelocity=Vector3.zero
 	end
 	local function unlockTestRoot()
+		destroyTestForces()
+		disconnectTestRootWatch()
 		if testRoot and testRoot.Parent then
 			testRoot.Anchored=testRootWasAnchored==true
 			testRoot.AssemblyLinearVelocity=Vector3.zero
@@ -136,14 +267,16 @@ return function(context)
 			if self.HeartbeatEnabled then self:SetHeartbeat(false) end
 			self.TestCheckpoint=root.CFrame
 			self.TestEnabled=true
-			createAlignPosition(root)
 			lockTestRoot(root)
 			testAntiSeat()
+			removeExternalTestLinks(true)
+			suppressTestCollisions()
 			cleanAllPhysics()
 		else
 			self.TestEnabled=false
-			destroyAlignPosition()
+
 			unlockTestRoot()
+			restoreTestCollisions()
 			local character=player.Character
 			local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 			if humanoid then pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end) end
@@ -160,6 +293,7 @@ return function(context)
 		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.TestEnabled,self.GuardianEnabled=false,false,false,false,false
 		destroyAlignPosition()
 		unlockTestRoot()
+		restoreTestCollisions()
 		self.TestCheckpoint=nil
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -168,21 +302,46 @@ return function(context)
 		table.clear(connections)
 	end
 
+	connections[#connections+1]=player.CharacterAdded:Connect(function(character)
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		local root=character:WaitForChild("HumanoidRootPart",10)
+		if root and Core.TestEnabled then
+			lockTestRoot(root)
+			removeExternalTestLinks(true)
+			suppressTestCollisions()
+			cleanAllPhysics()
+			testAntiSeat()
+		end
+	end)
 	connections[#connections+1]=RunService.PreSimulation:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
+		removeExternalTestLinks(true)
+		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
 	connections[#connections+1]=RunService.Stepped:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
+		removeExternalTestLinks(false)
+		suppressTestCollisions()
+		cleanAllPhysics()
+		testAntiSeat()
+	end)
+	connections[#connections+1]=RunService.PostSimulation:Connect(function()
+		if not Core.TestEnabled or not Core.TestCheckpoint then return end
+		lockTestRoot(getRoot())
+		removeExternalTestLinks(true)
+		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
+		removeExternalTestLinks(false)
+		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
@@ -192,6 +351,13 @@ return function(context)
 		testAntiSeat()
 	end)
 	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)
+		if Core.TestEnabled then
+			local character=player.Character
+			if character and (obj.Name=="SeatWeld" or externalLinkTouchesCharacter(obj,character)) then
+				pcall(function() obj:Destroy() end)
+				return
+			end
+		end
 		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
 		local model=obj:FindFirstAncestorOfClass("Model")
 		if model and isTarget(model) then pcall(function() obj:Destroy() end) end
