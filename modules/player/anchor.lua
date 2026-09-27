@@ -74,7 +74,7 @@ return function(context)
 			end
 		end
 	end
-	local function suppressTestCollisions()
+	local function
 		local character=player.Character
 		if not character then return end
 		for _,part in ipairs(character:GetDescendants()) do
@@ -84,7 +84,7 @@ return function(context)
 			end
 		end
 	end
-	local function restoreTestCollisions()
+	local function
 		for part,value in pairs(testCollisions) do
 			if part and part.Parent then pcall(function() part.CanCollide=value end) end
 		end
@@ -145,7 +145,7 @@ return function(context)
 		local function correctImmediately()
 			if testImmediateGuard or not Core.TestEnabled or not Core.TestCheckpoint or testRoot~=root or not root.Parent then return end
 			testImmediateGuard=true
-			root.Anchored=true
+			root.Anchored=false
 			root.CFrame=Core.TestCheckpoint
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
@@ -164,7 +164,7 @@ return function(context)
 		createTestForces(root)
 		bindTestRootWatch(root)
 		end
-		root.Anchored=true
+		root.Anchored=false
 		if Core.TestCheckpoint then root.CFrame=Core.TestCheckpoint end
 		root.AssemblyLinearVelocity=Vector3.zero
 		root.AssemblyAngularVelocity=Vector3.zero
@@ -189,7 +189,11 @@ return function(context)
 		pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false) end)
 		humanoid.Sit=false
 		humanoid.PlatformStand=false
-		humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		local state=humanoid:GetState()
+		if state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Physics
+			or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
 	end
 	local function createAlignPosition(root)
 		if alignPosition then return end
@@ -266,14 +270,11 @@ return function(context)
 			self.TestEnabled=true
 			lockTestRoot(root)
 			testAntiSeat()
-			removeExternalTestLinks(true)
-			suppressTestCollisions()
 			cleanAllPhysics()
 		else
 			self.TestEnabled=false
 
 			unlockTestRoot()
-			restoreTestCollisions()
 			local character=player.Character
 			local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 			if humanoid then pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end) end
@@ -290,7 +291,6 @@ return function(context)
 		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.TestEnabled,self.GuardianEnabled=false,false,false,false,false
 		destroyAlignPosition()
 		unlockTestRoot()
-		restoreTestCollisions()
 		self.TestCheckpoint=nil
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -304,8 +304,6 @@ return function(context)
 		local root=character:WaitForChild("HumanoidRootPart",10)
 		if root and Core.TestEnabled then
 			lockTestRoot(root)
-			removeExternalTestLinks(false)
-			suppressTestCollisions()
 			cleanAllPhysics()
 			testAntiSeat()
 		end
@@ -313,30 +311,24 @@ return function(context)
 	connections[#connections+1]=RunService.PreSimulation:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
-		removeExternalTestLinks(false)
-		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
 	connections[#connections+1]=RunService.Stepped:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
-		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
 	connections[#connections+1]=RunService.PostSimulation:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
-		removeExternalTestLinks(false)
-		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()
 		if not Core.TestEnabled or not Core.TestCheckpoint then return end
 		lockTestRoot(getRoot())
-		suppressTestCollisions()
 		cleanAllPhysics()
 		testAntiSeat()
 	end)
@@ -345,15 +337,7 @@ return function(context)
 		lockTestRoot(getRoot())
 		testAntiSeat()
 	end)
-	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)
-		if Core.TestEnabled then
-			local character=player.Character
-			if character and (obj.Name=="SeatWeld" or externalLinkTouchesCharacter(obj,character)) then
-				pcall(function() obj:Destroy() end)
-				return
-			end
-		end
-		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
+	connections[#connections+1]=Workspace.DescendantAdded:Connect(function(obj)		if not (Core.AntiSeatEnabled or Core.TestEnabled) or obj.Name~="SeatWeld" then return end
 		local model=obj:FindFirstAncestorOfClass("Model")
 		if model and isTarget(model) then pcall(function() obj:Destroy() end) end
 	end)
