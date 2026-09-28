@@ -31,7 +31,7 @@ return function(context)
     local originalCanCollide=nil
     local pulseDirection=1
 
-    local C={Running=false}
+    local C={Running=false,SelectedTarget=nil}
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
     local function update(text)
@@ -146,6 +146,58 @@ return function(context)
         restoreCurrentPulse()
     end
 
+    function C:GetTargetOptions()
+        local result={}
+        for _,target in ipairs(PlayersService:GetPlayers()) do
+            if target~=LP then result[#result+1]=target end
+        end
+        return result
+    end
+
+    function C:SetTarget(target)
+        self.SelectedTarget=typeof(target)=="Instance"
+            and target:IsA("Player")
+            and target.Parent==PlayersService
+            and target
+            or nil
+        return self.SelectedTarget~=nil
+    end
+
+    function C:GetTarget()
+        return self.SelectedTarget
+    end
+
+    function C:TeleportToTarget()
+        local target=self.SelectedTarget
+        if not target or target.Parent~=PlayersService then
+            return false,isES and "Selecciona un jugador." or "Select a player."
+        end
+
+        local targetCharacter=target.Character
+        local targetHumanoid=targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
+        local targetRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
+        if (not targetRoot or not targetHumanoid or targetHumanoid.Health<=0) and TargetRootResolver then
+            targetRoot=TargetRootResolver:Resolve(target,1)
+        end
+        if not targetRoot or not targetRoot.Parent then
+            return false,isES and "No se encontró el HRP del jugador." or "The player's HRP was not found."
+        end
+
+        local root=getRoot()
+        if not root then
+            return false,isES and "Tu HRP no está disponible." or "Your HRP is unavailable."
+        end
+
+        restoreCurrentPulse()
+        root.AssemblyLinearVelocity=Vector3.zero
+        root.AssemblyAngularVelocity=Vector3.zero
+        root.CFrame=targetRoot.CFrame
+        root.AssemblyLinearVelocity=Vector3.zero
+        root.AssemblyAngularVelocity=Vector3.zero
+        update((isES and "TP realizado a " or "Teleported to ")..target.DisplayName)
+        return true
+    end
+
     function C:Start()
         if enabled then return true end
 
@@ -200,6 +252,12 @@ return function(context)
 
     connections[#connections+1]=LP.CharacterAdded:Connect(function()
         stop(true)
+    end)
+    connections[#connections+1]=PlayersService.PlayerRemoving:Connect(function(leaving)
+        if C.SelectedTarget==leaving then
+            C.SelectedTarget=nil
+            update(isES and "El jugador seleccionado salió." or "The selected player left.")
+        end
     end)
 
     ENV.__VR7_CONTACT_FLING_CLEANUP=cleanup
