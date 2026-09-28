@@ -272,12 +272,14 @@ return function(context)
 			if self.HeartbeatEnabled then self:SetHeartbeat(false) end
 			self.TestCheckpoint=root.CFrame
 			if AnchorTestSkateDelta then AnchorTestSkateDelta:Start() end
+			if AnchorTestAntiRam then AnchorTestAntiRam:Start() end
 			self.TestEnabled=true
 			lockTestRoot(root)
 			testAntiSeat()
 			cleanAllPhysics()
 		else
 			self.TestEnabled=false
+			if AnchorTestAntiRam then AnchorTestAntiRam:Stop() end
 			if AnchorTestSkateDelta then AnchorTestSkateDelta:Stop(true) end
 
 			unlockTestRoot()
@@ -297,6 +299,7 @@ return function(context)
 		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.TestEnabled,self.GuardianEnabled=false,false,false,false,false
 		destroyAlignPosition()
 		unlockTestRoot()
+		if AnchorTestAntiRam then AnchorTestAntiRam:Destroy() end
 		if AnchorTestSkateDelta then AnchorTestSkateDelta:Destroy() end
 		self.TestCheckpoint=nil
 		local character=player.Character

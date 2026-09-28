@@ -200,7 +200,9 @@ return function(context)
 	function Core:AllowsSeat(humanoid)
 		if not self.Enabled then return false end
 		local vehicle=getMine()
-		return vehicle~=nil
+		if not vehicle then return false end
+		if humanoid and humanoid.SeatPart then return humanoid.SeatPart:IsDescendantOf(vehicle) end
+		return true
 	end
 	function Core:IsAttachGraceActive() return self.Enabled and self.Busy end
 	function Core:Start()
