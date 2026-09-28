@@ -1,22 +1,12 @@
--- Fling pasivo mediante un accesorio físico independiente.
+-- Fling por contacto caminable.
+-- Pulso extremo dentro del mismo ciclo físico (Delta / Xeno).
 return function(context)
     setfenv(1,context)
 
-    local ANGULAR_FORCE=900000000
-    local HANDLE_OFFSET=Vector3.new(0,0,-2.25)
-    local SELF_RECOIL_LIMIT=120
-    local SELF_RECOIL_DELTA=35
-    local C={
-        Running=false,
-        SelectedAccessory=nil,
-        Handle=nil,
-        RestoreData=nil,
-        RuntimeInstances={},
-        PhysicsConnections={},
-        Connections={},
-        SafeRootVelocity=Vector3.zero,
-        FrameRootVelocity=Vector3.zero,
-    }
+    local PULSE_VELOCITY=Vector3.new(100000,100000,100000)
+    local RESTORE_THRESHOLD=1000
+    local RENDER_BIND_NAME="__VR7_CONTACT_FLING_RESTORE_"..tostring(player.UserId)
+    local C={Running=false,Destroyed=false,CycleRoot=nil,CycleVelocity=nil,PulseActive=false,OriginalCanCollide=nil,Connections={}}
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
     local function update(text)
@@ -24,208 +14,90 @@ return function(context)
         if UpdateContactFlingPanel then UpdateContactFlingPanel(C.Status) end
     end
 
-    local function disconnect(list)
-        for _,connection in ipairs(list) do pcall(function() connection:Disconnect() end) end
-        table.clear(list)
+    local function getRoot()
+        local character=player.Character
+        return character and character:FindFirstChild("HumanoidRootPart") or nil
     end
 
-    local function destroyRuntime()
-        for index=#C.RuntimeInstances,1,-1 do
-            local object=C.RuntimeInstances[index]
-            if object then pcall(function() object:Destroy() end) end
-            C.RuntimeInstances[index]=nil
-        end
-    end
-
-    local function findAccessory(character)
-        local bestAccessory,bestHandle,bestWeld,bestScore
-        for _,accessory in ipairs(character:GetChildren()) do
-            if accessory:IsA("Accessory") then
-                local handle=accessory:FindFirstChild("Handle")
-                local weld=handle and (handle:FindFirstChild("AccessoryWeld") or handle:FindFirstChildWhichIsA("Weld"))
-                if handle and handle:IsA("BasePart") and weld and weld:IsA("Weld") and weld.Part1 then
-                    local size=handle.Size
-                    local volume=size.X*size.Y*size.Z
-                    local score=volume+(weld.Name=="AccessoryWeld" and 1000 or 0)
-                    if not bestScore or score>bestScore then
-                        bestAccessory,bestHandle,bestWeld,bestScore=accessory,handle,weld,score
-                    end
-                end
-            end
-        end
-        return bestAccessory,bestHandle,bestWeld
-    end
-
-    function C:_ReleaseAccessory()
-        disconnect(self.PhysicsConnections)
-        local handle=self.Handle
-        local data=self.RestoreData
-        if handle and handle.Parent then
+    function C:_RestorePulse()
+        if not self.PulseActive then return end
+        local root=self.CycleRoot
+        local oldVelocity=self.CycleVelocity
+        self.PulseActive=false
+        self.CycleRoot=nil
+        self.CycleVelocity=nil
+        if root and root.Parent and oldVelocity then
             pcall(function()
-                handle.AssemblyLinearVelocity=Vector3.zero
-                handle.AssemblyAngularVelocity=Vector3.zero
+                if root.Velocity.Magnitude>RESTORE_THRESHOLD then root.Velocity=oldVelocity end
             end)
         end
-        destroyRuntime()
-        if handle and handle.Parent and data then
-            pcall(function()
-                handle.CanCollide=data.CanCollide
-                handle.CanTouch=data.CanTouch
-                handle.CanQuery=data.CanQuery
-                handle.Massless=data.Massless
-                handle.CustomPhysicalProperties=data.CustomPhysicalProperties
-                handle.LocalTransparencyModifier=data.LocalTransparencyModifier
-                handle.CFrame=data.CFrame
-            end)
-            if data.Weld and data.Weld.Parent then
-                pcall(function()
-                    data.Weld.Part0=data.Part0
-                    data.Weld.Part1=data.Part1
-                    data.Weld.C0=data.C0
-                    data.Weld.C1=data.C1
-                end)
-            end
-        end
-        self.SelectedAccessory=nil
-        self.Handle=nil
-        self.RestoreData=nil
-        self.SafeRootVelocity=Vector3.zero
-        self.FrameRootVelocity=Vector3.zero
     end
 
-    function C:_PrepareCharacter(character)
-        self:_ReleaseAccessory()
-        if not self.Running or not character then return false end
-        local root=character:FindFirstChild("HumanoidRootPart")
-        local humanoid=character:FindFirstChildOfClass("Humanoid")
-        if not root or not humanoid or humanoid.Health<=0 then return false end
-
-        local accessory,handle,weld=findAccessory(character)
-        if not accessory then
-            update(isES and "No se encontró un accesorio clásico compatible con Handle." or "No compatible classic accessory with a Handle was found.")
-            return false
-        end
-
-        self.SelectedAccessory=accessory
-        self.Handle=handle
-        self.RestoreData={
-            Weld=weld,Part0=weld.Part0,Part1=weld.Part1,C0=weld.C0,C1=weld.C1,
-            CanCollide=handle.CanCollide,CanTouch=handle.CanTouch,CanQuery=handle.CanQuery,
-            Massless=handle.Massless,CustomPhysicalProperties=handle.CustomPhysicalProperties,
-            LocalTransparencyModifier=handle.LocalTransparencyModifier,CFrame=handle.CFrame,
-        }
-
-        weld.Part1=nil
-        handle.CanCollide=true
-        handle.CanTouch=true
-        handle.CanQuery=false
-        handle.Massless=false
-        handle.LocalTransparencyModifier=1
-        handle.CustomPhysicalProperties=PhysicalProperties.new(100,0,0,100,100)
-        handle.CFrame=root.CFrame*CFrame.new(HANDLE_OFFSET)
-
-        local handleAttachment=Instance.new("Attachment")
-        handleAttachment.Name="ContactFlingHandleAttachment"
-        handleAttachment.Parent=handle
-        table.insert(self.RuntimeInstances,handleAttachment)
-
-        local angular=Instance.new("AngularVelocity")
-        angular.Name="ContactFlingAngularVelocity"
-        angular.Attachment0=handleAttachment
-        angular.RelativeTo=Enum.ActuatorRelativeTo.World
-        angular.AngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
-        angular.MaxTorque=math.huge
-        angular.ReactionTorqueEnabled=false
-        angular.Parent=handle
-        table.insert(self.RuntimeInstances,angular)
-
-        for _,part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and part~=handle then
-                local constraint=Instance.new("NoCollisionConstraint")
-                constraint.Name="ContactFlingNoCollision"
-                constraint.Part0=handle
-                constraint.Part1=part
-                constraint.Parent=handle
-                table.insert(self.RuntimeInstances,constraint)
-            end
-        end
-
-        self.SafeRootVelocity=root.AssemblyLinearVelocity
-        self.FrameRootVelocity=self.SafeRootVelocity
-
-        table.insert(self.PhysicsConnections,character.DescendantAdded:Connect(function(part)
-            if not self.Running or self.Handle~=handle or not part:IsA("BasePart") or part==handle then return end
-            local constraint=Instance.new("NoCollisionConstraint")
-            constraint.Name="ContactFlingNoCollision"
-            constraint.Part0=handle
-            constraint.Part1=part
-            constraint.Parent=handle
-            table.insert(self.RuntimeInstances,constraint)
-        end))
-        table.insert(self.PhysicsConnections,RunService.PreSimulation:Connect(function()
-            if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
-            self.FrameRootVelocity=root.AssemblyLinearVelocity
-            handle.CFrame=root.CFrame*CFrame.new(HANDLE_OFFSET)
-            handle.AssemblyLinearVelocity=root.AssemblyLinearVelocity+(root.CFrame.LookVector*90)
-            handle.AssemblyAngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
-        end))
-        table.insert(self.PhysicsConnections,RunService.Heartbeat:Connect(function()
-            if not self.Running or self.Handle~=handle or not handle.Parent or not root.Parent then return end
-            handle.AssemblyAngularVelocity=Vector3.new(ANGULAR_FORCE,ANGULAR_FORCE,ANGULAR_FORCE)
-        end))
-        table.insert(self.PhysicsConnections,RunService.PostSimulation:Connect(function()
-            if not self.Running or self.Handle~=handle or not root.Parent then return end
-            local velocity=root.AssemblyLinearVelocity
-            local recoil=(velocity-self.FrameRootVelocity).Magnitude
-            if recoil>SELF_RECOIL_DELTA or velocity.Magnitude>SELF_RECOIL_LIMIT then
-                root.AssemblyLinearVelocity=self.FrameRootVelocity
-                root.AssemblyAngularVelocity=Vector3.zero
-            else
-                self.SafeRootVelocity=velocity
-            end
-        end))
-
-        update((isES and "Activo con accesorio: " or "Active with accessory: ")..accessory.Name)
-        return true
+    function C:_OnPostSimulation()
+        if not self.Running then return end
+        self:_RestorePulse()
+        local root=getRoot()
+        if not root then return end
+        self.CycleRoot=root
+        self.CycleVelocity=root.Velocity
+        self.PulseActive=true
+        root.CanCollide=false
+        root.Velocity=PULSE_VELOCITY
     end
 
     function C:Start()
         if self.Running then return true end
-        local character=player.Character
-        if not character then return false,isES and "Tu personaje no está disponible." or "Your character is unavailable." end
-        self.Running=true
-        if not self:_PrepareCharacter(character) then
-            self.Running=false
-            self:_ReleaseAccessory()
-            return false,self.Status
+        local root=getRoot()
+        if not root then
+            local message=isES and "HumanoidRootPart no encontrado." or "HumanoidRootPart not found."
+            update(message)
+            return false,message
         end
+        self.OriginalCanCollide=root.CanCollide
+        self.Running=true
+        root.CanCollide=false
+        update(isES and "Fling por contacto activo" or "Contact Fling active")
         return true
     end
 
-    function C:Stop()
-        if not self.Running and not self.Handle then return end
+    function C:Stop(respawned)
         self.Running=false
-        self:_ReleaseAccessory()
-        update(isES and "Fling por contacto desactivado" or "Contact Fling disabled")
+        self:_RestorePulse()
+        local root=getRoot()
+        if root and self.OriginalCanCollide~=nil then
+            pcall(function() root.CanCollide=self.OriginalCanCollide end)
+        end
+        self.OriginalCanCollide=nil
+        if respawned then
+            update(isES and "Reaparición: vuelve a activar" or "Respawn: enable it again")
+        else
+            update(isES and "Fling por contacto desactivado" or "Contact Fling disabled")
+        end
     end
 
     function C:Destroy()
+        if self.Destroyed then return end
         self:Stop()
-        disconnect(self.Connections)
+        self.Destroyed=true
+        for _,connection in ipairs(self.Connections) do pcall(function() connection:Disconnect() end) end
+        table.clear(self.Connections)
+        pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
     end
 
-    table.insert(C.Connections,player.CharacterRemoving:Connect(function()
-        C:_ReleaseAccessory()
+    -- Respaldo independiente de los FPS: si el render se retrasó o no ocurrió,
+    -- retirar el pulso antes de que Roblox simule el siguiente ciclo físico.
+    -- Normalmente no hace nada porque RenderStepped ya restauró la velocidad.
+    table.insert(C.Connections,RunService.PreSimulation:Connect(function()
+        if C.Running then C:_RestorePulse() end
     end))
-    table.insert(C.Connections,player.CharacterAdded:Connect(function(character)
-        if not C.Running then return end
-        task.defer(function()
-            character:WaitForChild("HumanoidRootPart",5)
-            task.wait(1)
-            if C.Running then
-                if not C:_PrepareCharacter(character) then C.Running=false end
-            end
-        end)
+
+    table.insert(C.Connections,RunService.PostSimulation:Connect(function() C:_OnPostSimulation() end))
+    pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
+    RunService:BindToRenderStep(RENDER_BIND_NAME,100000,function()
+        if C.Running then C:_RestorePulse() end
+    end)
+    table.insert(C.Connections,player.CharacterAdded:Connect(function()
+        if C.Running then C:Stop(true) end
     end))
 
     ContactFlingController=C
