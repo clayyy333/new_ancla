@@ -21,16 +21,38 @@ return function(context)
 		local character=player.Character
 		return instance and character and instance:IsDescendantOf(character)
 	end
+	local function inVehicle(instance,vehicle)
+		return instance and vehicle and instance:IsDescendantOf(vehicle)
+	end
+	local function isCharacterVehicleLink(item,vehicle)
+		if item:IsA("JointInstance") then
+			return (inCharacter(item.Part0) and inVehicle(item.Part1,vehicle))
+				or (inCharacter(item.Part1) and inVehicle(item.Part0,vehicle))
+		end
+		if item:IsA("Constraint") then
+			local a0,a1=item.Attachment0,item.Attachment1
+			local p0,p1=a0 and a0.Parent,a1 and a1.Parent
+			return (inCharacter(p0) and inVehicle(p1,vehicle))
+				or (inCharacter(p1) and inVehicle(p0,vehicle))
+		end
+		return false
+	end
+	local function getOtherOwnedVehicle()
+		local cars=getCars()
+		if not cars then return nil end
+		for _,vehicle in ipairs(cars:GetChildren()) do
+			local owner=vehicle:FindFirstChild("VehicleOwner")
+			if owner and owner:IsA("ObjectValue") and owner.Value==player and vehicle.Name~=TARGET_NAME then return vehicle end
+		end
+	end
 	local function getValidLink(vehicle)
 		if not isMine(vehicle) then return nil end
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 		if humanoid and humanoid.SeatPart and humanoid.SeatPart:IsDescendantOf(vehicle) then return humanoid.SeatPart end
-		for _,item in ipairs(vehicle:GetDescendants()) do
-			if item:IsA("JointInstance") and (inCharacter(item.Part0) or inCharacter(item.Part1)) then return item end
-			if item:IsA("Constraint") then
-				local a0,a1=item.Attachment0,item.Attachment1
-				if (a0 and inCharacter(a0.Parent)) or (a1 and inCharacter(a1.Parent)) then return item end
+		for _,container in ipairs({vehicle,character}) do
+			for _,item in ipairs(container:GetDescendants()) do
+				if isCharacterVehicleLink(item,vehicle) then return item end
 			end
 		end
 	end
@@ -124,6 +146,19 @@ return function(context)
 	end
 	local function spawnPatin(generation)
 		if getMine() then return true end
+		local other=getOtherOwnedVehicle()
+		if other then
+			local _,scroll,err=initializeVehicleMenu()
+			if not scroll then return false,err or "No se pudo abrir Vehículos" end
+			local item=scroll:FindFirstChild(other.Name)
+			local removeButton=item and item:FindFirstChild("Button")
+			if not removeButton or not removeButton:IsA("GuiButton") then return false,"No apareció el botón del vehículo actual" end
+			showParents(removeButton); scrollTo(scroll,removeButton)
+			if not click(removeButton) then return false,"No se pudo retirar el vehículo actual" end
+			local deadline=os.clock()+SPAWN_TIMEOUT
+			while generation==Core.Generation and os.clock()<deadline and other.Parent do task.wait(0.03) end
+			if other.Parent then return false,"El servidor no retiró el vehículo actual" end
+		end
 		local ok,reason=togglePatin(generation)
 		if not ok then return false,reason end
 		if not waitForVehicle(true,generation) then return false,"spawn_no_confirmado" end
