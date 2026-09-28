@@ -179,17 +179,45 @@ return function(context)
         end
 
         local targetRoot=nil
-        if TargetRootResolver then
-            targetRoot=TargetRootResolver:Resolve(target,1)
+        local targetFrame=nil
+        local targetCharacter=target.Character or workspace:FindFirstChild(target.Name)
+
+        local function captureTargetFrame()
+            targetCharacter=target.Character or workspace:FindFirstChild(target.Name) or targetCharacter
+            if not targetCharacter or not targetCharacter.Parent then return end
+            local directRoot=targetCharacter:FindFirstChild("HumanoidRootPart")
+            if directRoot and directRoot:IsA("BasePart") then
+                targetRoot=directRoot
+                targetFrame=directRoot.CFrame
+                return
+            end
+            local anyPart=targetCharacter:FindFirstChildWhichIsA("BasePart",true)
+            if anyPart then
+                local ok,pivot=pcall(function() return targetCharacter:GetPivot() end)
+                if ok and typeof(pivot)=="CFrame" then targetFrame=pivot end
+            end
         end
-        if not targetRoot then
-            local targetCharacter=target.Character
-            local targetHumanoid=targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
-            local directRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-            if targetHumanoid and targetHumanoid.Health>0 then targetRoot=directRoot end
+
+        captureTargetFrame()
+        if targetFrame then
+            pcall(function() workspace:RequestStreamAroundAsync(targetFrame.Position,0.5) end)
         end
-        if not targetRoot or not targetRoot.Parent then
-            return false,isES and "No se encontró el HRP del jugador." or "The player's HRP was not found."
+        if not targetRoot and TargetRootResolver then
+            targetRoot=TargetRootResolver:Resolve(target,3)
+            if targetRoot and targetRoot.Parent then targetFrame=targetRoot.CFrame end
+        end
+        if not targetFrame then
+            local deadline=os.clock()+3
+            repeat
+                captureTargetFrame()
+                if targetFrame then
+                    pcall(function() workspace:RequestStreamAroundAsync(targetFrame.Position,0.5) end)
+                end
+                if not targetFrame then task.wait(0.1) end
+            until targetFrame or os.clock()>=deadline or target.Parent~=PlayersService
+        end
+        if not targetFrame then
+            return false,isES and "No se recibió la ubicación del jugador lejano." or "The distant player's position was not received."
         end
 
         local character=LP.Character
@@ -198,7 +226,6 @@ return function(context)
             return false,isES and "Tu HRP no está disponible." or "Your HRP is unavailable."
         end
 
-        local targetFrame=targetRoot.CFrame
         pcall(function()
             workspace:RequestStreamAroundAsync(targetFrame.Position,1)
         end)
