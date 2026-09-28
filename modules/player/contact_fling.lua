@@ -1,12 +1,32 @@
--- Fling por contacto caminable.
--- Pulso extremo dentro del mismo ciclo físico (Delta / Xeno).
+-- WALK FLING CLONE V3 integrado.
+-- Conserva literalmente el ciclo físico probado; usa la GUI principal.
 return function(context)
     setfenv(1,context)
 
-    local PULSE_VELOCITY=Vector3.new(100000,100000,100000)
-    local RESTORE_THRESHOLD=1000
-    local RENDER_BIND_NAME="__VR7_CONTACT_FLING_RESTORE_"..tostring(player.UserId)
-    local C={Running=false,Destroyed=false,CycleRoot=nil,CycleVelocity=nil,PulseActive=false,OriginalCanCollide=nil,Connections={}}
+    local PlayersService=game:GetService("Players")
+    local RunServiceDirect=game:GetService("RunService")
+    local LP=PlayersService.LocalPlayer
+    local ENV=getgenv()
+
+    -- Retirar cualquier copia previa, incluida la GUI de prueba independiente.
+    if ENV.__WF_V3_CLEANUP then pcall(ENV.__WF_V3_CLEANUP) end
+    if ENV.__WF_ADAPTIVE_CLEANUP then pcall(ENV.__WF_ADAPTIVE_CLEANUP) end
+    if ENV.__VR7_CONTACT_FLING_CLEANUP then
+        pcall(ENV.__VR7_CONTACT_FLING_CLEANUP)
+    end
+
+    local HUGE=Vector3.new(100000,100000,100000)
+    local BIND_NAME="__WF_V3_RESTORE"
+
+    local enabled=false
+    local destroyed=false
+    local connections={}
+    local cycleRoot=nil
+    local cycleVelocity=nil
+    local pulseActive=false
+    local originalCanCollide=nil
+
+    local C={Running=false}
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
     local function update(text)
@@ -15,59 +35,42 @@ return function(context)
     end
 
     local function getRoot()
-        local character=player.Character
-        return character and character:FindFirstChild("HumanoidRootPart") or nil
+        local character=LP.Character
+        if not character then return nil end
+        return character:FindFirstChild("HumanoidRootPart")
     end
 
-    function C:_RestorePulse()
-        if not self.PulseActive then return end
-        local root=self.CycleRoot
-        local oldVelocity=self.CycleVelocity
-        self.PulseActive=false
-        self.CycleRoot=nil
-        self.CycleVelocity=nil
-        if root and root.Parent and oldVelocity then
+    local function restoreCurrentPulse()
+        if not pulseActive then return end
+
+        local root=cycleRoot
+        local old=cycleVelocity
+        pulseActive=false
+        cycleRoot=nil
+        cycleVelocity=nil
+
+        if root and root.Parent and old then
             pcall(function()
-                if root.Velocity.Magnitude>RESTORE_THRESHOLD then root.Velocity=oldVelocity end
+                if root.Velocity.Magnitude>1000 then
+                    root.Velocity=old
+                end
             end)
         end
     end
 
-    function C:_OnPostSimulation()
-        if not self.Running then return end
-        self:_RestorePulse()
-        local root=getRoot()
-        if not root then return end
-        self.CycleRoot=root
-        self.CycleVelocity=root.Velocity
-        self.PulseActive=true
-        root.CanCollide=false
-        root.Velocity=PULSE_VELOCITY
-    end
+    local function stop(respawned)
+        enabled=false
+        C.Running=false
+        restoreCurrentPulse()
 
-    function C:Start()
-        if self.Running then return true end
         local root=getRoot()
-        if not root then
-            local message=isES and "HumanoidRootPart no encontrado." or "HumanoidRootPart not found."
-            update(message)
-            return false,message
+        if root and originalCanCollide~=nil then
+            pcall(function()
+                root.CanCollide=originalCanCollide
+            end)
         end
-        self.OriginalCanCollide=root.CanCollide
-        self.Running=true
-        root.CanCollide=false
-        update(isES and "Fling por contacto activo" or "Contact Fling active")
-        return true
-    end
+        originalCanCollide=nil
 
-    function C:Stop(respawned)
-        self.Running=false
-        self:_RestorePulse()
-        local root=getRoot()
-        if root and self.OriginalCanCollide~=nil then
-            pcall(function() root.CanCollide=self.OriginalCanCollide end)
-        end
-        self.OriginalCanCollide=nil
         if respawned then
             update(isES and "Reaparición: vuelve a activar" or "Respawn: enable it again")
         else
@@ -75,24 +78,85 @@ return function(context)
         end
     end
 
-    function C:Destroy()
-        if self.Destroyed then return end
-        self:Stop()
-        self.Destroyed=true
-        for _,connection in ipairs(self.Connections) do pcall(function() connection:Disconnect() end) end
-        table.clear(self.Connections)
-        pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
+    local function onPostSimulation()
+        if not enabled then return end
+
+        restoreCurrentPulse()
+
+        local root=getRoot()
+        if not root then return end
+
+        local physicalVelocity=root.Velocity
+        cycleRoot=root
+        cycleVelocity=physicalVelocity
+        pulseActive=true
+
+        root.CanCollide=false
+        root.Velocity=HUGE
     end
 
-    table.insert(C.Connections,RunService.PostSimulation:Connect(function() C:_OnPostSimulation() end))
-    pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
-    RunService:BindToRenderStep(RENDER_BIND_NAME,100000,function()
-        if C.Running then C:_RestorePulse() end
-    end)
-    table.insert(C.Connections,player.CharacterAdded:Connect(function()
-        if C.Running then C:Stop(true) end
-    end))
+    local function onRenderEnd()
+        if not enabled then return end
+        restoreCurrentPulse()
+    end
 
+    function C:Start()
+        if enabled then return true end
+
+        local root=getRoot()
+        if not root then
+            local message=isES and "HumanoidRootPart no encontrado." or "HumanoidRootPart not found."
+            update(message)
+            return false,message
+        end
+
+        originalCanCollide=root.CanCollide
+        enabled=true
+        self.Running=true
+        root.CanCollide=false
+        update(isES and "Fling por contacto activo" or "Contact Fling active")
+        return true
+    end
+
+    function C:Stop(respawned)
+        stop(respawned)
+    end
+
+    local function cleanup()
+        if destroyed then return end
+        stop(false)
+        destroyed=true
+
+        for _,connection in ipairs(connections) do
+            pcall(function() connection:Disconnect() end)
+        end
+        table.clear(connections)
+
+        pcall(function()
+            RunServiceDirect:UnbindFromRenderStep(BIND_NAME)
+        end)
+
+        if ENV.__VR7_CONTACT_FLING_CLEANUP==cleanup then
+            ENV.__VR7_CONTACT_FLING_CLEANUP=nil
+        end
+    end
+
+    function C:Destroy()
+        cleanup()
+    end
+
+    connections[#connections+1]=RunServiceDirect.PostSimulation:Connect(onPostSimulation)
+
+    pcall(function()
+        RunServiceDirect:UnbindFromRenderStep(BIND_NAME)
+    end)
+    RunServiceDirect:BindToRenderStep(BIND_NAME,100000,onRenderEnd)
+
+    connections[#connections+1]=LP.CharacterAdded:Connect(function()
+        stop(true)
+    end)
+
+    ENV.__VR7_CONTACT_FLING_CLEANUP=cleanup
     ContactFlingController=C
     return true
 end
