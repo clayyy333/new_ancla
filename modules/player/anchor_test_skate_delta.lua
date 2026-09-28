@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local TARGET_NAME="ltp2_car_57"
-	local WATCH_INTERVAL,SPAWN_TIMEOUT,GUI_TIMEOUT,LINK_TIMEOUT=0.04,1.5,6,2.2
+	local WATCH_INTERVAL,SPAWN_TIMEOUT,GUI_TIMEOUT=0.04,1.5,6
 	local Core={Enabled=false,Busy=false,Generation=0,LastPatin=nil,Failures=0,GraceUntil=0}
 	local function getCars() return workspace:FindFirstChild("Cars") end
 	local function isMine(vehicle)
@@ -126,7 +126,7 @@ return function(context)
 	end
 	local function togglePatin(generation)
 		if Core.Busy then return false,"busy" end
-		Core.Busy=true; Core.GraceUntil=os.clock()+LINK_TIMEOUT
+		Core.Busy=true
 		local button,scroll,err=initializeVehicleMenu()
 		if not button then Core.Busy=false; return false,err end
 		showParents(button); scrollTo(scroll,button)
@@ -162,7 +162,6 @@ return function(context)
 		local ok,reason=togglePatin(generation)
 		if not ok then return false,reason end
 		if not waitForVehicle(true,generation) then return false,"spawn_no_confirmado" end
-		Core.GraceUntil=os.clock()+LINK_TIMEOUT
 		return true
 	end
 	local function removePatin(generation)
@@ -183,25 +182,15 @@ return function(context)
 		Core.WorkerRunning=true
 		local generation=Core.Generation
 		task.spawn(function()
-			local missingLinkSince=nil
 			while Core.Enabled and generation==Core.Generation do
 				local vehicle=getMine()
 				if not vehicle then
-					Core.LastPatin=nil; missingLinkSince=nil
+					Core.LastPatin=nil
 					local ok,reason=spawnPatin(generation)
 					if not ok and reason~="busy" and reason~="cancelled" then Core.Failures+=1; task.wait(retryDelay()) end
-				elseif getValidLink(vehicle) then
-					Core.Failures=0; missingLinkSince=nil; task.wait(WATCH_INTERVAL)
-				elseif os.clock()<Core.GraceUntil then
-					task.wait(WATCH_INTERVAL)
 				else
-					missingLinkSince=missingLinkSince or os.clock()
-					if os.clock()-missingLinkSince>=0.30 then
-						local removed=removePatin(generation)
-						if removed then Core.LastPatin=nil; Core.GraceUntil=os.clock()+0.15
-						else Core.Failures+=1; task.wait(retryDelay()) end
-						missingLinkSince=nil
-					end
+					Core.Failures=0
+					task.wait(WATCH_INTERVAL)
 				end
 			end
 			Core.WorkerRunning=false
@@ -211,13 +200,12 @@ return function(context)
 	function Core:AllowsSeat(humanoid)
 		if not self.Enabled then return false end
 		local vehicle=getMine()
-		if humanoid and humanoid.SeatPart and vehicle and humanoid.SeatPart:IsDescendantOf(vehicle) then return true end
-		return vehicle~=nil and getValidLink(vehicle)~=nil
+		return vehicle~=nil
 	end
-	function Core:IsAttachGraceActive() return self.Enabled and os.clock()<self.GraceUntil end
+	function Core:IsAttachGraceActive() return self.Enabled and self.Busy end
 	function Core:Start()
 		if self.Enabled then return true end
-		self.Enabled=true; self.Generation+=1; self.Failures=0; self.GraceUntil=os.clock()+LINK_TIMEOUT
+		self.Enabled=true; self.Generation+=1; self.Failures=0
 		startWorker()
 		return true
 	end
@@ -226,7 +214,7 @@ return function(context)
 		local generation=self.Generation
 		while self.Busy do task.wait() end
 		if removeVehicle then removePatin(generation) end
-		self.LastPatin=nil; self.GraceUntil=0
+		self.LastPatin=nil
 		return true
 	end
 	function Core:Destroy() return self:Stop(false) end
