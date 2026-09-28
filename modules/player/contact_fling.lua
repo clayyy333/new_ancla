@@ -192,35 +192,52 @@ return function(context)
             return false,isES and "No se encontró el HRP del jugador." or "The player's HRP was not found."
         end
 
+        local character=LP.Character
         local root=getRoot()
-        if not root then
+        if not character or not root then
             return false,isES and "Tu HRP no está disponible." or "Your HRP is unavailable."
         end
+
+        local targetFrame=targetRoot.CFrame
+        pcall(function()
+            workspace:RequestStreamAroundAsync(targetFrame.Position,1)
+        end)
 
         teleporting=true
         restoreCurrentPulse()
         update(isES and "Forzando TP..." or "Forcing teleport...")
 
+        local moved=false
         local deadline=os.clock()+1
         while os.clock()<deadline do
-            if not root.Parent or target.Parent~=PlayersService then break end
+            if not character.Parent or not root.Parent or target.Parent~=PlayersService then break end
             local currentCharacter=target.Character
             local currentTargetRoot=currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
-            if currentTargetRoot and currentTargetRoot.Parent then targetRoot=currentTargetRoot end
+            if currentTargetRoot and currentTargetRoot.Parent then
+                targetRoot=currentTargetRoot
+                targetFrame=currentTargetRoot.CFrame
+            end
+
             root.AssemblyLinearVelocity=Vector3.zero
             root.AssemblyAngularVelocity=Vector3.zero
-            root.CFrame=targetRoot.CFrame
+            local ok=pcall(function() character:PivotTo(targetFrame) end)
+            if not ok then pcall(function() root.CFrame=targetFrame end) end
             root.AssemblyLinearVelocity=Vector3.zero
             root.AssemblyAngularVelocity=Vector3.zero
+            moved=true
             RunServiceDirect.Heartbeat:Wait()
         end
 
-        if root.Parent and targetRoot and targetRoot.Parent then
-            root.CFrame=targetRoot.CFrame
+        if character.Parent and root.Parent then
+            pcall(function() character:PivotTo(targetFrame) end)
             root.AssemblyLinearVelocity=Vector3.zero
             root.AssemblyAngularVelocity=Vector3.zero
         end
         teleporting=false
+
+        if not moved then
+            return false,isES and "No se pudo completar el TP." or "Teleport could not be completed."
+        end
         update((isES and "TP realizado a " or "Teleported to ")..target.DisplayName)
         return true
     end
