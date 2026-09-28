@@ -15,7 +15,7 @@ return function(context)
         pcall(ENV.__VR7_CONTACT_FLING_CLEANUP)
     end
 
-    local HUGE=Vector3.new(100000,100000,100000)
+    local PULSE_MAGNITUDE=500000
     local BIND_NAME="__WF_V3_RESTORE"
 
     local enabled=false
@@ -26,6 +26,7 @@ return function(context)
     local cycleAssemblyVelocity=nil
     local pulseActive=false
     local originalCanCollide=nil
+    local pulseDirection=1
 
     local C={Running=false}
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
@@ -102,9 +103,18 @@ return function(context)
         cycleAssemblyVelocity=physicalAssemblyVelocity
         pulseActive=true
 
+        -- Alternar X/Z produce impactos repetidos sin acumular siempre
+        -- desplazamiento propio en una sola dirección horizontal.
+        pulseDirection=-pulseDirection
+        local pulse=Vector3.new(
+            PULSE_MAGNITUDE*pulseDirection,
+            PULSE_MAGNITUDE,
+            PULSE_MAGNITUDE*pulseDirection
+        )
+
         root.CanCollide=false
-        root.Velocity=HUGE
-        root.AssemblyLinearVelocity=HUGE
+        root.Velocity=pulse
+        root.AssemblyLinearVelocity=pulse
     end
 
     local function onRenderEnd()
