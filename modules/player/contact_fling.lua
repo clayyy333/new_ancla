@@ -84,13 +84,6 @@ return function(context)
         pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
     end
 
-    -- Respaldo independiente de los FPS: si el render se retrasó o no ocurrió,
-    -- retirar el pulso antes de que Roblox simule el siguiente ciclo físico.
-    -- Normalmente no hace nada porque RenderStepped ya restauró la velocidad.
-    table.insert(C.Connections,RunService.PreSimulation:Connect(function()
-        if C.Running then C:_RestorePulse() end
-    end))
-
     table.insert(C.Connections,RunService.PostSimulation:Connect(function() C:_OnPostSimulation() end))
     pcall(function() RunService:UnbindFromRenderStep(RENDER_BIND_NAME) end)
     RunService:BindToRenderStep(RENDER_BIND_NAME,100000,function()
