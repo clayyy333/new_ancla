@@ -16,6 +16,7 @@ return function(context)
     end
 
     local PULSE_MAGNITUDE=500000
+    local ANGULAR_PULSE_MAGNITUDE=250000
     local BIND_NAME="__WF_V3_RESTORE"
 
     local enabled=false
@@ -24,6 +25,8 @@ return function(context)
     local cycleRoot=nil
     local cycleVelocity=nil
     local cycleAssemblyVelocity=nil
+    local cycleAngularVelocity=nil
+    local cycleAssemblyAngularVelocity=nil
     local pulseActive=false
     local originalCanCollide=nil
     local pulseDirection=1
@@ -48,18 +51,27 @@ return function(context)
         local root=cycleRoot
         local oldVelocity=cycleVelocity
         local oldAssemblyVelocity=cycleAssemblyVelocity
+        local oldAngularVelocity=cycleAngularVelocity
+        local oldAssemblyAngularVelocity=cycleAssemblyAngularVelocity
         pulseActive=false
         cycleRoot=nil
         cycleVelocity=nil
         cycleAssemblyVelocity=nil
+        cycleAngularVelocity=nil
+        cycleAssemblyAngularVelocity=nil
 
-        if root and root.Parent and oldVelocity and oldAssemblyVelocity then
+        if root and root.Parent and oldVelocity and oldAssemblyVelocity
+            and oldAngularVelocity and oldAssemblyAngularVelocity then
             pcall(function()
                 local stillExtreme=root.Velocity.Magnitude>1000
                     or root.AssemblyLinearVelocity.Magnitude>1000
+                    or root.RotVelocity.Magnitude>1000
+                    or root.AssemblyAngularVelocity.Magnitude>1000
                 if stillExtreme then
                     root.Velocity=oldVelocity
                     root.AssemblyLinearVelocity=oldAssemblyVelocity
+                    root.RotVelocity=oldAngularVelocity
+                    root.AssemblyAngularVelocity=oldAssemblyAngularVelocity
                 end
             end)
         end
@@ -98,9 +110,13 @@ return function(context)
         -- el HRP continúa afectando la assembly sin mover CFrames.
         local physicalVelocity=root.Velocity
         local physicalAssemblyVelocity=root.AssemblyLinearVelocity
+        local physicalAngularVelocity=root.RotVelocity
+        local physicalAssemblyAngularVelocity=root.AssemblyAngularVelocity
         cycleRoot=root
         cycleVelocity=physicalVelocity
         cycleAssemblyVelocity=physicalAssemblyVelocity
+        cycleAngularVelocity=physicalAngularVelocity
+        cycleAssemblyAngularVelocity=physicalAssemblyAngularVelocity
         pulseActive=true
 
         -- Alternar X/Z produce impactos repetidos sin acumular siempre
@@ -112,9 +128,17 @@ return function(context)
             PULSE_MAGNITUDE*pulseDirection
         )
 
+        local angularPulse=Vector3.new(
+            ANGULAR_PULSE_MAGNITUDE*pulseDirection,
+            ANGULAR_PULSE_MAGNITUDE,
+            -ANGULAR_PULSE_MAGNITUDE*pulseDirection
+        )
+
         root.CanCollide=false
         root.Velocity=pulse
         root.AssemblyLinearVelocity=pulse
+        root.RotVelocity=angularPulse
+        root.AssemblyAngularVelocity=angularPulse
     end
 
     local function onRenderEnd()
