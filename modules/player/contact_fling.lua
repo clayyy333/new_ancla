@@ -228,6 +228,11 @@ return function(context)
     function C:Start()
         if enabled then return true end
 
+        -- Cada activación comienza un ciclo físico completamente nuevo.
+        restoreCurrentPulse()
+        teleporting=false
+        pulseDirection=1
+
         local root=getRoot()
         if not root then
             local message=isES and "HumanoidRootPart no encontrado." or "HumanoidRootPart not found."
