@@ -186,6 +186,11 @@ return function(context)
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 		if not humanoid then return end
+		if AnchorTestSkateDelta and (AnchorTestSkateDelta:AllowsSeat(humanoid) or AnchorTestSkateDelta:IsAttachGraceActive()) then
+			pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end)
+			humanoid.PlatformStand=false
+			return
+		end
 		pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false) end)
 		humanoid.Sit=false
 		humanoid.PlatformStand=false
@@ -266,12 +271,14 @@ return function(context)
 			if self.AntiSeatEnabled then self:SetAntiSeat(false) end
 			if self.HeartbeatEnabled then self:SetHeartbeat(false) end
 			self.TestCheckpoint=root.CFrame
+			if AnchorTestSkateDelta then AnchorTestSkateDelta:Start() end
 			self.TestEnabled=true
 			lockTestRoot(root)
 			testAntiSeat()
 			cleanAllPhysics()
 		else
 			self.TestEnabled=false
+			if AnchorTestSkateDelta then AnchorTestSkateDelta:Stop(true) end
 
 			unlockTestRoot()
 			local character=player.Character
@@ -290,6 +297,7 @@ return function(context)
 		self.AnclaEnabled,self.AntiSeatEnabled,self.HeartbeatEnabled,self.TestEnabled,self.GuardianEnabled=false,false,false,false,false
 		destroyAlignPosition()
 		unlockTestRoot()
+		if AnchorTestSkateDelta then AnchorTestSkateDelta:Destroy() end
 		self.TestCheckpoint=nil
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
