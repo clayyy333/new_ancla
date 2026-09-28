@@ -83,7 +83,7 @@ return function(context)
     targetLayout.Padding=UDim.new(0,3)
     targetLayout.Parent=targetList
 
-    local teleportButton=makeButton(72,isES and "Forzar TP al HRP" or "Force TP to HRP",44)
+    local teleportButton=makeButton(72,isES and "Activar TP" or "Enable TP",44)
 
     local description=Instance.new("TextLabel")
     description.Size=UDim2.new(1,0,0,50)

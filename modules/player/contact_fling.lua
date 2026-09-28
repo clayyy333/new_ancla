@@ -30,6 +30,7 @@ return function(context)
     local pulseActive=false
     local originalCanCollide=nil
     local pulseDirection=1
+    local teleporting=false
 
     local C={Running=false,SelectedTarget=nil}
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
@@ -98,7 +99,7 @@ return function(context)
     end
 
     local function onPostSimulation()
-        if not enabled then return end
+        if not enabled or teleporting then return end
 
         restoreCurrentPulse()
 
@@ -168,16 +169,24 @@ return function(context)
     end
 
     function C:TeleportToTarget()
+        if teleporting then
+            return false,isES and "El TP ya está en curso." or "Teleport is already running."
+        end
+
         local target=self.SelectedTarget
         if not target or target.Parent~=PlayersService then
             return false,isES and "Selecciona un jugador." or "Select a player."
         end
 
-        local targetCharacter=target.Character
-        local targetHumanoid=targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
-        local targetRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
-        if (not targetRoot or not targetHumanoid or targetHumanoid.Health<=0) and TargetRootResolver then
+        local targetRoot=nil
+        if TargetRootResolver then
             targetRoot=TargetRootResolver:Resolve(target,1)
+        end
+        if not targetRoot then
+            local targetCharacter=target.Character
+            local targetHumanoid=targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
+            local directRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
+            if targetHumanoid and targetHumanoid.Health>0 then targetRoot=directRoot end
         end
         if not targetRoot or not targetRoot.Parent then
             return false,isES and "No se encontró el HRP del jugador." or "The player's HRP was not found."
@@ -188,12 +197,30 @@ return function(context)
             return false,isES and "Tu HRP no está disponible." or "Your HRP is unavailable."
         end
 
+        teleporting=true
         restoreCurrentPulse()
-        root.AssemblyLinearVelocity=Vector3.zero
-        root.AssemblyAngularVelocity=Vector3.zero
-        root.CFrame=targetRoot.CFrame
-        root.AssemblyLinearVelocity=Vector3.zero
-        root.AssemblyAngularVelocity=Vector3.zero
+        update(isES and "Forzando TP..." or "Forcing teleport...")
+
+        local deadline=os.clock()+1
+        while os.clock()<deadline do
+            if not root.Parent or target.Parent~=PlayersService then break end
+            local currentCharacter=target.Character
+            local currentTargetRoot=currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
+            if currentTargetRoot and currentTargetRoot.Parent then targetRoot=currentTargetRoot end
+            root.AssemblyLinearVelocity=Vector3.zero
+            root.AssemblyAngularVelocity=Vector3.zero
+            root.CFrame=targetRoot.CFrame
+            root.AssemblyLinearVelocity=Vector3.zero
+            root.AssemblyAngularVelocity=Vector3.zero
+            RunServiceDirect.Heartbeat:Wait()
+        end
+
+        if root.Parent and targetRoot and targetRoot.Parent then
+            root.CFrame=targetRoot.CFrame
+            root.AssemblyLinearVelocity=Vector3.zero
+            root.AssemblyAngularVelocity=Vector3.zero
+        end
+        teleporting=false
         update((isES and "TP realizado a " or "Teleported to ")..target.DisplayName)
         return true
     end
