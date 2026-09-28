@@ -23,6 +23,7 @@ return function(context)
     local connections={}
     local cycleRoot=nil
     local cycleVelocity=nil
+    local cycleAssemblyVelocity=nil
     local pulseActive=false
     local originalCanCollide=nil
 
@@ -44,15 +45,20 @@ return function(context)
         if not pulseActive then return end
 
         local root=cycleRoot
-        local old=cycleVelocity
+        local oldVelocity=cycleVelocity
+        local oldAssemblyVelocity=cycleAssemblyVelocity
         pulseActive=false
         cycleRoot=nil
         cycleVelocity=nil
+        cycleAssemblyVelocity=nil
 
-        if root and root.Parent and old then
+        if root and root.Parent and oldVelocity and oldAssemblyVelocity then
             pcall(function()
-                if root.Velocity.Magnitude>1000 then
-                    root.Velocity=old
+                local stillExtreme=root.Velocity.Magnitude>1000
+                    or root.AssemblyLinearVelocity.Magnitude>1000
+                if stillExtreme then
+                    root.Velocity=oldVelocity
+                    root.AssemblyLinearVelocity=oldAssemblyVelocity
                 end
             end)
         end
@@ -86,13 +92,19 @@ return function(context)
         local root=getRoot()
         if not root then return end
 
+        -- El HRP debe seguir siendo la raíz de la assembly del personaje.
+        -- Si Roblox expone otra raíz interna, escribir ambas propiedades sobre
+        -- el HRP continúa afectando la assembly sin mover CFrames.
         local physicalVelocity=root.Velocity
+        local physicalAssemblyVelocity=root.AssemblyLinearVelocity
         cycleRoot=root
         cycleVelocity=physicalVelocity
+        cycleAssemblyVelocity=physicalAssemblyVelocity
         pulseActive=true
 
         root.CanCollide=false
         root.Velocity=HUGE
+        root.AssemblyLinearVelocity=HUGE
     end
 
     local function onRenderEnd()
