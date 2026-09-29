@@ -111,11 +111,12 @@ return function(context)
 		local targetFrame,targetRoot=resolveTargetFrame(target)
 		if not targetFrame then return false,"El servidor no replicó la ubicación del jugador" end
 		local startingDistance=(root.Position-targetFrame.Position).Magnitude
+		local veryFar=startingDistance>2048
 		character:PivotTo(targetFrame)
 		root.AssemblyLinearVelocity=Vector3.zero
 		root.AssemblyAngularVelocity=Vector3.zero
-		pcall(function() Workspace:RequestStreamAroundAsync(targetFrame.Position,startingDistance>512 and 2 or 0.25) end)
-		local syncDeadline=os.clock()+(startingDistance>512 and 3 or 0.15)
+		pcall(function() Workspace:RequestStreamAroundAsync(targetFrame.Position,veryFar and 3 or (startingDistance>512 and 2 or 0.25)) end)
+		local syncDeadline=os.clock()+(veryFar and 10 or (startingDistance>512 and 3 or 0.15))
 		local lastStreamRequest=0
 		repeat
 			RunService.Heartbeat:Wait()
@@ -125,11 +126,11 @@ return function(context)
 				character:PivotTo(targetRoot.CFrame)
 				root.AssemblyLinearVelocity=Vector3.zero
 				root.AssemblyAngularVelocity=Vector3.zero
-				if os.clock()-lastStreamRequest>=0.35 then
+				if os.clock()-lastStreamRequest>=(veryFar and 0.2 or 0.35) then
 					lastStreamRequest=os.clock()
 					local streamPosition=targetRoot.Position
 					task.spawn(function()
-						pcall(function() Workspace:RequestStreamAroundAsync(streamPosition,0.5) end)
+						pcall(function() Workspace:RequestStreamAroundAsync(streamPosition,veryFar and 1 or 0.5) end)
 					end)
 				end
 			end
