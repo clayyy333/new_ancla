@@ -1,7 +1,7 @@
 -- Desplazamiento vertical persistente compatible con el emote seleccionado.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
+	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -56,21 +56,40 @@ return function(context)
 		local joint=self.VisualJoint
 		if not joint or not joint.Parent or (joint.Part0~=root and joint.Part1~=root) then
 			self:RestoreVisualOffset()
+			joint=root:FindFirstChild("RootJoint")
+			if not joint or not joint:IsA("Motor6D") then
+				joint=nil
+				for _,candidate in ipairs(character:GetDescendants())do
+					if candidate:IsA("Motor6D")and candidate.Name=="RootJoint"and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+				end
+			end
+			if not joint then
 			for _,candidate in ipairs(character:GetDescendants())do
 				if candidate:IsA("Motor6D")and(candidate.Part0==root or candidate.Part1==root)then joint=candidate;break end
+			end
 			end
 			if not joint then return false end
 			self.VisualJoint=joint
 			self.VisualC0=joint.C0
 			self.VisualC1=joint.C1
 		end
-		local shift=CFrame.new(0,self.Offset,0)
+		-- Convertimos el desplazamiento mundial a espacio local del HRP antes
+		-- de la rotacion base del RootJoint. En R15, aplicar el shift despues
+		-- de C0 puede transformar una bajada vertical en movimiento lateral.
+		local localOffset=root.CFrame:VectorToObjectSpace(Vector3.new(0,self.Offset,0))
+		local shift=CFrame.new(localOffset)
 		if joint.Part0==root then
-			joint.C0=self.VisualC0*shift
+			joint.C0=shift*self.VisualC0
 		else
-			joint.C1=self.VisualC1*shift:Inverse()
+			joint.C1=shift*self.VisualC1
 		end
 		return true
+	end
+	function Core:ReapplyVisualOffset()
+		if not self.Running then return end
+		local character,humanoid,root=rig()
+		if not character or not humanoid or humanoid.Health<=0 or not root then return end
+		if self:IsAnchorHolding(root) then self:ApplyVisualOffset(character,root) end
 	end
 	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
@@ -174,6 +193,9 @@ return function(context)
 				self:CaptureSelectedEmote()
 			end
 		end)
+		self.VisualConnection=RunService.RenderStepped:Connect(function()
+			self:ReapplyVisualOffset()
+		end)
 		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
 		return true,self.Status
 	end
@@ -181,6 +203,7 @@ return function(context)
 		local wasRunning=self.Running
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
+		if self.VisualConnection then self.VisualConnection:Disconnect();self.VisualConnection=nil end
 		self:RestoreVisualOffset()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
