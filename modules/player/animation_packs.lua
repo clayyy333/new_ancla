@@ -246,7 +246,7 @@ return function(context)
 		return true
 	end
 
-	function EquipAnimationPack(pack)
+	function EquipAnimationPack(pack,silent)
 		if not pack or not getAnimate() then return false end
 		local mapped=getPackStates(pack)
 		if not mapped then
@@ -265,14 +265,20 @@ return function(context)
 		end
 		if count==0 then return false end
 		lastVexroAnimationPack=pack
+		Settings.animationPackBundleId=tonumber(pack.bundleId)
+		SaveLocalData()
 		applySelection()
-		Notify(isES and "Paquete equipado" or "Pack equipped",pack.name or "")
+		if not silent then Notify(isES and "Paquete equipado" or "Pack equipped",pack.name or "") end
 		return true
 	end
 
 	function RemoveAnimationPacks(silent)
 		for _,state in ipairs(stateOrder) do selected[state]=nil end
 		lastVexroAnimationPack=nil
+		if not silent then
+			Settings.animationPackBundleId=nil
+			SaveLocalData()
+		end
 		applySelection()
 		if not silent then
 			Notify(isES and "Animaciones restauradas" or "Animations restored",
@@ -286,5 +292,19 @@ return function(context)
 		end
 	end
 
+	local savedBundleId=tonumber(Settings.animationPackBundleId)
+	if savedBundleId then
+		task.defer(function()
+			local savedPack=nil
+			for _,pack in ipairs(AnimationPacks or {}) do
+				if tonumber(pack.bundleId)==savedBundleId then savedPack=pack;break end
+			end
+			if not savedPack then return end
+			local character=player.Character or player.CharacterAdded:Wait()
+			if character and character:WaitForChild("Animate",5) then
+				EquipAnimationPack(savedPack,true)
+			end
+		end)
+	end
 	return true
 end
