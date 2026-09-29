@@ -238,6 +238,10 @@ return function(context)
 
 	shortDisplacementButton.Activated:Connect(function()
 		local enabled = not Fling2EfficientCore:IsShortDisplacementEnabled()
+		if enabled and not Fling2EfficientCore:GetTarget() then
+			UpdateFling2Panel(L.selectPlayerFirst)
+			return
+		end
 		Fling2EfficientCore:SetShortDisplacementEnabled(enabled)
 		UpdateFling2Panel(isES and (enabled and "Desplazamiento corto aplicado al Fling 2 eficiente." or "Desplazamiento normal restaurado.") or (enabled and "Short displacement applied to Efficient Fling 2." or "Normal displacement restored."))
 	end)
