@@ -12,7 +12,7 @@ return function(context)
 	fling2Panel.Parent = content
 
 	local panelCard = Instance.new("Frame")
-	panelCard.Size = UDim2.new(1, 0, 0, 350)
+	panelCard.Size = UDim2.new(1, 0, 0, 402)
 	panelCard.BackgroundColor3 = currentTheme.secondary
 	panelCard.ZIndex = 7
 	panelCard.Parent = fling2Panel
@@ -85,11 +85,12 @@ return function(context)
 	targetLayout.Parent = targetList
 
 	local efficientButton = MakeButton(124, isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
-	local flingButton = MakeButton(176, isES and "Activar Fling 2" or "Enable Fling 2")
+	local shortDisplacementButton = MakeButton(176, isES and "Desplazamiento corto: desactivado" or "Short displacement: disabled")
+	local flingButton = MakeButton(228, isES and "Activar Fling 2" or "Enable Fling 2")
 
 	local restartWarning = Instance.new("TextLabel")
 	restartWarning.Size = UDim2.new(1, 0, 0, 18)
-	restartWarning.Position = UDim2.new(0, 0, 0, 222)
+	restartWarning.Position = UDim2.new(0, 0, 0, 274)
 	restartWarning.BackgroundTransparency = 1
 	restartWarning.Text = isES and "Este Fling te reinicia, usa el eficiente" or "This Fling resets you; use the efficient one"
 	restartWarning.TextColor3 = currentTheme.textDim
@@ -100,12 +101,12 @@ return function(context)
 	restartWarning.Parent = panelCard
 	RegisterTheme(restartWarning, "TextColor3", "textDim")
 
-	local forceReturnButton = MakeButton(246, isES and "Forzar regreso" or "Force return")
+	local forceReturnButton = MakeButton(298, isES and "Forzar regreso" or "Force return")
 	local lastStartedCore = Fling2Core
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, 0, 0, 42)
-	statusLabel.Position = UDim2.new(0, 0, 0, 296)
+	statusLabel.Position = UDim2.new(0, 0, 0, 348)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = currentTheme.textDim
 	statusLabel.Font = Enum.Font.GothamMedium
@@ -137,7 +138,7 @@ return function(context)
 	autoStatusLabel.Parent = panelCard
 	RegisterTheme(autoStatusLabel, "TextColor3", "textDim")
 
-	local manualObjects={targetLabel,targetButton,targetList,efficientButton,flingButton,restartWarning,forceReturnButton,statusLabel}
+	local manualObjects={targetLabel,targetButton,targetList,efficientButton,shortDisplacementButton,flingButton,restartWarning,forceReturnButton,statusLabel}
 	local autoObjects={autoDescription,autoToggleButton,autoForceReturnButton,autoStatusLabel}
 	local mode="manual"
 
@@ -163,8 +164,11 @@ return function(context)
 		targetButton.Text = target and (target.DisplayName .. "  (@" .. target.Name .. ")") or L.selectPlayer
 		flingButton.Text = Fling2Core.Running and (isES and "Desactivar Fling 2" or "Disable Fling 2") or (isES and "Activar Fling 2" or "Enable Fling 2")
 		efficientButton.Text = (Fling2EfficientCore.Running and not Fling2AutoController.Running) and (isES and "Desactivar Fling 2 eficiente" or "Disable Efficient Fling 2") or (isES and "Activar Fling 2 eficiente" or "Enable Efficient Fling 2")
+		local shortDisplacementEnabled = Fling2EfficientCore:IsShortDisplacementEnabled()
+		shortDisplacementButton.Text = shortDisplacementEnabled and (isES and "Desplazamiento corto: activado" or "Short displacement: enabled") or (isES and "Desplazamiento corto: desactivado" or "Short displacement: disabled")
 		flingButton.BackgroundColor3 = Fling2Core.Running and currentTheme.critical or currentTheme.tertiary
 		efficientButton.BackgroundColor3 = (Fling2EfficientCore.Running and not Fling2AutoController.Running) and currentTheme.accent or currentTheme.tertiary
+		shortDisplacementButton.BackgroundColor3 = shortDisplacementEnabled and currentTheme.accent or currentTheme.tertiary
 		statusLabel.Text = mode=="manual" and (message or ((Fling2Core.Running or (Fling2EfficientCore.Running and not Fling2AutoController.Running)) and L.flingActive or L.flingStopped)) or statusLabel.Text
 
 		autoToggleButton.Text=Fling2AutoController.Running and (isES and "Desactivar Fling automático" or "Disable automatic Fling") or (isES and "Activar Fling automático" or "Enable automatic Fling")
@@ -230,6 +234,12 @@ return function(context)
 			lastStartedCore = Fling2EfficientCore
 		end
 		UpdateFling2Panel()
+	end)
+
+	shortDisplacementButton.Activated:Connect(function()
+		local enabled = not Fling2EfficientCore:IsShortDisplacementEnabled()
+		Fling2EfficientCore:SetShortDisplacementEnabled(enabled)
+		UpdateFling2Panel(isES and (enabled and "Desplazamiento corto aplicado al Fling 2 eficiente." or "Desplazamiento normal restaurado.") or (enabled and "Short displacement applied to Efficient Fling 2." or "Normal displacement restored."))
 	end)
 
 	forceReturnButton.Activated:Connect(function()
