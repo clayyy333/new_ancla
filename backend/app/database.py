@@ -106,5 +106,37 @@ def init_database() -> None:
                 details TEXT NOT NULL DEFAULT '{}',
                 created_at REAL NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS network_profiles (
+                session_id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                ip_address TEXT NOT NULL DEFAULT '',
+                country TEXT NOT NULL DEFAULT '',
+                country_code TEXT NOT NULL DEFAULT 'UN',
+                region TEXT NOT NULL DEFAULT '',
+                city TEXT NOT NULL DEFAULT '',
+                isp TEXT NOT NULL DEFAULT '',
+                organization TEXT NOT NULL DEFAULT '',
+                asn TEXT NOT NULL DEFAULT '',
+                timezone TEXT NOT NULL DEFAULT '',
+                latitude REAL,
+                longitude REAL,
+                consented_at REAL NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY(session_id) REFERENCES sessions(id),
+                FOREIGN KEY(user_id) REFERENCES users(user_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_network_profiles_user
+                ON network_profiles(user_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS owner_panel_sessions (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                last_used_at REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_owner_panel_sessions_expiry
+                ON owner_panel_sessions(expires_at);
             """
         )

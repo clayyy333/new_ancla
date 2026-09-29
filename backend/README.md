@@ -48,6 +48,8 @@ Instalar `requirements-dev.txt` y ejecutar:
 - `ADMIN_TOKEN`: acceso exclusivo al panel.
 - `CLIENT_INGEST_KEY`: credencial separada para los clientes Lua.
 - `DATABASE_PATH`: ubicación de SQLite.
+- `NETWORK_INFO_ALLOWED_PLACE_IDS`: lista de `PlaceId` autorizados, separados
+  por comas. Si queda vacia, los perfiles de red no se almacenan en ningun juego.
 - `SESSION_TIMEOUT_SECONDS`: tiempo para considerar una sesión desconectada.
 - `ANCHOR_OBSERVER_QUORUM`: observadores necesarios antes de crear una orden.
 - `TRUST_PROXY_COUNTRY_HEADER`: acepta `CF-IPCountry` o `X-Country-Code` únicamente cuando el proxy sea confiable.

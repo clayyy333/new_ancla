@@ -44,6 +44,22 @@ TRUST_PROXY_COUNTRY = os.getenv("TRUST_PROXY_COUNTRY_HEADER", "false").lower() =
 COUNTRY_PATTERN = re.compile(r"^[A-Z]{2}$")
 
 
+def env_place_ids(name: str) -> set[int]:
+    values: set[int] = set()
+    for raw in os.getenv(name, "").split(","):
+        candidate = raw.strip()
+        if candidate.isdigit():
+            values.add(int(candidate))
+    return values
+
+
+NETWORK_INFO_ALLOWED_PLACE_IDS = env_place_ids("NETWORK_INFO_ALLOWED_PLACE_IDS")
+OWNER_USER_ID = env_int("OWNER_USER_ID", 10909992869)
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "Thranduil553").strip().lower()
+OWNER_GAME_PLACE_ID = env_int("OWNER_GAME_PLACE_ID", 12985361032)
+OWNER_PANEL_SESSION_SECONDS = max(300, env_int("OWNER_PANEL_SESSION_SECONDS", 1800))
+
+
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -74,6 +90,20 @@ def row_dict(row):
     return dict(row) if row else None
 
 
+class NetworkInfo(BaseModel):
+    ip: str = Field(default="", max_length=64)
+    country: str = Field(default="", max_length=100)
+    country_code: str | None = Field(default=None, max_length=2)
+    region: str = Field(default="", max_length=120)
+    city: str = Field(default="", max_length=120)
+    isp: str = Field(default="", max_length=180)
+    organization: str = Field(default="", max_length=180)
+    asn: str = Field(default="", max_length=40)
+    timezone: str = Field(default="", max_length=80)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
 class SessionStart(BaseModel):
     user_id: int = Field(gt=0)
     username: str = Field(min_length=1, max_length=40)
@@ -84,6 +114,15 @@ class SessionStart(BaseModel):
     executor: str = Field(default="", max_length=60)
     script_version: str = Field(default="", max_length=40)
     country_code: str | None = Field(default=None, max_length=2)
+    analytics_consent: bool = False
+    network_info: NetworkInfo | None = None
+
+    @field_validator("network_info")
+    @classmethod
+    def network_info_requires_consent(cls, value, info):
+        if value is not None and not info.data.get("analytics_consent", False):
+            raise ValueError("network_info requires analytics_consent=true")
+        return value
 
 
 class Heartbeat(BaseModel):
@@ -98,6 +137,12 @@ class AnchorObservation(BaseModel):
 
 class CommandAck(BaseModel):
     result: Literal["returned", "already_stable", "anchor_disabled", "failed"]
+
+
+class OwnerLogin(BaseModel):
+    user_id: int = Field(gt=0)
+    username: str = Field(min_length=1, max_length=40)
+    key: str = Field(min_length=1, max_length=256)
 
 
 @asynccontextmanager
@@ -130,6 +175,28 @@ def require_admin(authorization: Annotated[str | None, Header()] = None) -> None
     supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
     if not supplied or not hmac.compare_digest(supplied, expected):
         raise HTTPException(401, "Invalid administrator token")
+
+
+def require_owner_panel(
+    authorization: Annotated[str | None, Header()] = None,
+):
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
+    if not supplied:
+        raise HTTPException(401, "Missing owner panel token")
+    timestamp = now()
+    with connection() as db:
+        session = db.execute(
+            """SELECT * FROM owner_panel_sessions
+               WHERE token_hash=? AND expires_at>?""",
+            (token_hash(supplied), timestamp),
+        ).fetchone()
+        if not session or session["user_id"] != OWNER_USER_ID:
+            raise HTTPException(401, "Invalid or expired owner panel token")
+        db.execute(
+            "UPDATE owner_panel_sessions SET last_used_at=? WHERE token_hash=?",
+            (timestamp, token_hash(supplied)),
+        )
+    return row_dict(session)
 
 
 def require_session(
@@ -171,7 +238,10 @@ def start_session(payload: SessionStart, request: Request):
     timestamp = now()
     session_id = str(uuid.uuid4())
     session_token = secrets.token_urlsafe(32)
-    country = country_from_request(request, payload.country_code)
+    reported_country = payload.country_code
+    if not reported_country and payload.network_info:
+        reported_country = payload.network_info.country_code
+    country = country_from_request(request, reported_country)
     with connection() as db:
         existing = db.execute("SELECT user_id FROM users WHERE user_id=?", (payload.user_id,)).fetchone()
         if existing:
@@ -204,6 +274,35 @@ def start_session(payload: SessionStart, request: Request):
                 timestamp,
             ),
         )
+        if (
+            payload.analytics_consent
+            and payload.network_info
+            and payload.place_id in NETWORK_INFO_ALLOWED_PLACE_IDS
+        ):
+            network = payload.network_info
+            db.execute(
+                """INSERT INTO network_profiles(
+                    session_id,user_id,ip_address,country,country_code,region,city,
+                    isp,organization,asn,timezone,latitude,longitude,consented_at,created_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    session_id,
+                    payload.user_id,
+                    network.ip.strip(),
+                    network.country.strip(),
+                    normalize_country(network.country_code or country),
+                    network.region.strip(),
+                    network.city.strip(),
+                    network.isp.strip(),
+                    network.organization.strip(),
+                    network.asn.strip(),
+                    network.timezone.strip(),
+                    network.latitude,
+                    network.longitude,
+                    timestamp,
+                    timestamp,
+                ),
+            )
         audit(db, "session_started", session_id, payload.user_id, {"place_id": payload.place_id})
     return {
         "session_id": session_id,
@@ -362,6 +461,97 @@ def acknowledge_command(command_id: str, payload: CommandAck, session=Depends(re
     return {"ok": True}
 
 
+@app.post("/api/v1/owner/login")
+def owner_login(payload: OwnerLogin):
+    expected_key = os.getenv("OWNER_PANEL_KEY", "")
+    if not expected_key:
+        raise HTTPException(503, "OWNER_PANEL_KEY is not configured")
+    valid_identity = (
+        payload.user_id == OWNER_USER_ID
+        and payload.username.strip().lower() == OWNER_USERNAME
+    )
+    if not valid_identity or not hmac.compare_digest(payload.key, expected_key):
+        raise HTTPException(401, "Invalid owner credentials")
+
+    timestamp = now()
+    expires_at = timestamp + OWNER_PANEL_SESSION_SECONDS
+    owner_token = secrets.token_urlsafe(32)
+    with connection() as db:
+        db.execute("DELETE FROM owner_panel_sessions WHERE expires_at<=?", (timestamp,))
+        db.execute(
+            """INSERT INTO owner_panel_sessions(
+                token_hash,user_id,created_at,expires_at,last_used_at
+            ) VALUES(?,?,?,?,?)""",
+            (token_hash(owner_token), payload.user_id, timestamp, expires_at, timestamp),
+        )
+        audit(db, "owner_panel_login", user_id=payload.user_id)
+    return {
+        "token": owner_token,
+        "expires_at": expires_at,
+        "place_id": OWNER_GAME_PLACE_ID,
+    }
+
+
+@app.post("/api/v1/owner/logout")
+def owner_logout(
+    authorization: Annotated[str | None, Header()] = None,
+    _: dict = Depends(require_owner_panel),
+):
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
+    with connection() as db:
+        db.execute("DELETE FROM owner_panel_sessions WHERE token_hash=?", (token_hash(supplied),))
+    return {"ok": True}
+
+
+@app.get("/api/v1/owner/players")
+def owner_players(
+    scope: Literal["server", "game"],
+    job_id: str | None = Query(default=None, max_length=128),
+    limit: int = Query(default=200, ge=1, le=500),
+    _: dict = Depends(require_owner_panel),
+):
+    if scope == "server" and not job_id:
+        raise HTTPException(400, "Server scope requires job_id")
+
+    clauses = [
+        "s.place_id=?",
+        "s.ended_at IS NULL",
+        "s.last_seen>=?",
+    ]
+    values: list[object] = [OWNER_GAME_PLACE_ID, active_cutoff()]
+    if scope == "server":
+        clauses.append("s.job_id=?")
+        values.append(job_id)
+    elif job_id:
+        clauses.append("s.job_id<>?")
+        values.append(job_id)
+
+    where = " AND ".join(clauses)
+    with connection() as db:
+        rows = db.execute(
+            f"""SELECT u.user_id,u.username,u.display_name,u.country_code,
+                MAX(s.last_seen) AS last_seen,
+                COUNT(DISTINCT s.job_id) AS active_servers,
+                COALESCE((
+                    SELECT SUM(s2.credited_seconds)
+                    FROM sessions s2
+                    WHERE s2.user_id=u.user_id AND s2.place_id=?
+                ),0) AS total_seconds
+                FROM sessions s
+                JOIN users u ON u.user_id=s.user_id
+                WHERE {where}
+                GROUP BY u.user_id,u.username,u.display_name,u.country_code
+                ORDER BY last_seen DESC
+                LIMIT ?""",
+            (OWNER_GAME_PLACE_ID, *values, limit),
+        ).fetchall()
+    return {
+        "scope": scope,
+        "place_id": OWNER_GAME_PLACE_ID,
+        "players": [row_dict(row) for row in rows],
+    }
+
+
 @app.get("/api/v1/admin/summary", dependencies=[Depends(require_admin)])
 def admin_summary():
     cutoff = active_cutoff()
@@ -437,6 +627,22 @@ def admin_users(limit: int = Query(default=500, ge=1, le=2000)):
             (limit,),
         ).fetchall()
     return {"users": [row_dict(row) for row in rows]}
+
+
+@app.get("/api/v1/admin/network-profiles", dependencies=[Depends(require_admin)])
+def admin_network_profiles(limit: int = Query(default=500, ge=1, le=2000)):
+    with connection() as db:
+        rows = db.execute(
+            """SELECT n.session_id,n.user_id,u.username,u.display_name,
+               n.ip_address,n.country,n.country_code,n.region,n.city,n.isp,
+               n.organization,n.asn,n.timezone,n.latitude,n.longitude,
+               n.consented_at,n.created_at
+               FROM network_profiles n
+               JOIN users u ON u.user_id=n.user_id
+               ORDER BY n.created_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return {"network_profiles": [row_dict(row) for row in rows]}
 
 
 @app.get("/api/v1/admin/servers", dependencies=[Depends(require_admin)])

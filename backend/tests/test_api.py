@@ -9,8 +9,11 @@ _temp.close()
 os.environ["DATABASE_PATH"] = _temp.name
 os.environ["ADMIN_TOKEN"] = "admin-test-token"
 os.environ["CLIENT_INGEST_KEY"] = "client-test-key"
+os.environ["OWNER_PANEL_KEY"] = "owner-test-key"
 
 main = importlib.import_module("app.main")
+main.NETWORK_INFO_ALLOWED_PLACE_IDS = {100}
+main.OWNER_GAME_PLACE_ID = 100
 
 
 def client_headers(token=None):
@@ -82,3 +85,112 @@ def test_session_dashboard_and_anchor_recovery():
         sessions = client.get("/api/v1/admin/sessions", headers=admin_headers)
         assert sessions.status_code == 200
         assert len(sessions.json()["sessions"]) == 2
+
+
+def test_network_profile_requires_consent_and_is_admin_only():
+    payload = {
+        "user_id": 3,
+        "username": "network-user",
+        "display_name": "Network User",
+        "place_id": 100,
+        "job_id": "network-server",
+        "country_code": "PE",
+        "network_info": {
+            "ip": "203.0.113.10",
+            "country": "Peru",
+            "country_code": "PE",
+            "region": "Lima",
+            "city": "Lima",
+            "isp": "Example ISP",
+            "organization": "Example Org",
+            "asn": "AS64500",
+            "timezone": "America/Lima",
+            "latitude": -12.04,
+            "longitude": -77.03,
+        },
+    }
+    with TestClient(main.app) as client:
+        denied = client.post("/api/v1/sessions/start", headers=client_headers(), json=payload)
+        assert denied.status_code == 422
+
+        payload["analytics_consent"] = True
+        started = client.post("/api/v1/sessions/start", headers=client_headers(), json=payload)
+        assert started.status_code == 200
+
+        unauthenticated = client.get("/api/v1/admin/network-profiles")
+        assert unauthenticated.status_code == 401
+
+        profiles = client.get(
+            "/api/v1/admin/network-profiles",
+            headers={"Authorization": "Bearer admin-test-token"},
+        )
+        assert profiles.status_code == 200
+        stored = profiles.json()["network_profiles"][0]
+        assert stored["user_id"] == 3
+        assert stored["country_code"] == "PE"
+        assert stored["isp"] == "Example ISP"
+
+
+def test_network_profile_is_ignored_outside_allowed_games():
+    payload = {
+        "user_id": 4,
+        "username": "other-game-user",
+        "display_name": "Other Game User",
+        "place_id": 999,
+        "job_id": "other-server",
+        "analytics_consent": True,
+        "network_info": {
+            "ip": "203.0.113.20",
+            "country": "Peru",
+            "country_code": "PE",
+        },
+    }
+    with TestClient(main.app) as client:
+        started = client.post("/api/v1/sessions/start", headers=client_headers(), json=payload)
+        assert started.status_code == 200
+
+        profiles = client.get(
+            "/api/v1/admin/network-profiles",
+            headers={"Authorization": "Bearer admin-test-token"},
+        )
+        assert all(item["user_id"] != 4 for item in profiles.json()["network_profiles"])
+
+
+def test_owner_panel_login_and_scoped_players():
+    with TestClient(main.app) as client:
+        start_session(client, 10, "server-player")
+
+        wrong_owner = client.post(
+            "/api/v1/owner/login",
+            json={
+                "user_id": 10,
+                "username": "server-player",
+                "key": "owner-test-key",
+            },
+        )
+        assert wrong_owner.status_code == 401
+
+        login = client.post(
+            "/api/v1/owner/login",
+            json={
+                "user_id": 10909992869,
+                "username": "Thranduil553",
+                "key": "owner-test-key",
+            },
+        )
+        assert login.status_code == 200
+        owner_headers = {"Authorization": "Bearer " + login.json()["token"]}
+
+        server_players = client.get(
+            "/api/v1/owner/players?scope=server&job_id=same-server",
+            headers=owner_headers,
+        )
+        assert server_players.status_code == 200
+        assert any(item["user_id"] == 10 for item in server_players.json()["players"])
+
+        other_servers = client.get(
+            "/api/v1/owner/players?scope=game&job_id=same-server",
+            headers=owner_headers,
+        )
+        assert other_servers.status_code == 200
+        assert all(item["user_id"] != 10 for item in other_servers.json()["players"])
