@@ -110,11 +110,14 @@ return function(context)
 		if not root then return false,"Tu HumanoidRootPart no está disponible" end
 		local targetFrame,targetRoot=resolveTargetFrame(target)
 		if not targetFrame then return false,"El servidor no replicó la ubicación del jugador" end
+		local startingDistance=(root.Position-targetFrame.Position).Magnitude
 		character:PivotTo(targetFrame)
 		root.AssemblyLinearVelocity=Vector3.zero
 		root.AssemblyAngularVelocity=Vector3.zero
-		pcall(function() Workspace:RequestStreamAroundAsync(targetFrame.Position,1) end)
-		for _=1,4 do
+		pcall(function() Workspace:RequestStreamAroundAsync(targetFrame.Position,startingDistance>512 and 2 or 0.25) end)
+		local syncDeadline=os.clock()+(startingDistance>512 and 3 or 0.15)
+		local lastStreamRequest=0
+		repeat
 			RunService.Heartbeat:Wait()
 			local latestRoot=findCharacterRoot(target.Character)
 			if latestRoot then
@@ -122,8 +125,15 @@ return function(context)
 				character:PivotTo(targetRoot.CFrame)
 				root.AssemblyLinearVelocity=Vector3.zero
 				root.AssemblyAngularVelocity=Vector3.zero
+				if os.clock()-lastStreamRequest>=0.35 then
+					lastStreamRequest=os.clock()
+					local streamPosition=targetRoot.Position
+					task.spawn(function()
+						pcall(function() Workspace:RequestStreamAroundAsync(streamPosition,0.5) end)
+					end)
+				end
 			end
-		end
+		until os.clock()>=syncDeadline or not target.Parent
 		return true,"Teletransporte completado"
 	end
 
