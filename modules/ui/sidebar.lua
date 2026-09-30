@@ -22,7 +22,7 @@ return function(context)
 	mainNav.Active = true
 	mainNav.ScrollingDirection = Enum.ScrollingDirection.X
 	mainNav.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
-	mainNav.CanvasSize = UDim2.new(0, isMobile and 488 or 602, 0, 0)
+	mainNav.CanvasSize = UDim2.new(0, isMobile and 580 or 715, 0, 0)
 	mainNav.ZIndex = 21
 	mainNav.Parent = topNav
 
@@ -108,9 +108,12 @@ return function(context)
 	RegisterTheme(controlOverlay, "BackgroundColor3", "sidebar")
 
 	couplesNav=controlNav:Clone();couplesNav.Name="CouplesNavigation";couplesNav.Visible=false;couplesNav.Parent=main;for _,v in ipairs(couplesNav:GetChildren()) do v:Destroy() end
+	graphicsNav=controlNav:Clone();graphicsNav.Name="GraphicsNavigation";graphicsNav.Visible=false;graphicsNav.Parent=main;for _,v in ipairs(graphicsNav:GetChildren()) do v:Destroy() end
+	Instance.new("UICorner",graphicsNav).CornerRadius=UDim.new(0,14);RegisterTheme(graphicsNav,"BackgroundColor3","sidebar")
+
 	Instance.new("UICorner",couplesNav).CornerRadius=UDim.new(0,14);RegisterTheme(couplesNav,"BackgroundColor3","sidebar")
 
-	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns, controlTabBtns, couplesTabBtns = {}, {}, {}, {}, {}, {}
+	mainNavBtns, tabBtns, fling2TabBtns, anchorTabBtns, controlTabBtns, graphicsTabBtns, couplesTabBtns = {}, {}, {}, {}, {}, {}, {}
 
 	local function CreateTextButton(parent, text, name, size, position)
 		local btn = Instance.new("TextButton")
@@ -128,7 +131,7 @@ return function(context)
 		btn.ZIndex = 20
 		btn.Parent = parent
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-		if parent == movementNav or parent == fling2Nav or parent == anchorNav or parent == controlNav or parent == couplesNav then
+		if parent == movementNav or parent == fling2Nav or parent == anchorNav or parent == controlNav or parent == graphicsNav or parent == couplesNav then
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			local textPadding = Instance.new("UIPadding")
 			textPadding.PaddingLeft = UDim.new(0, isMobile and 10 or 14)
@@ -200,10 +203,20 @@ return function(context)
 	mainNavBtns.control = controlBtn
 	controlNavButtonStyle = {btn = controlBtn, stroke = controlStroke, gradient = controlGradient}
 
+	local graphicsBtn, graphicsStroke, graphicsGradient = CreateTextButton(
+		mainNav, isES and "Gráficos" or "Graphics", "graphics",
+		UDim2.new(0, isMobile and 86 or 105, 1, 0),
+		UDim2.new(0, isMobile and 402 or 497, 0, 0)
+	)
+	graphicsBtn.Font = Enum.Font.GothamBold
+	graphicsBtn.TextSize = isMobile and 14 or 16
+	mainNavBtns.graphics = graphicsBtn
+	graphicsNavButtonStyle = {btn = graphicsBtn, stroke = graphicsStroke, gradient = graphicsGradient}
+
 	local couplesBtn, couplesStroke, couplesGradient = CreateTextButton(
 		mainNav, isES and "Parejas" or "Couples", "couples",
 		UDim2.new(0, isMobile and 86 or 105, 1, 0),
-		UDim2.new(0, isMobile and 402 or 497, 0, 0)
+		UDim2.new(0, isMobile and 494 or 610, 0, 0)
 	)
 	couplesBtn.Font = Enum.Font.GothamBold
 	couplesBtn.TextSize = isMobile and 14 or 16
@@ -307,6 +320,9 @@ return function(context)
 		)
 		controlTabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
 	end
+
+	local graphicsBtnLeft,graphicsStrokeLeft,graphicsGradientLeft=CreateTextButton(graphicsNav,"FPS Booster","fps_booster",UDim2.new(1,-(pad*2),0,buttonH),UDim2.new(0,pad,0,pad))
+	graphicsTabBtns.fps_booster={btn=graphicsBtnLeft,stroke=graphicsStrokeLeft,gradient=graphicsGradientLeft}
 
 	local coupleLabels={{"preset_poses",isES and "Poses predeterminadas" or "Preset poses"},{"couples",isES and "Ubicación de cuerpo" or "Body location"},{"couple_movement",isES and "Control de movimiento" or "Movement control"},{"poses","Poses"}}
 	for index,item in ipairs(coupleLabels)do local btn,stroke,gradient=CreateTextButton(couplesNav,item[2],item[1],UDim2.new(1,-(pad*2),0,buttonH),UDim2.new(0,pad,0,pad+(index-1)*(buttonH+gap)));couplesTabBtns[item[1]]={btn=btn,stroke=stroke,gradient=gradient}end

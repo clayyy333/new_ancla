@@ -30,14 +30,16 @@ UpdateTabStyles = function()
 	local isAnchor = isAnchorBasic or isAnchorAuto
 	local isControl = currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
+	local isGraphics = currentTab == "fps_booster"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor or isControl or isCouples
+	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
 	anchorNav.Visible = isAnchor
 	controlNav.Visible = isControl
+	graphicsNav.Visible = isGraphics
 	couplesNav.Visible = isCouples
 	content.Position = UDim2.new(0, sideBarW, 0, topNavH)
 	content.Size = UDim2.new(1, -sideBarW, 1, -topNavH)
@@ -45,9 +47,11 @@ UpdateTabStyles = function()
 	SetButtonStyle(fling2NavButtonStyle, isFling2Category)
 	SetButtonStyle(anchorNavButtonStyle, isAnchor)
 	SetButtonStyle(controlNavButtonStyle, isControl)
+	SetButtonStyle(graphicsNavButtonStyle, isGraphics)
 	SetButtonStyle(couplesNavButtonStyle, isCouples)
 	for name, data in pairs(couplesTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(controlTabBtns) do SetButtonStyle(data, currentTab == name) end
+	for name, data in pairs(graphicsTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(anchorTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(fling2TabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(tabBtns) do
@@ -442,11 +446,12 @@ UpdateTabData = function()
 	local isMovementControl = currentTab == "movement_control"
 	local isVerticalControl = currentTab == "vertical_control"
 	local isControl = isCameraControl or isFlightControl or isCarControl or isFreeCarControl or isMovementControl or isVerticalControl
+	local isGraphics = currentTab == "fps_booster"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor or isControl or isCouples
+	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
@@ -465,6 +470,7 @@ UpdateTabData = function()
 	freeCarControlPanel.Visible = isFreeCarControl
 	movementControlPanel.Visible = isMovementControl
 	verticalControlPanel.Visible = isVerticalControl
+	graphicsPanel.Visible = isGraphics
 	couplesPanel.Visible = currentTab == "couples"
 	coupleMovementPanel.Visible = currentTab == "couple_movement"
 	posesPanel.Visible = currentTab == "poses"
@@ -595,6 +601,9 @@ UpdateTabData = function()
 	elseif currentTab == "vertical_control" then
 		title.Text = isES and "Desplazamiento vertical" or "Vertical Displacement"
 		if UpdateVerticalControlPanel then UpdateVerticalControlPanel() end
+	elseif currentTab == "fps_booster" then
+		title.Text = "FPS Booster"
+		if UpdateFPSBoosterPanel then UpdateFPSBoosterPanel() end
 	elseif currentTab == "couple_movement" then
 		title.Text = isES and "Control de movimiento" or "Movement control"
 		if UpdateCoupleMovementPanel then UpdateCoupleMovementPanel() end
@@ -622,6 +631,7 @@ end
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fling2"; UpdateTabData() end)
 mainNavBtns["anchor"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "anchor"; UpdateTabData() end)
 mainNavBtns["control"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "camera_control"; UpdateTabData() end)
+mainNavBtns["graphics"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fps_booster"; UpdateTabData() end)
 mainNavBtns["couples"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "preset_poses"; UpdateTabData() end)
 couplesTabBtns["couples"].btn.MouseButton1Click:Connect(function() currentTab="couples";UpdateTabData() end)
 couplesTabBtns["couple_movement"].btn.MouseButton1Click:Connect(function() currentTab="couple_movement";UpdateTabData() end)
@@ -633,6 +643,7 @@ controlTabBtns["car_control"].btn.MouseButton1Click:Connect(function() currentTa
 controlTabBtns["free_car_control"].btn.MouseButton1Click:Connect(function() currentTab = "free_car_control"; UpdateTabData() end)
 controlTabBtns["movement_control"].btn.MouseButton1Click:Connect(function() currentTab = "movement_control"; UpdateTabData() end)
 controlTabBtns["vertical_control"].btn.MouseButton1Click:Connect(function() currentTab = "vertical_control"; UpdateTabData() end)
+graphicsTabBtns["fps_booster"].btn.MouseButton1Click:Connect(function() currentTab = "fps_booster"; UpdateTabData() end)
 anchorTabBtns["anchor"].btn.MouseButton1Click:Connect(function() currentTab = "anchor"; UpdateTabData() end)
 anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_auto"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
@@ -660,7 +671,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)
