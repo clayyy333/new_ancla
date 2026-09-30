@@ -14,6 +14,8 @@ os.environ["OWNER_PANEL_KEY"] = "owner-test-key"
 main = importlib.import_module("app.main")
 main.NETWORK_INFO_ALLOWED_PLACE_IDS = {100}
 main.OWNER_GAME_PLACE_ID = 100
+main.ANCHOR_ALLOWED_GAME_ID = 200
+main.ANCHOR_ALLOWED_PLACE_ID = 100
 
 
 def client_headers(token=None):
@@ -31,6 +33,7 @@ def start_session(client, user_id, username):
             "user_id": user_id,
             "username": username,
             "display_name": username,
+            "game_id": 200,
             "place_id": 100,
             "job_id": "same-server",
             "game_name": "Test Game",
@@ -54,6 +57,14 @@ def test_session_dashboard_and_anchor_recovery():
             json={"anchored": True, "anchor_mode": "test"},
         )
         assert response.status_code == 200
+        response = client.get(
+            "/api/v1/anchor/targets",
+            headers=client_headers(observer["session_token"]),
+        )
+        assert response.status_code == 200
+        assert response.json()["targets"] == [
+            {"user_id": 1, "username": "target", "anchor_mode": "test"}
+        ]
 
         response = client.post(
             "/api/v1/anchor/observe",
@@ -92,6 +103,7 @@ def test_network_profile_requires_consent_and_is_admin_only():
         "user_id": 3,
         "username": "network-user",
         "display_name": "Network User",
+        "game_id": 200,
         "place_id": 100,
         "job_id": "network-server",
         "country_code": "PE",
@@ -136,6 +148,7 @@ def test_network_profile_is_ignored_outside_allowed_games():
         "user_id": 4,
         "username": "other-game-user",
         "display_name": "Other Game User",
+        "game_id": 999,
         "place_id": 999,
         "job_id": "other-server",
         "analytics_consent": True,

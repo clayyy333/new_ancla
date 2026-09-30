@@ -54,6 +54,7 @@ def init_database() -> None:
                 id TEXT PRIMARY KEY,
                 token_hash TEXT NOT NULL UNIQUE,
                 user_id INTEGER NOT NULL,
+                game_id INTEGER NOT NULL DEFAULT 0,
                 place_id INTEGER NOT NULL,
                 job_id TEXT NOT NULL,
                 game_name TEXT NOT NULL DEFAULT '',
@@ -140,3 +141,10 @@ def init_database() -> None:
                 ON owner_panel_sessions(expires_at);
             """
         )
+
+        # Migrate databases created before the experience ID was recorded.
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(sessions)")}
+        if "game_id" not in columns:
+            db.execute(
+                "ALTER TABLE sessions ADD COLUMN game_id INTEGER NOT NULL DEFAULT 0"
+            )

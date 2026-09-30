@@ -40,6 +40,8 @@ EXTREME_DISTANCE = env_float("ANCHOR_EXTREME_DISTANCE", 80.0)
 OBSERVER_QUORUM = max(1, env_int("ANCHOR_OBSERVER_QUORUM", 1))
 REPORT_WINDOW = env_float("ANCHOR_REPORT_WINDOW_SECONDS", 3.0)
 COMMAND_COOLDOWN = env_float("ANCHOR_COMMAND_COOLDOWN_SECONDS", 3.0)
+ANCHOR_ALLOWED_GAME_ID = env_int("ANCHOR_ALLOWED_GAME_ID", 4540138978)
+ANCHOR_ALLOWED_PLACE_ID = env_int("ANCHOR_ALLOWED_PLACE_ID", 12985361032)
 TRUST_PROXY_COUNTRY = os.getenv("TRUST_PROXY_COUNTRY_HEADER", "false").lower() == "true"
 COUNTRY_PATTERN = re.compile(r"^[A-Z]{2}$")
 
@@ -108,6 +110,7 @@ class SessionStart(BaseModel):
     user_id: int = Field(gt=0)
     username: str = Field(min_length=1, max_length=40)
     display_name: str = Field(min_length=1, max_length=80)
+    game_id: int = Field(gt=0)
     place_id: int = Field(ge=0)
     job_id: str = Field(min_length=1, max_length=128)
     game_name: str = Field(default="", max_length=160)
@@ -223,6 +226,19 @@ def audit(db, event_type: str, session_id=None, user_id=None, details=None) -> N
     )
 
 
+def anchor_guard_allowed(session: dict) -> bool:
+    return (
+        session["game_id"] == ANCHOR_ALLOWED_GAME_ID
+        and session["place_id"] == ANCHOR_ALLOWED_PLACE_ID
+    )
+
+
+def require_anchor_guard_session(session=Depends(require_session)):
+    if not anchor_guard_allowed(session):
+        raise HTTPException(403, "Anchor guard is unavailable outside Metro Life")
+    return session
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "time": now()}
@@ -258,13 +274,14 @@ def start_session(payload: SessionStart, request: Request):
             )
         db.execute(
             """INSERT INTO sessions(
-                id,token_hash,user_id,place_id,job_id,game_name,executor,script_version,
+                id,token_hash,user_id,game_id,place_id,job_id,game_name,executor,script_version,
                 started_at,last_seen
-            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 session_id,
                 token_hash(session_token),
                 payload.user_id,
+                payload.game_id,
                 payload.place_id,
                 payload.job_id,
                 payload.game_name,
@@ -309,6 +326,10 @@ def start_session(payload: SessionStart, request: Request):
         "session_token": session_token,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 1,
+        "anchor_guard_enabled": (
+            payload.game_id == ANCHOR_ALLOWED_GAME_ID
+            and payload.place_id == ANCHOR_ALLOWED_PLACE_ID
+        ),
     }
 
 
@@ -322,10 +343,11 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         if not current:
             raise HTTPException(404, "Session ended")
         elapsed = max(0.0, min(float(MAX_HEARTBEAT_CREDIT), timestamp - current["last_seen"]))
+        anchored = payload.anchored and anchor_guard_allowed(session)
         db.execute(
             """UPDATE sessions SET last_seen=?,credited_seconds=credited_seconds+?,
                anchored=?,anchor_mode=? WHERE id=?""",
-            (timestamp, elapsed, int(payload.anchored), payload.anchor_mode if payload.anchored else "", session["id"]),
+            (timestamp, elapsed, int(anchored), payload.anchor_mode if anchored else "", session["id"]),
         )
         db.execute(
             "UPDATE users SET last_seen=?,total_seconds=total_seconds+? WHERE user_id=?",
@@ -343,8 +365,29 @@ def end_session(session=Depends(require_session)):
     return {"ok": True}
 
 
+@app.get("/api/v1/anchor/targets")
+def anchor_targets(observer=Depends(require_anchor_guard_session)):
+    with connection() as db:
+        rows = db.execute(
+            """SELECT DISTINCT s.user_id,u.username,s.anchor_mode
+               FROM sessions s JOIN users u ON u.user_id=s.user_id
+               WHERE s.game_id=? AND s.place_id=? AND s.job_id=?
+                 AND s.id<>? AND s.anchored=1 AND s.ended_at IS NULL
+                 AND s.last_seen>=?
+               ORDER BY s.last_seen DESC""",
+            (
+                observer["game_id"],
+                observer["place_id"],
+                observer["job_id"],
+                observer["id"],
+                active_cutoff(),
+            ),
+        ).fetchall()
+    return {"targets": [row_dict(row) for row in rows]}
+
+
 @app.post("/api/v1/anchor/observe")
-def observe_anchor(payload: AnchorObservation, observer=Depends(require_session)):
+def observe_anchor(payload: AnchorObservation, observer=Depends(require_anchor_guard_session)):
     timestamp = now()
     if payload.distance < REPORT_DISTANCE:
         return {"accepted": False, "reason": "below_threshold"}
@@ -352,11 +395,12 @@ def observe_anchor(payload: AnchorObservation, observer=Depends(require_session)
     with connection() as db:
         target = db.execute(
             """SELECT * FROM sessions
-               WHERE user_id=? AND place_id=? AND job_id=? AND anchored=1
+               WHERE user_id=? AND game_id=? AND place_id=? AND job_id=? AND anchored=1
                  AND ended_at IS NULL AND last_seen>=?
                ORDER BY last_seen DESC LIMIT 1""",
             (
                 payload.target_user_id,
+                observer["game_id"],
                 observer["place_id"],
                 observer["job_id"],
                 active_cutoff(),
@@ -412,7 +456,7 @@ def observe_anchor(payload: AnchorObservation, observer=Depends(require_session)
 
 
 @app.get("/api/v1/anchor/commands")
-def poll_commands(session=Depends(require_session)):
+def poll_commands(session=Depends(require_anchor_guard_session)):
     if not session["anchored"]:
         return {"commands": []}
     timestamp = now()
@@ -445,7 +489,7 @@ def poll_commands(session=Depends(require_session)):
 
 
 @app.post("/api/v1/anchor/commands/{command_id}/ack")
-def acknowledge_command(command_id: str, payload: CommandAck, session=Depends(require_session)):
+def acknowledge_command(command_id: str, payload: CommandAck, session=Depends(require_anchor_guard_session)):
     with connection() as db:
         command = db.execute(
             "SELECT id FROM recovery_commands WHERE id=? AND target_session_id=?",
