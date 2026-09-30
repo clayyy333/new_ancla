@@ -130,6 +130,7 @@ minBtn.MouseButton1Click:Connect(function()
 end)
 
 local function _CleanupScript()
+	pcall(function() if BackendAnchorGuard then BackendAnchorGuard:Destroy() end end)
 	pcall(function() if FlingReturnGuard then FlingReturnGuard:Destroy() end end)
 	pcall(function() if ContactFlingController then ContactFlingController:Destroy() end end)
 	pcall(function() if XenoFlingReplicationAssist then XenoFlingReplicationAssist:Destroy() end end)

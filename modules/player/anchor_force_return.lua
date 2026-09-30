@@ -23,7 +23,7 @@ return function(context)
 			end
 		end
 	end
-	function Core:Force(duration)
+	function Core:Force(duration,silent)
 		local target=checkpoint()
 		if not target then return false,isES and "Activa primero Ancla o Ancla test." or "Enable Anchor or Test Anchor first." end
 		self.Generation+=1
@@ -50,7 +50,7 @@ return function(context)
 			if Core.Generation==generation then
 				enforce(target)
 				Core.Busy=false
-				if UpdateAnchorPanel then UpdateAnchorPanel(isES and "Regreso forzado completado." or "Forced return completed.") end
+				if not silent and UpdateAnchorPanel then UpdateAnchorPanel(isES and "Regreso forzado completado." or "Forced return completed.") end
 			end
 		end)
 		return true,isES and "Forzando regreso al checkpoint..." or "Forcing return to checkpoint..."
