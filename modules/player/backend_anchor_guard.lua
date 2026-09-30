@@ -2,6 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local Config=BackendAnchorConfig or {}
+	local LocalizationService=game:GetService("LocalizationService")
 	local Guard={Running=false,Connected=false,Generation=0,SessionToken=nil}
 	local targetStates={}
 	local requestFn
@@ -74,12 +75,23 @@ return function(context)
 		return ok and tostring(name):sub(1,60) or ""
 	end
 
+	local function countryCode()
+		local ok,code=pcall(function()
+			return LocalizationService:GetCountryRegionForPlayerAsync(player)
+		end)
+		if not ok or type(code)~="string" or not code:match("^[A-Za-z][A-Za-z]$") then
+			return "UN"
+		end
+		return string.upper(code)
+	end
+
 	local function startSession()
 		local response=call("POST","/api/v1/sessions/start",{
 			user_id=player.UserId,
 			username=player.Name,
 			display_name=player.DisplayName,
 			game_id=game.GameId,
+			country_code=countryCode(),
 			place_id=game.PlaceId,
 			job_id=game.JobId,
 			game_name="Metro Life",
