@@ -471,6 +471,38 @@ do
 		SaveData()
 	end)
 end
+
+do
+	local rejoinTitle="Rejoin"
+	local rejoinDesc=isES and "Vuelve a entrar en la misma instancia del servidor actual" or "Join the same current server instance again"
+	local rejoinRow=MakeRow("",rejoinTitle,rejoinDesc,6.5)
+	local rejoinButton=Instance.new("TextButton")
+	rejoinButton.Size=UDim2.new(0,isMobile and 72 or 82,0,30)
+	rejoinButton.AnchorPoint=Vector2.new(1,0.5)
+	rejoinButton.Position=UDim2.new(1,-12,0.5,0)
+	rejoinButton.BackgroundColor3=currentTheme.accent
+	rejoinButton.Text="Rejoin"
+	rejoinButton.TextColor3=Color3.new(1,1,1)
+	rejoinButton.Font=Enum.Font.GothamBold
+	rejoinButton.TextSize=isMobile and 10 or 11
+	rejoinButton.AutoButtonColor=false
+	rejoinButton.ZIndex=8
+	rejoinButton.Parent=rejoinRow
+	Instance.new("UICorner",rejoinButton).CornerRadius=UDim.new(1,0)
+	RegisterTheme(rejoinButton,"BackgroundColor3","accent")
+	rejoinButton.Activated:Connect(function()
+		if not RejoinController or RejoinController:IsBusy() then return end
+		rejoinButton.Text=isES and "Entrando..." or "Joining..."
+		rejoinButton.Active=false
+		local ok=RejoinController:RejoinSameServer()
+		if not ok then
+			rejoinButton.Text=isES and "Error" or "Failed"
+			task.delay(2.5,function() if rejoinButton.Parent then rejoinButton.Text="Rejoin";rejoinButton.Active=true end end)
+		else
+			task.delay(10,function() if rejoinButton.Parent then rejoinButton.Text="Rejoin";rejoinButton.Active=true end end)
+		end
+	end)
+end
 do
 	local shortcutTitle=isES and "Activar Atajo de usuarios" or "Enable user shortcut"
 	local shortcutDesc=isES and "Toca o haz clic sobre un personaje para elegir su objetivo" or "Tap or click a character to choose its target"
