@@ -116,7 +116,7 @@ return function(context)
     status.Size = UDim2.new(1, 0, 0, 52)
     status.Position = UDim2.new(0, 0, 0, 166)
     status.BackgroundTransparency = 1
-    status.Text = isES and "La conexion con el backend aun no esta activada." or "Backend connection is not active yet."
+    status.Text = isES and "Introduce la clave privada para conectar con Render." or "Enter the private key to connect to Render."
     status.TextColor3 = currentTheme.textDim
     status.Font = Enum.Font.Gotham
     status.TextSize = isMobile and 11 or 12
@@ -215,6 +215,8 @@ return function(context)
             status.Text = tostring(message or "")
             if ok then
                 loginFrame.Visible = false
+                keyBox.Text = ""
+                AdminPanelBridge:LoadPlayers("server", render)
                 dataFrame.Visible = true
             end
         end)

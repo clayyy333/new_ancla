@@ -60,6 +60,7 @@ return {
 		"ui/toolbar",
 		"ui/search",
 		"ui/settings",
+		"ui/admin_panel_bridge",
 		"ui/admin_panel",
 		"ui/anchor",
 		"ui/anchor_auto",
