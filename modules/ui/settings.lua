@@ -630,7 +630,7 @@ end
 
 do
 	MakeSectionHeader(isES and "Acerca de" or "About", 21)
-	MakeRow("", "Versión 1.0", "Desarrollada por Psycho @Thranduil553", 22)
+	MakeRow("", "Versión 1.0", "Desarrollada por psychoo", 22)
 end
 
 	return true
