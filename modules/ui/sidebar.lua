@@ -275,6 +275,7 @@ return function(context)
 
 	local flingLabels = {
 		{"fling2", "Fling"},
+		{"fling_custom", isES and "Personaliza tu Fling" or "Customize your Fling"},
 		{"contact_fling", isES and "Fling por contacto" or "Contact Fling"},
 		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
 		{"fling_car2", isES and "Fling con vehículo 2" or "Fling with Car 2"},
@@ -289,6 +290,44 @@ return function(context)
 			UDim2.new(0, pad, 0, pad + (index - 1) * (buttonH + gap))
 		)
 		fling2TabBtns[item[1]] = {btn = btn, stroke = stroke, gradient = gradient}
+	end
+
+	-- Borde neon independiente para que el estilo normal de las pestañas no lo oculte.
+	local customFlingButton = fling2TabBtns.fling_custom and fling2TabBtns.fling_custom.btn
+	if customFlingButton then
+		customFlingButton.Size = UDim2.new(1, -(pad * 2), 0, buttonH - 6)
+		customFlingButton.Position = UDim2.new(0, pad, 0, pad + buttonH + gap + 3)
+
+		local neonStroke = Instance.new("UIStroke")
+		neonStroke.Name = "NeonBorder"
+		neonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		neonStroke.LineJoinMode = Enum.LineJoinMode.Round
+		neonStroke.Color = Color3.new(1, 1, 1)
+		neonStroke.Thickness = isMobile and 2 or 2.5
+		neonStroke.Transparency = 0.05
+		neonStroke.Parent = customFlingButton
+
+		local neonGradient = Instance.new("UIGradient")
+		neonGradient.Name = "NeonGradient"
+		neonGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 255, 255)),
+			ColorSequenceKeypoint.new(0.20, Color3.fromRGB(0, 120, 255)),
+			ColorSequenceKeypoint.new(0.40, Color3.fromRGB(170, 0, 255)),
+			ColorSequenceKeypoint.new(0.60, Color3.fromRGB(255, 0, 170)),
+			ColorSequenceKeypoint.new(0.80, Color3.fromRGB(80, 255, 80)),
+			ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 255, 255)),
+		})
+		neonGradient.Parent = neonStroke
+
+		task.spawn(function()
+			local rotation = 0
+			while neonStroke.Parent and customFlingButton.Parent do
+				rotation = rotation + 360
+				local tween = TweenService:Create(neonGradient, TweenInfo.new(7, Enum.EasingStyle.Linear), {Rotation = rotation})
+				tween:Play()
+				tween.Completed:Wait()
+			end
+		end)
 	end
 
 	local anchorLabels = {

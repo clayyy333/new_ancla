@@ -19,6 +19,7 @@ UpdateTabStyles = function()
 	end
 
 	local isFling2 = currentTab == "fling2"
+	local isCustomFling = currentTab == "fling_custom"
 	local isContactFling = currentTab == "contact_fling"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
@@ -33,7 +34,7 @@ UpdateTabStyles = function()
 	local isGraphics = currentTab == "fps_booster" or currentTab == "shaders"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
+	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
@@ -430,6 +431,7 @@ UpdateTabData = function()
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
 	local isFling2 = currentTab == "fling2"
+	local isCustomFling = currentTab == "fling_custom"
 	local isContactFling = currentTab == "contact_fling"
 	local isFlingCar = currentTab == "fling_car"
 	local isFlingCar2 = currentTab == "fling_car2"
@@ -451,12 +453,13 @@ UpdateTabData = function()
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
+	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
 	fling2Panel.Visible = isFling2
+	customFlingPanel.Visible = isCustomFling
 	contactFlingPanel.Visible = isContactFling
 	carFlingPanel.Visible = isFlingCar
 	carFling2Panel.Visible = isFlingCar2
@@ -567,6 +570,9 @@ UpdateTabData = function()
 	elseif currentTab == "fling2" then
 		title.Text = "Fling 2"
 		if UpdateFling2Panel then UpdateFling2Panel() end
+	elseif currentTab == "fling_custom" then
+		title.Text = isES and "Fling personalizable" or "Custom Fling"
+		if UpdateCustomFlingPanel then UpdateCustomFlingPanel() end
 	elseif currentTab == "contact_fling" then
 		title.Text = isES and "Fling por contacto" or "Contact Fling"
 		if UpdateContactFlingPanel then UpdateContactFlingPanel() end
@@ -654,6 +660,7 @@ anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab
 	graphicsTabBtns["shaders"].btn.MouseButton1Click:Connect(function() currentTab = "shaders"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
 fling2TabBtns["contact_fling"].btn.MouseButton1Click:Connect(function() currentTab = "contact_fling"; UpdateTabData() end)
+	fling2TabBtns["fling_custom"].btn.MouseButton1Click:Connect(function() currentTab = "fling_custom"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
 fling2TabBtns["fling_object"].btn.MouseButton1Click:Connect(function() currentTab = "fling_object"; UpdateTabData() end)
@@ -677,7 +684,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_custom" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)
