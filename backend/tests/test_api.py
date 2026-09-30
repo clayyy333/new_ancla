@@ -186,8 +186,8 @@ def test_owner_panel_login_and_scoped_players():
         login = client.post(
             "/api/v1/owner/login",
             json={
-                "user_id": 10909992869,
-                "username": "Thranduil553",
+                "user_id": 11739864999,
+                "username": "psychoo778",
                 "key": "owner-test-key",
             },
         )

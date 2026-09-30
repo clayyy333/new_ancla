@@ -2,8 +2,8 @@
 return function(context)
     setfenv(1, context)
 
-    local OWNER_USER_ID = 10909992869
-    local OWNER_USERNAME = "thranduil553"
+    local OWNER_USER_ID = 11739864999
+    local OWNER_USERNAME = "psychoo778"
     local GAME_PLACE_ID = 12985361032
     if player.UserId ~= OWNER_USER_ID or string.lower(player.Name) ~= OWNER_USERNAME then
         return true

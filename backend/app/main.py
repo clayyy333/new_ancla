@@ -56,8 +56,8 @@ def env_place_ids(name: str) -> set[int]:
 
 
 NETWORK_INFO_ALLOWED_PLACE_IDS = env_place_ids("NETWORK_INFO_ALLOWED_PLACE_IDS")
-OWNER_USER_ID = env_int("OWNER_USER_ID", 10909992869)
-OWNER_USERNAME = os.getenv("OWNER_USERNAME", "Thranduil553").strip().lower()
+OWNER_USER_ID = env_int("OWNER_USER_ID", 11739864999)
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "psychoo778").strip().lower()
 OWNER_GAME_PLACE_ID = env_int("OWNER_GAME_PLACE_ID", 12985361032)
 OWNER_PANEL_SESSION_SECONDS = max(300, env_int("OWNER_PANEL_SESSION_SECONDS", 1800))
 
