@@ -60,7 +60,24 @@ return function(context)
 		if not selected then UpdateCinematicCameraPanel(isES and "Selecciona un jugador, incluido tú mismo." or "Select a player, including yourself.");return end
 		setHudCollapsed(false);local ok,err=SpectatorController:StartCinematic(selected);UpdateCinematicCameraPanel(ok and nil or err);if ok and MinimizeMainWindow then MinimizeMainWindow() end
 	end)
-	down.Activated:Connect(function() SpectatorController:AddCinematicElevation(-5);UpdateCinematicCameraPanel() end);up.Activated:Connect(function() SpectatorController:AddCinematicElevation(5);UpdateCinematicCameraPanel() end)
+	local function bindElevationControl(control,direction)
+		local held=false
+		control.InputBegan:Connect(function(input)
+			if input.UserInputType~=Enum.UserInputType.MouseButton1 and input.UserInputType~=Enum.UserInputType.Touch then return end
+			if held then return end
+			held=true
+			SpectatorController:AddCinematicElevation(direction);UpdateCinematicCameraPanel()
+			local started=os.clock();local previous=os.clock()
+			task.spawn(function()
+				while held and control.Parent do
+					RunService.Heartbeat:Wait();local now=os.clock();local dt=now-previous;previous=now
+					if now-started>=.22 then SpectatorController:AddCinematicElevation(direction*30*dt);UpdateCinematicCameraPanel() end
+				end
+			end)
+		end)
+		UserInputService.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then held=false end end)
+	end
+	bindElevationControl(down,-1);bindElevationControl(up,1)
 	closer.Activated:Connect(function() SpectatorController:ZoomIn(2);UpdateCinematicCameraPanel() end);farther.Activated:Connect(function() SpectatorController:ZoomOut(2);UpdateCinematicCameraPanel() end)
 	slower.Activated:Connect(function() SpectatorController:AddCinematicSpeed(-5);UpdateCinematicCameraPanel() end);faster.Activated:Connect(function() SpectatorController:AddCinematicSpeed(5);UpdateCinematicCameraPanel() end)
 	pause.Activated:Connect(function() SpectatorController:ToggleCinematicPause();UpdateCinematicCameraPanel() end)
