@@ -5,7 +5,7 @@ return function(context)
 	local SoundService=game:GetService("SoundService")
 	local GuiService=game:GetService("GuiService")
 	local CoreGui=game:GetService("CoreGui")
-	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12}
+	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12,Cinematic=false,CinematicPaused=false,CinematicElevation=20,CinematicSpeed=20}
 	local connections={}; local renderConnection; local rotating=false; local activeTouch; local lastTouch
 	local savedLegacyListener; local managedAudioListeners={}; local listenerCamera
 	local function isPointerOverInteractiveGui(position)
@@ -62,7 +62,17 @@ return function(context)
 	end
 	local function root(p) local c=p and p.Character; return c and c:FindFirstChild("HumanoidRootPart") end
 	local function humanoid(p) local c=p and p.Character; return c and c:FindFirstChildOfClass("Humanoid") end
-	function Spectator:GetTargetOptions() local t={} for _,p in ipairs(Players:GetPlayers()) do if p~=player then t[#t+1]=p end end return t end
+	function Spectator:GetTargetOptions(includeSelf) local t={} for _,p in ipairs(Players:GetPlayers()) do if includeSelf or p~=player then t[#t+1]=p end end return t end
+	function Spectator:SetCinematicTarget(p) self.Target=typeof(p)=="Instance" and p:IsA("Player") and p or nil; return self.Target~=nil end
+	function Spectator:IsCinematic() return self.Active and self.Cinematic end
+	function Spectator:IsCinematicPaused() return self.CinematicPaused end
+	function Spectator:ToggleCinematicPause() self.CinematicPaused=not self.CinematicPaused; return self.CinematicPaused end
+	function Spectator:SetCinematicElevation(v) self.CinematicElevation=math.clamp(tonumber(v) or 20,0,180); return self.CinematicElevation end
+	function Spectator:AddCinematicElevation(v) return self:SetCinematicElevation(self.CinematicElevation+(v or 5)) end
+	function Spectator:GetCinematicElevation() return self.CinematicElevation end
+	function Spectator:SetCinematicSpeed(v) self.CinematicSpeed=math.clamp(tonumber(v) or 20,1,120); return self.CinematicSpeed end
+	function Spectator:AddCinematicSpeed(v) return self:SetCinematicSpeed(self.CinematicSpeed+(v or 5)) end
+	function Spectator:GetCinematicSpeed() return self.CinematicSpeed end
 	function Spectator:SetTarget(p) if p==player then return false end self.Target=typeof(p)=="Instance" and p:IsA("Player") and p or nil; return self.Target~=nil end
 	function Spectator:GetTarget() return self.Target end
 	function Spectator:IsActive() return self.Active end
@@ -74,15 +84,21 @@ return function(context)
 	function Spectator:AddRotation(y,p) self.Yaw+=math.rad(y or 0); self.Pitch=math.clamp(self.Pitch+math.rad(p or 0),math.rad(-80),math.rad(80)) end
 	function Spectator:Stop()
 		self.Active=false; rotating=false; activeTouch=nil; lastTouch=nil
+		self.Cinematic=false; self.CinematicPaused=false
 		if renderConnection then renderConnection:Disconnect(); renderConnection=nil end
 		restoreCameraAudio()
 		pcall(function() UserInputService.MouseBehavior=Enum.MouseBehavior.Default end)
 		local camera=Workspace.CurrentCamera
 		if camera then camera.CameraType=Enum.CameraType.Custom; local h=humanoid(player); if h then camera.CameraSubject=h end end
+		if UpdateCinematicCameraPanel then task.defer(UpdateCinematicCameraPanel) end
 	end
-	function Spectator:Start(target)
-		if target then self:SetTarget(target) end
-		if not self.Target or self.Target==player then return false,isES and "Selecciona otro jugador." or "Select another player." end
+	function Spectator:Start(target,cinematic)
+		if target then if cinematic then self:SetCinematicTarget(target) else self:SetTarget(target) end end
+		if not self.Target or (not cinematic and self.Target==player) then return false,isES and "Selecciona otro jugador." or "Select another player." end
+		if self.Active then self:Stop() end
+		self.Cinematic=cinematic==true
+		self.CinematicPaused=false
+		if self.Cinematic then self.Pitch=0 end
 		local camera=Workspace.CurrentCamera
 		if not camera then return false,isES and "La cámara no está disponible." or "Camera is unavailable." end
 		if renderConnection then renderConnection:Disconnect() end
@@ -94,12 +110,17 @@ return function(context)
 			updateCameraAudio(camera)
 			self.Distance+=(self.TargetDistance-self.Distance)*(1-math.exp(-12*dt))
 			local targetPos=r.Position+Vector3.new(0,2,0)
-			local rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0)
+			local rotation
+			if self.Cinematic then
+				if not self.CinematicPaused then self.Yaw+=math.rad(self.CinematicSpeed)*dt end
+				rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(math.rad(-self.CinematicElevation),0,0)
+			else rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0) end
 			local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.Distance))
 			camera.CFrame=CFrame.lookAt(cameraPos,targetPos); camera.Focus=CFrame.new(targetPos)
 		end)
 		return true
 	end
+	function Spectator:StartCinematic(target) return self:Start(target,true) end
 	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input)
 			if Spectator.Active and input.UserInputType==Enum.UserInputType.MouseButton2 then rotating=true; pcall(function() UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition end) end
 	end)
@@ -119,7 +140,7 @@ return function(context)
 		if Spectator.Active and touch==activeTouch and lastTouch then local d=touch.Position-lastTouch; lastTouch=touch.Position; Spectator.Yaw-=d.X*0.007; Spectator.Pitch=math.clamp(Spectator.Pitch-d.Y*0.007,math.rad(-80),math.rad(80)) end
 	end)
 	connections[#connections+1]=UserInputService.TouchEnded:Connect(function(touch) if touch==activeTouch then activeTouch=nil; lastTouch=nil end end)
-	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p) if Spectator.Target==p then Spectator:Stop(); Spectator.Target=nil; if UpdateCameraControlPanel then UpdateCameraControlPanel() end end end)
+	connections[#connections+1]=Players.PlayerRemoving:Connect(function(p) if Spectator.Target==p then Spectator:Stop(); Spectator.Target=nil; if UpdateCameraControlPanel then UpdateCameraControlPanel() end; if UpdateCinematicCameraPanel then UpdateCinematicCameraPanel() end end end)
 	function Spectator:Destroy() self:Stop(); for _,c in ipairs(connections) do c:Disconnect() end; table.clear(connections) end
 	SpectatorController=Spectator
 	return true

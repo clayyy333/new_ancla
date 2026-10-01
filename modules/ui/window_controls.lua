@@ -115,7 +115,7 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-minBtn.MouseButton1Click:Connect(function()
+MinimizeMainWindow = function()
 	main.ClipsDescendants = true
 	savedPos = main.Position
 	savedSize = main.Size
@@ -127,7 +127,8 @@ minBtn.MouseButton1Click:Connect(function()
 		main.Visible = false
 		miniIcon.Visible = true
 	end)
-end)
+end
+minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
 	pcall(function() if AdminPanelBridge then AdminPanelBridge:Destroy() end end)

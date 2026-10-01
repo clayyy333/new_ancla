@@ -345,6 +345,7 @@ return function(context)
 
 	local controlLabels = {
 		{"camera_control", isES and "Perspectiva Cámara" or "Camera Perspective"},
+		{"cinematic_camera", isES and "Perspectiva cinemática" or "Cinematic Perspective"},
 		{"flight_control", isES and "Control de vuelo" or "Flight Control"},
 		{"car_control", isES and "Control de auto" or "Car Control"},
 		{"free_car_control", isES and "Control de auto libre" or "Free Car Control"},
