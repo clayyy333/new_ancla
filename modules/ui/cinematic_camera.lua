@@ -11,7 +11,8 @@ return function(context)
 	local hint=Instance.new("TextLabel");hint.Size=UDim2.new(1,-24,0,54);hint.Position=UDim2.new(0,12,0,110);hint.BackgroundTransparency=1;hint.Text=isES and "La cámara girará automáticamente alrededor del target seleccionado." or "The camera will automatically orbit the selected target.";hint.TextWrapped=true;hint.TextColor3=currentTheme.textDim;hint.Font=Enum.Font.GothamMedium;hint.TextSize=isMobile and 10 or 12;hint.ZIndex=8;hint.Parent=card;RegisterTheme(hint,"TextColor3","textDim")
 	local list=Instance.new("ScrollingFrame");list.Size=UDim2.new(1,-24,0,126);list.Position=UDim2.new(0,12,0,54);list.BackgroundColor3=currentTheme.tertiary;list.ScrollBarThickness=3;list.AutomaticCanvasSize=Enum.AutomaticSize.Y;list.CanvasSize=UDim2.new();list.Visible=false;list.ZIndex=30;list.Parent=card;Instance.new("UICorner",list).CornerRadius=UDim.new(0,10);RegisterTheme(list,"BackgroundColor3","tertiary");Instance.new("UIListLayout",list).Padding=UDim.new(0,3)
 
-	local hud=Instance.new("Frame");hud.Name="CinematicCameraControls";hud.Size=UDim2.new(0,isMobile and 260 or 300,0,210);hud.AnchorPoint=Vector2.new(1,0);hud.Position=UDim2.new(1,-18,.5,-105);hud.BackgroundColor3=currentTheme.secondary;hud.BorderSizePixel=0;hud.Visible=false;hud.ZIndex=900;hud.Parent=gui;Instance.new("UICorner",hud).CornerRadius=UDim.new(0,12);RegisterTheme(hud,"BackgroundColor3","secondary")
+	local hudWidth=isMobile and 260 or 300
+	local hud=Instance.new("Frame");hud.Name="CinematicCameraControls";hud.Size=UDim2.new(0,hudWidth,0,210);hud.AnchorPoint=Vector2.new(1,0);hud.Position=UDim2.new(1,-18,.5,-105);hud.BackgroundColor3=currentTheme.secondary;hud.BorderSizePixel=0;hud.ClipsDescendants=true;hud.Visible=false;hud.ZIndex=900;hud.Parent=gui;Instance.new("UICorner",hud).CornerRadius=UDim.new(0,12);RegisterTheme(hud,"BackgroundColor3","secondary")
 	local hudStroke=Instance.new("UIStroke",hud);hudStroke.Color=currentTheme.stroke;hudStroke.Thickness=2;RegisterTheme(hudStroke,"Color","stroke")
 	local title=Instance.new("TextLabel");title.Size=UDim2.new(1,-54,0,28);title.Position=UDim2.new(0,10,0,5);title.BackgroundTransparency=1;title.Text=isES and "Perspectiva cinemática" or "Cinematic perspective";title.TextColor3=currentTheme.accent;title.Font=Enum.Font.GothamBold;title.TextSize=isMobile and 11 or 12;title.TextXAlignment=Enum.TextXAlignment.Left;title.ZIndex=901;title.Parent=hud;RegisterTheme(title,"TextColor3","accent")
 	local down=button(hud,isES and "Bajar −" or "Lower −",UDim2.new(.3,-8,0,34),UDim2.new(0,10,0,38),901)
@@ -26,32 +27,40 @@ return function(context)
 	local direction=button(hud,isES and "Giro: derecha" or "Orbit: right",UDim2.new(.34,-10,0,40),UDim2.new(0,10,0,164),901)
 	local pause=button(hud,isES and "Pausar" or "Pause",UDim2.new(.36,-8,0,40),UDim2.new(.34,4,0,164),901)
 	local stop=button(hud,isES and "Detener" or "Stop",UDim2.new(.3,-10,0,40),UDim2.new(.7,0,0,164),901)
-	local collapse=button(hud,"⌃",UDim2.new(0,30,0,28),UDim2.new(1,-38,0,5),902)
+	local collapseSize=isMobile and 26 or 30
+	local collapse=Instance.new("TextButton");collapse.Name="Minimize";collapse.Size=UDim2.fromOffset(collapseSize,collapseSize);collapse.Position=UDim2.new(1,-collapseSize-6,0,4);collapse.BackgroundColor3=currentTheme.tertiary;collapse.BorderSizePixel=0;collapse.Text="";collapse.AutoButtonColor=false;collapse.ZIndex=902;collapse.Parent=hud;Instance.new("UICorner",collapse).CornerRadius=UDim.new(.25,0);RegisterTheme(collapse,"BackgroundColor3","tertiary")
+	local collapseHorizontal=Instance.new("Frame");collapseHorizontal.AnchorPoint=Vector2.new(.5,.5);collapseHorizontal.Position=UDim2.fromScale(.5,.5);collapseHorizontal.Size=UDim2.new(.4,0,0,2);collapseHorizontal.BorderSizePixel=0;collapseHorizontal.BackgroundColor3=currentTheme.text;collapseHorizontal.ZIndex=903;collapseHorizontal.Parent=collapse;RegisterTheme(collapseHorizontal,"BackgroundColor3","text")
+	local collapseVertical=Instance.new("Frame");collapseVertical.AnchorPoint=Vector2.new(.5,.5);collapseVertical.Position=UDim2.fromScale(.5,.5);collapseVertical.Size=UDim2.new(0,2,.4,0);collapseVertical.BorderSizePixel=0;collapseVertical.BackgroundColor3=currentTheme.text;collapseVertical.Visible=false;collapseVertical.ZIndex=903;collapseVertical.Parent=collapse;RegisterTheme(collapseVertical,"BackgroundColor3","text")
 	local hudCollapsed=false
 	local hudControls={down,elevation,up,closer,zoom,farther,slower,speed,faster,direction,pause,stop}
+	local collapseTween=nil
 	local function setHudCollapsed(value)
 		hudCollapsed=value==true
-		for _,control in ipairs(hudControls) do control.Visible=not hudCollapsed end
-		hud.Size=UDim2.new(0,isMobile and 260 or 300,0,hudCollapsed and 38 or 210)
-		collapse.Text=hudCollapsed and "⌄" or "⌃"
+		if collapseTween then collapseTween:Cancel() end
+		collapseVertical.Visible=hudCollapsed
+		if not hudCollapsed then for _,control in ipairs(hudControls) do control.Visible=true end end
+		collapseTween=TweenService:Create(hud,TweenInfo.new(.25,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=UDim2.new(0,hudWidth,0,hudCollapsed and 38 or 210)})
+		collapseTween:Play()
+		if hudCollapsed then task.delay(.25,function() if hudCollapsed then for _,control in ipairs(hudControls) do control.Visible=false end end end) end
 	end
 	collapse.Activated:Connect(function() setHudCollapsed(not hudCollapsed) end)
+	if not isMobile then
+		collapse.MouseEnter:Connect(function() TweenService:Create(collapse,TweenInfo.new(.12),{Size=UDim2.fromOffset(collapseSize+4,collapseSize+4),Position=UDim2.new(1,-collapseSize-8,0,2)}):Play() end)
+		collapse.MouseLeave:Connect(function() TweenService:Create(collapse,TweenInfo.new(.12),{Size=UDim2.fromOffset(collapseSize,collapseSize),Position=UDim2.new(1,-collapseSize-6,0,4)}):Play() end)
+	end
 	title.Active=true
-	local dragging=false;local dragStart;local dragAnchor
-	title.InputBegan:Connect(function(input)
+	local dragging=false;local dragStart;local startPos
+	local function startHudDrag(input)
 		if input.UserInputType~=Enum.UserInputType.MouseButton1 and input.UserInputType~=Enum.UserInputType.Touch then return end
 		dragging=true
 		dragStart=input.Position
-		dragAnchor=hud.AbsolutePosition+Vector2.new(hud.AbsoluteSize.X,0)
-	end)
+		startPos=hud.Position
+	end
+	title.InputBegan:Connect(startHudDrag)
 	UserInputService.InputChanged:Connect(function(input)
 		if not dragging or (input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch) then return end
-		local camera=workspace.CurrentCamera;if not camera then return end
 		local delta=input.Position-dragStart
-		local width,height=hud.AbsoluteSize.X,hud.AbsoluteSize.Y
-		local x=math.clamp(dragAnchor.X+delta.X,width+8,camera.ViewportSize.X-8)
-		local y=math.clamp(dragAnchor.Y+delta.Y,8,math.max(8,camera.ViewportSize.Y-height-8))
-		hud.Position=UDim2.fromOffset(x,y)
+		hud.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=false end
