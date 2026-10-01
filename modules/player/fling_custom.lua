@@ -5,6 +5,7 @@ return function(context)
 	local LocalPlayer = player
 	local OWNER_USER_ID = 11739864999
 	local OWNER_USERNAME = "psychoo778"
+	local function T(es,en) return isES and es or en end
 local CONFIG = {
 	VERTICAL_DISTANCE = 0.1,
 	LINEAR_SPEED = 1000,
@@ -157,22 +158,35 @@ function VR7EfficientCore:GetParameterLimits()
 	return result
 end
 function VR7EfficientCore:SetParameter(name,value)
-	if self.Running or self.Stopping then return false,"Detén el Fling personalizable para cambiar valores." end
-	if not self:IsAuthorized() then return false,"Disponible próximamente." end
+	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar valores.","Stop Custom Fling before changing values.") end
+	if not self:IsAuthorized() then return false,T("Disponible próximamente.","Coming soon.") end
 	local limit=LIMITS[name];value=tonumber(value)
-	if not limit or not value then return false,"Parámetro inválido." end
+	if not limit or not value then return false,T("Parámetro inválido.","Invalid parameter.") end
 	value=math.clamp(value,limit.min,limit.max)
 	if not limit.decimal then value=math.floor(value+0.5) end
 	CONFIG[name]=value
 	if name=="FLINGER_SPEED" then CONFIG.FLINGER_VELOCITY=Vector3.new(value,value,value) end
 	return true,value
 end
-function VR7EfficientCore:ResetParameters()
+function VR7EfficientCore:ApplyPreset(preset)
 	if self.Running or self.Stopping then return false end
 	if not self:IsAuthorized() then return false end
-	for name,limit in pairs(LIMITS) do CONFIG[name]=limit.min end
+	preset=string.upper(tostring(preset or "MINIMUM"))
+	if preset~="MINIMUM" and preset~="MEDIUM" and preset~="MAXIMUM" then return false end
+	for name,limit in pairs(LIMITS) do
+		local value=limit.min
+		if preset=="MAXIMUM" then value=limit.max
+		elseif preset=="MEDIUM" then
+			value=(limit.min+limit.max)/2
+			if limit.decimal then value=math.floor(value*10+0.5)/10 else value=math.floor(value+0.5) end
+		end
+		CONFIG[name]=value
+	end
 	CONFIG.FLINGER_VELOCITY=Vector3.new(CONFIG.FLINGER_SPEED,CONFIG.FLINGER_SPEED,CONFIG.FLINGER_SPEED)
 	return true
+end
+function VR7EfficientCore:ResetParameters()
+	return self:ApplyPreset("MINIMUM")
 end
 
 --------------------------------------------------
@@ -310,7 +324,7 @@ end
 
 function VR7EfficientCore:Start()
 	-- Si INICIAR se pulsa durante la estabilización del Stop anterior,
-	if not self:IsAuthorized() then return false, "Disponible próximamente." end
+	if not self:IsAuthorized() then return false, T("Disponible próximamente.","Coming soon.") end
 	-- cancelar inmediatamente ese ciclo y liberar nuestro HumanoidRootPart.
 	if self.Stopping then
 		self.StopCycle = self.StopCycle + 1
@@ -326,7 +340,7 @@ function VR7EfficientCore:Start()
 
 	if self.Running then return true end
 	if not self.SelectedTarget then
-		return false, "Selecciona un jugador antes de activar el Fling personalizable."
+		return false, T("Selecciona un jugador antes de activar el Fling personalizable.","Select a player before enabling Custom Fling.")
 	end
 	if CarFling and CarFling.Running then CarFling:Stop() end
 	if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
@@ -343,10 +357,10 @@ function VR7EfficientCore:Start()
 	end
 
 	if not attackerRoot then
-		return false, "Tu personaje no está disponible."
+		return false, T("Tu personaje no está disponible.","Your character is unavailable.")
 	end
 	if not targetRoot then
-		return false, "El objetivo no tiene personaje cargado."
+		return false, T("El objetivo no tiene personaje cargado.","The target's character is not loaded.")
 	end
 
 	self:Disconnect()
@@ -415,7 +429,7 @@ function VR7EfficientCore:Start()
 			placeNear()
 			self.EfficientPhase = "VERIFY_RETURN"
 		elseif self.EfficientPhase == "VERIFY_RETURN" then
-			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.DIRECT_RETURN_TOLERANCE then
+			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.NEAR_DISTANCE then
 				self.EfficientPhase = "NEAR"
 				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
 			else
@@ -423,7 +437,7 @@ function VR7EfficientCore:Start()
 				self.EfficientPhase = "RETURN_16"
 			end
 		elseif self.EfficientPhase == "RETURN_16" then
-			currentRoot.CFrame = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide)
+			currentRoot.CFrame = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, CONFIG.RECOVERY_DISTANCE * self.ReturnSide)
 			self.EfficientPhase = "RETURN_NEAR"
 		else
 			placeNear()
@@ -575,18 +589,18 @@ function VR7EfficientCore:Stop()
 end
 
 function VR7EfficientCore:ForceReturn()
-	if self.Running then return false, "Desactiva Fling personalizable antes de forzar el regreso." end
-	if not self:IsAuthorized() then return false, "Disponible próximamente." end
+	if self.Running then return false, T("Desactiva Fling personalizable antes de forzar el regreso.","Disable Custom Fling before forcing the return.") end
+	if not self:IsAuthorized() then return false, T("Disponible próximamente.","Coming soon.") end
 	local checkpoint = self.AttackerCheckpoint or self.LastReturnCheckpoint
 	local humanoid, root = getParts(self.Provider:GetLocalCharacter())
-	if not checkpoint then return false, "No hay un checkpoint guardado." end
-	if not root then return false, "Tu personaje no está disponible." end
+	if not checkpoint then return false, T("No hay un checkpoint guardado.","There is no saved checkpoint.") end
+	if not root then return false, T("Tu personaje no está disponible.","Your character is unavailable.") end
 	local previousAnchored = root.Anchored
 	root.Anchored = true
 	local holdStarted = os.clock()
 	while os.clock() - holdStarted < 0.35 do
 		RunService.Heartbeat:Wait()
-		if not root.Parent then return false, "Tu personaje ya no está disponible." end
+		if not root.Parent then return false, T("Tu personaje ya no está disponible.","Your character is no longer available.") end
 		root.CFrame = checkpoint
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
