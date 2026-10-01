@@ -5,7 +5,7 @@ return function(context)
 	local SoundService=game:GetService("SoundService")
 	local GuiService=game:GetService("GuiService")
 	local CoreGui=game:GetService("CoreGui")
-	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12,Cinematic=false,CinematicPaused=false,CinematicElevation=20,CinematicCurrentElevation=20,CinematicSpeed=20}
+	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12,Cinematic=false,CinematicPaused=false,CinematicElevation=20,CinematicCurrentElevation=20,CinematicSpeed=20,CinematicDirection=1}
 	local connections={}; local renderConnection; local rotating=false; local activeTouch; local lastTouch
 	local savedLegacyListener; local managedAudioListeners={}; local listenerCamera
 	local function isPointerOverInteractiveGui(position)
@@ -73,6 +73,8 @@ return function(context)
 	function Spectator:SetCinematicSpeed(v) self.CinematicSpeed=math.clamp(tonumber(v) or 20,1,120); return self.CinematicSpeed end
 	function Spectator:AddCinematicSpeed(v) return self:SetCinematicSpeed(self.CinematicSpeed+(v or 5)) end
 	function Spectator:GetCinematicSpeed() return self.CinematicSpeed end
+	function Spectator:ToggleCinematicDirection() self.CinematicDirection=self.CinematicDirection==-1 and 1 or -1; return self.CinematicDirection end
+	function Spectator:GetCinematicDirection() return self.CinematicDirection end
 	function Spectator:SetTarget(p) if p==player then return false end self.Target=typeof(p)=="Instance" and p:IsA("Player") and p or nil; return self.Target~=nil end
 	function Spectator:GetTarget() return self.Target end
 	function Spectator:IsActive() return self.Active end
@@ -108,11 +110,11 @@ return function(context)
 			camera=Workspace.CurrentCamera; local r=root(self.Target)
 			if not camera or not r then return end
 			updateCameraAudio(camera)
-			self.Distance+=(self.TargetDistance-self.Distance)*(1-math.exp(-12*dt))
+			self.Distance+=(self.TargetDistance-self.Distance)*(1-math.exp(-(self.Cinematic and 7 or 12)*dt))
 			local targetPos=r.Position+Vector3.new(0,2,0)
 			local rotation
 			if self.Cinematic then
-				if not self.CinematicPaused then self.Yaw+=math.rad(self.CinematicSpeed)*dt end
+				if not self.CinematicPaused then self.Yaw+=math.rad(self.CinematicSpeed)*self.CinematicDirection*dt end
 				self.CinematicCurrentElevation+=(self.CinematicElevation-self.CinematicCurrentElevation)*(1-math.exp(-7*dt))
 				rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(math.rad(-self.CinematicCurrentElevation),0,0)
 			else rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0) end
