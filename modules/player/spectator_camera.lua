@@ -5,7 +5,7 @@ return function(context)
 	local SoundService=game:GetService("SoundService")
 	local GuiService=game:GetService("GuiService")
 	local CoreGui=game:GetService("CoreGui")
-	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12,Cinematic=false,CinematicPaused=false,CinematicElevation=20,CinematicSpeed=20}
+	local Spectator={Target=nil,Active=false,Yaw=0,Pitch=math.rad(-10),Distance=12,TargetDistance=12,Cinematic=false,CinematicPaused=false,CinematicElevation=20,CinematicCurrentElevation=20,CinematicSpeed=20}
 	local connections={}; local renderConnection; local rotating=false; local activeTouch; local lastTouch
 	local savedLegacyListener; local managedAudioListeners={}; local listenerCamera
 	local function isPointerOverInteractiveGui(position)
@@ -98,7 +98,7 @@ return function(context)
 		if self.Active then self:Stop() end
 		self.Cinematic=cinematic==true
 		self.CinematicPaused=false
-		if self.Cinematic then self.Pitch=0 end
+		if self.Cinematic then self.Pitch=0;self.CinematicCurrentElevation=self.CinematicElevation end
 		local camera=Workspace.CurrentCamera
 		if not camera then return false,isES and "La cámara no está disponible." or "Camera is unavailable." end
 		if renderConnection then renderConnection:Disconnect() end
@@ -113,7 +113,8 @@ return function(context)
 			local rotation
 			if self.Cinematic then
 				if not self.CinematicPaused then self.Yaw+=math.rad(self.CinematicSpeed)*dt end
-				rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(math.rad(-self.CinematicElevation),0,0)
+				self.CinematicCurrentElevation+=(self.CinematicElevation-self.CinematicCurrentElevation)*(1-math.exp(-7*dt))
+				rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(math.rad(-self.CinematicCurrentElevation),0,0)
 			else rotation=CFrame.Angles(0,self.Yaw,0)*CFrame.Angles(self.Pitch,0,0) end
 			local cameraPos=targetPos+rotation:VectorToWorldSpace(Vector3.new(0,0,self.Distance))
 			camera.CFrame=CFrame.lookAt(cameraPos,targetPos); camera.Focus=CFrame.new(targetPos)
