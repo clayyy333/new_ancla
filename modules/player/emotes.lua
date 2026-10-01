@@ -4,6 +4,9 @@ return function(context)
 
 currentAnimTrack = nil
 lastEmoteTime = 0
+local respawnEmote = nil
+local respawnEmoteToken = 0
+local removedCharacters = setmetatable({}, {__mode = "k"})
 
 function GetAnimator()
 	local character = player.Character
@@ -41,6 +44,8 @@ end
 
 
 function StopEmote(showNotif)
+	respawnEmoteToken = respawnEmoteToken + 1
+	respawnEmote = nil
 	StopAllTracks()
 	if showNotif then Notify(L.stopped, "", 113416463749658) end
 	if FriendData.currentSyncPartner then
@@ -107,6 +112,9 @@ function PlayEmote(id, name, silent, syncStartTime)
 	if not animator then return end
 	
 	StopAllTracks()
+	respawnEmoteToken = respawnEmoteToken + 1
+	local playToken = respawnEmoteToken
+	respawnEmote = {id = id, name = name}
 	
 	_genv().lastVexroEmote = {id = id, name = name}
 	
@@ -135,7 +143,7 @@ function PlayEmote(id, name, silent, syncStartTime)
 			_animCache[id] = anim
 		end
 		
-		if _genv().lastVexroEmote and _genv().lastVexroEmote.id == id then
+		if respawnEmote and respawnEmoteToken == playToken and respawnEmote.id == id and _genv().lastVexroEmote and _genv().lastVexroEmote.id == id then
 			local success, err = pcall(function()
 				local track = animator:LoadAnimation(anim)
 				track.Priority = Enum.AnimationPriority.Action4
@@ -166,6 +174,16 @@ function PlayEmote(id, name, silent, syncStartTime)
 				end)
 				
 				currentAnimTrack = track
+				track.Stopped:Connect(function()
+					if currentAnimTrack == track then currentAnimTrack = nil end
+					local humanoid = animator.Parent
+					local character = humanoid and humanoid.Parent
+					local endedWhileAlive = humanoid and humanoid:IsA("Humanoid") and character == player.Character and not removedCharacters[character] and humanoid.Health > 0
+					if endedWhileAlive and respawnEmoteToken == playToken then
+						respawnEmoteToken = respawnEmoteToken + 1
+						respawnEmote = nil
+					end
+				end)
 				AddToRecent(id)
 			end)
 			
@@ -185,6 +203,24 @@ function PlayEmote(id, name, silent, syncStartTime)
 	end)
 end
 
+-- Un Animator pertenece a un solo personaje. Al reaparecer se vuelve a cargar
+-- únicamente el emote que seguía activo; detenerlo manualmente cancela esto.
+player.CharacterRemoving:Connect(function(character)
+	removedCharacters[character] = true
+end)
+player.CharacterAdded:Connect(function(character)
+	currentAnimTrack = nil
+	local tokenAtRespawn = respawnEmoteToken
+	task.spawn(function()
+		local humanoid = character:WaitForChild("Humanoid", 8)
+		if not humanoid then return end
+		humanoid:WaitForChild("Animator", 4)
+		task.wait(0.35)
+		local saved = respawnEmote
+		if player.Character ~= character or humanoid.Health <= 0 or not saved or tokenAtRespawn ~= respawnEmoteToken then return end
+		PlayEmote(saved.id, saved.name, true)
+	end)
+end)
 -- ===============================================================
 -- MAIN MENU
 -- ===============================================================

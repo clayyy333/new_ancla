@@ -292,6 +292,16 @@ return function(context)
 		end
 	end
 
+	-- El nuevo personaje recibe otro script Animate; reaplicar la selección
+	-- existente cuando ese script ya esté disponible.
+	player.CharacterAdded:Connect(function(character)
+		task.spawn(function()
+			local animate=character:WaitForChild("Animate",8)
+			if not animate or player.Character~=character then return end
+			task.wait(0.15)
+			if player.Character==character then ReapplyAnimationSelection() end
+		end)
+	end)
 	local savedBundleId=tonumber(Settings.animationPackBundleId)
 	if savedBundleId then
 		task.defer(function()

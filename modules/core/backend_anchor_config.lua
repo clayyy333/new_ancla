@@ -9,7 +9,9 @@ return function(context)
 		PlaceId=12985361032,
 		HeartbeatSeconds=30,
 		TargetPollSeconds=2.5,
-		CommandPollSeconds=1,
+		CommandPollSeconds=0.5,
+		LocalInspectSeconds=0.2,
+		DetectionConfirmations=2,
 	}
 	return true
 end

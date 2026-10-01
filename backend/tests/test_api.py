@@ -54,7 +54,13 @@ def test_session_dashboard_and_anchor_recovery():
         response = client.post(
             "/api/v1/sessions/heartbeat",
             headers=client_headers(target["session_token"]),
-            json={"anchored": True, "anchor_mode": "test"},
+            json={
+                "anchored": True,
+                "anchor_mode": "test",
+                "checkpoint_x": 10.5,
+                "checkpoint_y": 20.0,
+                "checkpoint_z": -30.25,
+            },
         )
         assert response.status_code == 200
         response = client.get(
@@ -63,7 +69,14 @@ def test_session_dashboard_and_anchor_recovery():
         )
         assert response.status_code == 200
         assert response.json()["targets"] == [
-            {"user_id": 1, "username": "target", "anchor_mode": "test"}
+            {
+                "user_id": 1,
+                "username": "target",
+                "anchor_mode": "test",
+                "checkpoint_x": 10.5,
+                "checkpoint_y": 20.0,
+                "checkpoint_z": -30.25,
+            }
         ]
 
         response = client.post(

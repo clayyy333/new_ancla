@@ -66,6 +66,9 @@ def init_database() -> None:
                 credited_seconds REAL NOT NULL DEFAULT 0,
                 anchored INTEGER NOT NULL DEFAULT 0,
                 anchor_mode TEXT NOT NULL DEFAULT '',
+                checkpoint_x REAL,
+                checkpoint_y REAL,
+                checkpoint_z REAL,
                 FOREIGN KEY(user_id) REFERENCES users(user_id)
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_server
@@ -148,3 +151,6 @@ def init_database() -> None:
             db.execute(
                 "ALTER TABLE sessions ADD COLUMN game_id INTEGER NOT NULL DEFAULT 0"
             )
+        for column in ("checkpoint_x", "checkpoint_y", "checkpoint_z"):
+            if column not in columns:
+                db.execute(f"ALTER TABLE sessions ADD COLUMN {column} REAL")

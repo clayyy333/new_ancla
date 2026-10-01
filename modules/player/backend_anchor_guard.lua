@@ -58,13 +58,15 @@ return function(context)
 	end
 
 	local function anchorState()
-		if not AnchorCore then return false,"" end
-		if AnchorCore.TestEnabled and AnchorCore.TestCheckpoint then return true,"test" end
+		if not AnchorCore then return false,"",nil end
+		if AnchorCore.TestEnabled and AnchorCore.TestCheckpoint then
+			return true,"test",AnchorCore.TestCheckpoint.Position
+		end
 		if AnchorCore.AnclaEnabled and AnchorCore.Checkpoint then
 			local automatic=AutoAnchorCore and AutoAnchorCore.Mode
-			return true,automatic and ("automatic_"..tostring(automatic)) or "normal"
+			return true,automatic and ("automatic_"..tostring(automatic)) or "normal",AnchorCore.Checkpoint.Position
 		end
-		return false,""
+		return false,"",nil
 	end
 
 	local function executorName()
@@ -106,10 +108,13 @@ return function(context)
 		return true
 	end
 
-	local function heartbeat(anchored,mode)
+	local function heartbeat(anchored,mode,checkpoint)
 		local response,_,status=call("POST","/api/v1/sessions/heartbeat",{
 			anchored=anchored,
 			anchor_mode=mode,
+			checkpoint_x=checkpoint and checkpoint.X or nil,
+			checkpoint_y=checkpoint and checkpoint.Y or nil,
+			checkpoint_z=checkpoint and checkpoint.Z or nil,
 		},Guard.SessionToken)
 		if status==401 or status==403 then
 			Guard.Connected=false
@@ -131,7 +136,13 @@ return function(context)
 		},Guard.SessionToken)
 	end
 
-	local function inspectTargets()
+	local function checkpointFromTarget(target)
+		local x,y,z=tonumber(target.checkpoint_x),tonumber(target.checkpoint_y),tonumber(target.checkpoint_z)
+		if x and y and z then return Vector3.new(x,y,z) end
+		return nil
+	end
+
+	local function refreshTargets()
 		local response=call("GET","/api/v1/anchor/targets",nil,Guard.SessionToken)
 		if not response or type(response.targets)~="table" then return end
 		local timestamp=os.clock()
@@ -141,30 +152,19 @@ return function(context)
 			if userId and userId~=player.UserId then
 				present[userId]=true
 				local root=playerRoot(userId)
+				local checkpoint=checkpointFromTarget(target)
 				if root then
+					local baseline=checkpoint or root.Position
 					local state=targetStates[userId]
 					if not state then
-						targetStates[userId]={
-							Baseline=root.Position,
-							ArmedAt=timestamp+1.5,
-							Strikes=0,
-							LastReport=0,
-						}
-					elseif timestamp>=state.ArmedAt then
-						local distance=(root.Position-state.Baseline).Magnitude
-						if distance>=4 then
-							state.Strikes+=1
-							if state.Strikes>=2 and timestamp-state.LastReport>=3 then
-								state.LastReport=timestamp
-								state.Strikes=0
-								task.spawn(report,userId,distance)
-							end
-						else
+						targetStates[userId]={Baseline=baseline,Authoritative=checkpoint~=nil,ArmedAt=timestamp+0.35,Strikes=0,LastReport=0}
+					elseif checkpoint then
+						if not state.Authoritative or (state.Baseline-checkpoint).Magnitude>0.05 then
 							state.Strikes=0
-							if distance<1.5 then
-								state.Baseline=state.Baseline:Lerp(root.Position,0.15)
-							end
+							state.ArmedAt=timestamp+0.35
 						end
+						state.Baseline=checkpoint
+						state.Authoritative=true
 					end
 				end
 			end
@@ -174,6 +174,27 @@ return function(context)
 		end
 	end
 
+	local function inspectKnownTargets()
+		local timestamp=os.clock()
+		local confirmations=math.max(1,tonumber(Config.DetectionConfirmations) or 2)
+		for userId,state in pairs(targetStates) do
+			local root=playerRoot(userId)
+			if root and timestamp>=state.ArmedAt then
+				local distance=(root.Position-state.Baseline).Magnitude
+				if distance>=4 then
+					state.Strikes+=1
+					if state.Strikes>=confirmations and timestamp-state.LastReport>=3 then
+						state.LastReport=timestamp
+						state.Strikes=0
+						task.spawn(report,userId,distance)
+					end
+				else
+					state.Strikes=0
+					if not state.Authoritative and distance<1.5 then state.Baseline=state.Baseline:Lerp(root.Position,0.15) end
+				end
+			end
+		end
+	end
 	local function acknowledge(commandId,result)
 		call("POST","/api/v1/anchor/commands/"..commandId.."/ack",{
 			result=result,
@@ -209,40 +230,48 @@ return function(context)
 		local generation=self.Generation
 		self.Running=true
 		task.spawn(function()
-			local retryAt=0
-			local heartbeatAt=0
-			local targetsAt=0
-			local commandsAt=0
-			local lastAnchored,lastMode=nil,nil
+			local retryAt,heartbeatAt,targetsAt,commandsAt,inspectAt=0,0,0,0,0
+			local lastAnchored,lastMode,lastCheckpoint=nil,nil,nil
+			local connecting,heartbeatBusy,targetsBusy,commandsBusy=false,false,false,false
 			while Guard.Running and Guard.Generation==generation do
 				local timestamp=os.clock()
 				if not Guard.Connected then
-					if timestamp>=retryAt then
-						retryAt=timestamp+15
-						startSession()
+					if timestamp>=retryAt and not connecting then
+						retryAt=timestamp+15;connecting=true
+						task.spawn(function() startSession();connecting=false end)
 					end
 				else
-					local anchored,mode=anchorState()
-					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode then
-						heartbeatAt=timestamp+(tonumber(Config.HeartbeatSeconds) or 30)
-						lastAnchored,lastMode=anchored,mode
-						heartbeat(anchored,mode)
+					local anchored,mode,checkpoint=anchorState()
+					local checkpointChanged=(checkpoint~=lastCheckpoint)
+					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged then
+						if not heartbeatBusy then
+							heartbeatAt=timestamp+(tonumber(Config.HeartbeatSeconds) or 30)
+							lastAnchored,lastMode,lastCheckpoint=anchored,mode,checkpoint
+							heartbeatBusy=true
+							task.spawn(function()
+								if not heartbeat(anchored,mode,checkpoint) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
+								heartbeatBusy=false
+							end)
+						end
 					end
-					if Guard.Connected and timestamp>=targetsAt then
-						targetsAt=timestamp+(tonumber(Config.TargetPollSeconds) or 2.5)
-						inspectTargets()
+					if timestamp>=targetsAt and not targetsBusy then
+						targetsAt=timestamp+(tonumber(Config.TargetPollSeconds) or 2.5);targetsBusy=true
+						task.spawn(function() refreshTargets();targetsBusy=false end)
 					end
-					if Guard.Connected and anchored and timestamp>=commandsAt then
-						commandsAt=timestamp+(tonumber(Config.CommandPollSeconds) or 1)
-						executeCommands()
+					if timestamp>=inspectAt then
+						inspectAt=timestamp+(tonumber(Config.LocalInspectSeconds) or 0.2)
+						inspectKnownTargets()
+					end
+					if anchored and timestamp>=commandsAt and not commandsBusy then
+						commandsAt=timestamp+(tonumber(Config.CommandPollSeconds) or 0.5);commandsBusy=true
+						task.spawn(function() executeCommands();commandsBusy=false end)
 					end
 				end
-				task.wait(0.25)
+				task.wait(0.05)
 			end
 		end)
 		return true
 	end
-
 	function Guard:Destroy()
 		if not self.Running then return end
 		self.Running=false

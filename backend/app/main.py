@@ -131,6 +131,9 @@ class SessionStart(BaseModel):
 class Heartbeat(BaseModel):
     anchored: bool = False
     anchor_mode: str = Field(default="", max_length=40)
+    checkpoint_x: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
+    checkpoint_y: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
+    checkpoint_z: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
 
 
 class AnchorObservation(BaseModel):
@@ -325,7 +328,7 @@ def start_session(payload: SessionStart, request: Request):
         "session_id": session_id,
         "session_token": session_token,
         "heartbeat_interval_seconds": 30,
-        "command_poll_interval_seconds": 1,
+        "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (
             payload.game_id == ANCHOR_ALLOWED_GAME_ID
             and payload.place_id == ANCHOR_ALLOWED_PLACE_ID
@@ -346,8 +349,17 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         anchored = payload.anchored and anchor_guard_allowed(session)
         db.execute(
             """UPDATE sessions SET last_seen=?,credited_seconds=credited_seconds+?,
-               anchored=?,anchor_mode=? WHERE id=?""",
-            (timestamp, elapsed, int(anchored), payload.anchor_mode if anchored else "", session["id"]),
+               anchored=?,anchor_mode=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
+            (
+                timestamp,
+                elapsed,
+                int(anchored),
+                payload.anchor_mode if anchored else "",
+                payload.checkpoint_x if anchored else None,
+                payload.checkpoint_y if anchored else None,
+                payload.checkpoint_z if anchored else None,
+                session["id"],
+            ),
         )
         db.execute(
             "UPDATE users SET last_seen=?,total_seconds=total_seconds+? WHERE user_id=?",
@@ -369,7 +381,8 @@ def end_session(session=Depends(require_session)):
 def anchor_targets(observer=Depends(require_anchor_guard_session)):
     with connection() as db:
         rows = db.execute(
-            """SELECT DISTINCT s.user_id,u.username,s.anchor_mode
+            """SELECT DISTINCT s.user_id,u.username,s.anchor_mode,
+                      s.checkpoint_x,s.checkpoint_y,s.checkpoint_z
                FROM sessions s JOIN users u ON u.user_id=s.user_id
                WHERE s.game_id=? AND s.place_id=? AND s.job_id=?
                  AND s.id<>? AND s.anchored=1 AND s.ended_at IS NULL
