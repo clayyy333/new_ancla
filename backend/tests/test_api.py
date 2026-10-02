@@ -56,7 +56,7 @@ def test_session_dashboard_and_anchor_recovery():
             headers=client_headers(target["session_token"]),
             json={
                 "anchored": True,
-                "custom_fling_open": True,
+                "custom_fling_using": True,
                 "anchor_mode": "test",
                 "checkpoint_x": 10.5,
                 "checkpoint_y": 20.0,
@@ -111,7 +111,7 @@ def test_session_dashboard_and_anchor_recovery():
         assert sessions.status_code == 200
         assert len(sessions.json()["sessions"]) == 2
         target_session = next(item for item in sessions.json()["sessions"] if item["user_id"] == 1)
-        assert target_session["custom_fling_open"] == 1
+        assert target_session["custom_fling_using"] == 1
 
 
 def test_network_profile_requires_consent_and_is_admin_only():

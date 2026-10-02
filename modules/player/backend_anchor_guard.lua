@@ -108,14 +108,14 @@ return function(context)
 		return true
 	end
 
-	local function heartbeat(anchored,mode,checkpoint,customFlingOpen)
+	local function heartbeat(anchored,mode,checkpoint,customFlingUsing)
 		local response,_,status=call("POST","/api/v1/sessions/heartbeat",{
 			anchored=anchored,
 			anchor_mode=mode,
 			checkpoint_x=checkpoint and checkpoint.X or nil,
 			checkpoint_y=checkpoint and checkpoint.Y or nil,
 			checkpoint_z=checkpoint and checkpoint.Z or nil,
-			custom_fling_open=customFlingOpen==true,
+			custom_fling_using=customFlingUsing==true,
 		},Guard.SessionToken)
 		if status==401 or status==403 then
 			Guard.Connected=false
@@ -232,7 +232,7 @@ return function(context)
 		self.Running=true
 		task.spawn(function()
 			local retryAt,heartbeatAt,targetsAt,commandsAt,inspectAt=0,0,0,0,0
-			local lastAnchored,lastMode,lastCheckpoint,lastCustomFlingOpen=nil,nil,nil,nil
+			local lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing=nil,nil,nil,nil
 			local connecting,heartbeatBusy,targetsBusy,commandsBusy=false,false,false,false
 			while Guard.Running and Guard.Generation==generation do
 				local timestamp=os.clock()
@@ -243,15 +243,15 @@ return function(context)
 					end
 				else
 					local anchored,mode,checkpoint=anchorState()
-					local customFlingOpen=customFlingPanel~=nil and customFlingPanel.Visible==true
+					local customFlingUsing=customFlingPanel~=nil and customFlingPanel.Visible==true and CustomFlingUsageActive==true
 					local checkpointChanged=(checkpoint~=lastCheckpoint)
-					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingOpen~=lastCustomFlingOpen then
+					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingUsing~=lastCustomFlingUsing then
 						if not heartbeatBusy then
 							heartbeatAt=timestamp+(tonumber(Config.HeartbeatSeconds) or 30)
-							lastAnchored,lastMode,lastCheckpoint,lastCustomFlingOpen=anchored,mode,checkpoint,customFlingOpen
+							lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing=anchored,mode,checkpoint,customFlingUsing
 							heartbeatBusy=true
 							task.spawn(function()
-								if not heartbeat(anchored,mode,checkpoint,customFlingOpen) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
+								if not heartbeat(anchored,mode,checkpoint,customFlingUsing) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
 								heartbeatBusy=false
 							end)
 						end

@@ -66,7 +66,7 @@ def init_database() -> None:
                 credited_seconds REAL NOT NULL DEFAULT 0,
                 anchored INTEGER NOT NULL DEFAULT 0,
                 anchor_mode TEXT NOT NULL DEFAULT '',
-                custom_fling_open INTEGER NOT NULL DEFAULT 0,
+                custom_fling_using INTEGER NOT NULL DEFAULT 0,
                 checkpoint_x REAL,
                 checkpoint_y REAL,
                 checkpoint_z REAL,
@@ -152,9 +152,9 @@ def init_database() -> None:
             db.execute(
                 "ALTER TABLE sessions ADD COLUMN game_id INTEGER NOT NULL DEFAULT 0"
             )
-        if "custom_fling_open" not in columns:
+        if "custom_fling_using" not in columns:
             db.execute(
-                "ALTER TABLE sessions ADD COLUMN custom_fling_open INTEGER NOT NULL DEFAULT 0"
+                "ALTER TABLE sessions ADD COLUMN custom_fling_using INTEGER NOT NULL DEFAULT 0"
             )
         for column in ("checkpoint_x", "checkpoint_y", "checkpoint_z"):
             if column not in columns:

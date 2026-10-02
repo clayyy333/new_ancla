@@ -322,6 +322,7 @@ return {
 		"_fling2PlayerRemovingConn",
 		"CustomFlingCore",
 		"customFlingPanel",
+		"CustomFlingUsageActive",
 		"UpdateCustomFlingPanel",
 		"_customFlingPlayerRemovingConn",
 		"_customFlingCharacterAddedConn",

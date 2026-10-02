@@ -194,8 +194,8 @@ return function(context)
                 (tonumber(info.total_seconds) or 0) / 3600,
                 tostring(info.country_code or "UN"),
                 tostring(info.user_id or ""),
-                ((info.custom_fling_open == true or tonumber(info.custom_fling_open) == 1)
-                    and (isES and "En Fling personalizado" or "In Custom Fling")
+                ((info.custom_fling_using == true or tonumber(info.custom_fling_using) == 1)
+                    and (isES and "Usando Fling personalizado" or "Using Custom Fling")
                     or (isES and "Fuera" or "Outside"))
             )
             item.TextColor3 = currentTheme.text

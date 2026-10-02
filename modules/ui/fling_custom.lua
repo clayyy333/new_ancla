@@ -4,6 +4,13 @@ return function(context)
 	customFlingPanel=Instance.new("ScrollingFrame")
 	customFlingPanel.Name="CustomFlingPanel";customFlingPanel.Size=UDim2.new(1,-16,1,-(titleH+20));customFlingPanel.Position=UDim2.new(0,8,0,titleH+8);customFlingPanel.BackgroundTransparency=1;customFlingPanel.BorderSizePixel=0;customFlingPanel.ScrollBarThickness=3;customFlingPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;customFlingPanel.CanvasSize=UDim2.new();customFlingPanel.Visible=false;customFlingPanel.ZIndex=6;customFlingPanel.Parent=content
 	local layout=Instance.new("UIListLayout",customFlingPanel);layout.Padding=UDim.new(0,6)
+	CustomFlingUsageActive=false
+	local function markCustomFlingUsage()
+		if customFlingPanel.Visible then CustomFlingUsageActive=true end
+	end
+	customFlingPanel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not customFlingPanel.Visible then CustomFlingUsageActive=false end
+	end)
 	local function button(parent,text,size,pos)
 		local b=Instance.new("TextButton");b.Size=size;b.Position=pos;b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 11;b.AutoButtonColor=false;b.ZIndex=8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,8);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
@@ -75,15 +82,15 @@ return function(context)
 			local values=CustomFlingCore:GetParameters()
 			if key=="NEAR_DISTANCE" then
 				local nextValue=direction<0 and (values[key]<=1 and 0.5 or values[key]-1) or (values[key]<1 and 1 or values[key]+1)
-				CustomFlingCore:SetParameter(key,nextValue)
+				CustomFlingCore:SetParameter(key,nextValue);markCustomFlingUsage()
 			else
 				local amount=fixedStep or stepOptions[stepIndex]
-				CustomFlingCore:SetParameter(key,values[key]+amount*direction)
+				CustomFlingCore:SetParameter(key,values[key]+amount*direction);markCustomFlingUsage()
 			end
 			UpdateCustomFlingPanel()
 		end
 		minus.Activated:Connect(function() change(-1) end);plus.Activated:Connect(function() change(1) end)
-		if optionToggle then optionToggle.Activated:Connect(function() local ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled());if ok then UpdateCustomFlingPanel() end end) end
+		if optionToggle then optionToggle.Activated:Connect(function() local ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled());if ok then markCustomFlingUsage();UpdateCustomFlingPanel() end end) end
 	end
 	UpdateCustomFlingPanel=function(message)
 		local values=CustomFlingCore:GetParameters();local limits=CustomFlingCore:GetParameterLimits();local locked=CustomFlingCore.Running or CustomFlingCore.Stopping
@@ -107,17 +114,17 @@ return function(context)
 	targetButton.Activated:Connect(function()
 		if CustomFlingCore.Running then return end
 		local options=CustomFlingCore.Provider:GetTargetOptions();if #options==0 then CustomFlingCore:SetTarget(nil);UpdateCustomFlingPanel(isES and "No hay jugadores" or "No players");return end
-		targetIndex=targetIndex%#options+1;CustomFlingCore:SetTarget(options[targetIndex]);UpdateCustomFlingPanel()
+		targetIndex=targetIndex%#options+1;CustomFlingCore:SetTarget(options[targetIndex]);markCustomFlingUsage();UpdateCustomFlingPanel()
 	end)
-	stepButton.Activated:Connect(function() stepIndex=stepIndex%#stepOptions+1;UpdateCustomFlingPanel() end)
-	minimumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MINIMUM") then UpdateCustomFlingPanel() end end)
-	mediumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MEDIUM") then UpdateCustomFlingPanel() end end)
-	maximumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MAXIMUM") then UpdateCustomFlingPanel() end end)
+	stepButton.Activated:Connect(function() stepIndex=stepIndex%#stepOptions+1;markCustomFlingUsage();UpdateCustomFlingPanel() end)
+	minimumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MINIMUM") then markCustomFlingUsage();UpdateCustomFlingPanel() end end)
+	mediumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MEDIUM") then markCustomFlingUsage();UpdateCustomFlingPanel() end end)
+	maximumButton.Activated:Connect(function() if CustomFlingCore:ApplyPreset("MAXIMUM") then markCustomFlingUsage();UpdateCustomFlingPanel() end end)
 	toggleButton.Activated:Connect(function()
-		if CustomFlingCore.Running then CustomFlingCore:Stop();UpdateCustomFlingPanel();return end
+		if CustomFlingCore.Running then CustomFlingCore:Stop();markCustomFlingUsage();UpdateCustomFlingPanel();return end
 		if not CustomFlingCore:GetTarget() then UpdateCustomFlingPanel(isES and "Selecciona un jugador" or "Select a player");return end
-		local ok,err=CustomFlingCore:Start();UpdateCustomFlingPanel(ok and nil or err)
+		local ok,err=CustomFlingCore:Start();if ok then markCustomFlingUsage() end;UpdateCustomFlingPanel(ok and nil or err)
 	end)
-	returnButton.Activated:Connect(function() local ok,err=CustomFlingCore:ForceReturn();UpdateCustomFlingPanel(ok and nil or err) end)
+	returnButton.Activated:Connect(function() local ok,err=CustomFlingCore:ForceReturn();if ok then markCustomFlingUsage() end;UpdateCustomFlingPanel(ok and nil or err) end)
 	UpdateCustomFlingPanel();return true
 end
