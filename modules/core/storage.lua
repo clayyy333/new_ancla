@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1, context)
 
 DATA_FILE = "VexroEmotes_Data_" .. tostring(player.UserId) .. ".json"
-Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, guiTransparency = 0, antiAFK = false, emergencyAnchor = false, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false, animationPackBundleId = nil, animationPackSelection = {}}
+Settings = {theme = "Dark", speed = 1, notifications = true, loopEmote = true, language = nil, stopOnWalk = true, showHUD = true, ambientSound = true, guiTransparency = 0, antiAFK = false, emergencyAnchor = false, carControlHeight = 8, carControlSpinSpeed = 360, coupleLoops = {}, couplePoses = {}, showCouplePoseHUD = false, animationPackBundleId = nil, animationPackSelection = {}, customFlingSettings = nil, ownerCustomFlingProfiles = {}}
 
 FriendData = {
 	friends        = {},
@@ -104,6 +104,8 @@ function LoadData()
 					Settings.showCouplePoseHUD = data.settings.showCouplePoseHUD == true
 					Settings.animationPackBundleId = tonumber(data.settings.animationPackBundleId)
 					Settings.animationPackSelection = type(data.settings.animationPackSelection) == "table" and data.settings.animationPackSelection or {}
+					Settings.customFlingSettings = type(data.settings.customFlingSettings) == "table" and data.settings.customFlingSettings or nil
+					Settings.ownerCustomFlingProfiles = type(data.settings.ownerCustomFlingProfiles) == "table" and data.settings.ownerCustomFlingProfiles or {}
 				end
 				if data.friendSettings then
 					FriendData.autoReject = data.friendSettings.autoReject == true

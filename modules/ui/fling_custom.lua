@@ -92,6 +92,21 @@ return function(context)
 		minus.Activated:Connect(function() change(-1) end);plus.Activated:Connect(function() change(1) end)
 		if optionToggle then optionToggle.Activated:Connect(function() local ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled());if ok then markCustomFlingUsage();UpdateCustomFlingPanel() end end) end
 	end
+	local saveButton=button(customFlingPanel,isES and "Guardar ajustes" or "Save settings",UDim2.new(1,-4,0,44),UDim2.new())
+	saveButton.Activated:Connect(function()
+		local profile=CustomFlingCore:ExportSettings()
+		Settings.customFlingSettings=profile
+		SaveLocalData()
+		markCustomFlingUsage()
+		saveButton.Text=isES and "Guardado localmente" or "Saved locally"
+		if BackendAnchorGuard and BackendAnchorGuard.SaveCustomFlingProfile then
+			BackendAnchorGuard:SaveCustomFlingProfile(profile,function(ok)
+				saveButton.Text=ok and (isES and "Guardado local y en backend" or "Saved locally and to backend") or (isES and "Guardado local; backend no disponible" or "Saved locally; backend unavailable")
+			end)
+		else
+			saveButton.Text=isES and "Guardado local; backend no disponible" or "Saved locally; backend unavailable"
+		end
+	end)
 	UpdateCustomFlingPanel=function(message)
 		local values=CustomFlingCore:GetParameters();local limits=CustomFlingCore:GetParameterLimits();local locked=CustomFlingCore.Running or CustomFlingCore.Stopping
 		for key,row in pairs(rows) do

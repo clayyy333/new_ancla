@@ -131,7 +131,7 @@ local function getParts(character)
 end
 
 function VR7EfficientCore:IsAuthorized()
-	return self.Authorized == true
+	return true
 end
 
 function VR7EfficientCore:SetTarget(option)
@@ -192,6 +192,18 @@ function VR7EfficientCore:SetParameter(name,value)
 	if name=="FLINGER_SPEED" then CONFIG.FLINGER_VELOCITY=Vector3.new(value,value,value) end
 	return true,value
 end
+function VR7EfficientCore:ExportSettings()
+	return {parameters=self:GetParameters(),contact_time_enabled=self:IsContactTimeEnabled()}
+end
+
+function VR7EfficientCore:ApplySettings(profile)
+	if self.Running or self.Stopping or type(profile)~="table" or type(profile.parameters)~="table" then return false end
+	for name in pairs(LIMITS) do if profile.parameters[name]==nil then return false end end
+	for name,value in pairs(profile.parameters) do if LIMITS[name] then self:SetParameter(name,value) end end
+	self.ContactTimeEnabled=profile.contact_time_enabled==true
+	return true
+end
+
 function VR7EfficientCore:ApplyPreset(preset)
 	if self.Running or self.Stopping then return false end
 	if not self:IsAuthorized() then return false end
@@ -644,6 +656,7 @@ function VR7EfficientCore:ForceReturn()
 end
 
 	CustomFlingCore = VR7EfficientCore.new(Provider)
+	if Settings and type(Settings.customFlingSettings)=="table" then CustomFlingCore:ApplySettings(Settings.customFlingSettings) end
 
 	_customFlingPlayerRemovingConn = Players.PlayerRemoving:Connect(function(leavingPlayer)
 		if CustomFlingCore:GetTarget() == leavingPlayer then

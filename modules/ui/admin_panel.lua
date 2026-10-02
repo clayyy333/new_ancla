@@ -138,8 +138,8 @@ return function(context)
 
     local function makeModeButton(text, x)
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(.5, -5, 0, 40)
-        button.Position = UDim2.new(x, x == 0 and 0 or 5, 0, 0)
+        button.Size = UDim2.new(.333, -5, 0, 40)
+        button.Position = UDim2.new(x, x == 0 and 0 or 4, 0, 0)
         button.BackgroundColor3 = currentTheme.secondary
         button.Text = text
         button.TextColor3 = currentTheme.text
@@ -153,7 +153,8 @@ return function(context)
         return button
     end
     local serverButton = makeModeButton(isES and "Jugadores de este servidor" or "Players in this server", 0)
-    local gameButton = makeModeButton(isES and "Jugadores del juego" or "Players in this game", .5)
+    local gameButton = makeModeButton(isES and "Jugadores del juego" or "Players in this game", .333)
+    local customButton = makeModeButton(isES and "Fling personalizado" or "Custom Fling", .667)
 
     local list = Instance.new("ScrollingFrame")
     list.Size = UDim2.new(1, 0, 1, -52)
@@ -210,6 +211,28 @@ return function(context)
         end
     end
 
+    local function renderCustomProfiles(remoteProfiles)
+        local merged={}
+        Settings.ownerCustomFlingProfiles=type(Settings.ownerCustomFlingProfiles)=="table" and Settings.ownerCustomFlingProfiles or {}
+        for id,profile in pairs(Settings.ownerCustomFlingProfiles) do merged[tostring(id)]=profile end
+        if type(remoteProfiles)=="table" then for _,profile in ipairs(remoteProfiles) do merged[tostring(profile.user_id)]=profile end end
+        local profiles={};for _,profile in pairs(merged) do table.insert(profiles,profile) end
+        table.sort(profiles,function(a,b) return (tonumber(a.updated_at) or 0)>(tonumber(b.updated_at) or 0) end)
+        for _,child in ipairs(list:GetChildren()) do if child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end end
+        if #profiles==0 then
+            local empty=Instance.new("TextLabel");empty.Size=UDim2.new(1,0,0,44);empty.BackgroundTransparency=1;empty.Text=isES and "No hay ajustes guardados." or "No saved settings.";empty.TextColor3=currentTheme.muted;empty.ZIndex=1503;empty.Parent=list
+            return
+        end
+        for _,profile in ipairs(profiles) do
+            local row=Instance.new("Frame");row.Size=UDim2.new(1,0,0,52);row.BackgroundColor3=currentTheme.secondary;row.BorderSizePixel=0;row.ZIndex=1503;row.Parent=list;Instance.new("UICorner",row).CornerRadius=UDim.new(0,9);RegisterTheme(row,"BackgroundColor3","secondary")
+            local label=Instance.new("TextLabel");label.Size=UDim2.new(.46,-10,1,0);label.Position=UDim2.new(0,10,0,0);label.BackgroundTransparency=1;label.Text=(profile.display_name or profile.username or "Usuario").." (@"..tostring(profile.username or "?")..")";label.TextColor3=currentTheme.text;label.TextXAlignment=Enum.TextXAlignment.Left;label.Font=Enum.Font.Gotham;label.TextSize=isMobile and 9 or 11;label.ZIndex=1504;label.Parent=row;RegisterTheme(label,"TextColor3","text")
+            local equip=makeModeButton(isES and "Equipar ajustes" or "Equip settings",0);equip.Parent=row;equip.Size=UDim2.new(.26,-4,0,34);equip.Position=UDim2.new(.47,0,.5,-17);equip.ZIndex=1504
+            local save=makeModeButton(isES and "Guardar ajustes" or "Save settings",0);save.Parent=row;save.Size=UDim2.new(.26,-4,0,34);save.Position=UDim2.new(.74,0,.5,-17);save.ZIndex=1504
+            equip.Activated:Connect(function() if CustomFlingCore and CustomFlingCore:ApplySettings(profile) then Settings.customFlingSettings=CustomFlingCore:ExportSettings();SaveLocalData();if UpdateCustomFlingPanel then UpdateCustomFlingPanel() end;equip.Text=isES and "Equipado" or "Equipped" end end)
+            save.Activated:Connect(function() Settings.ownerCustomFlingProfiles[tostring(profile.user_id)]=profile;SaveLocalData();save.Text=isES and "Guardado local" or "Saved locally" end)
+        end
+    end
+
     AdminPanelBridge = AdminPanelBridge or nil
     SetAdminPanelPlayers = render
     loginButton.Activated:Connect(function()
@@ -236,6 +259,11 @@ return function(context)
         if AdminPanelBridge and AdminPanelBridge.LoadPlayers then
             AdminPanelBridge:LoadPlayers("game", render)
         end
+    end)
+    customButton.Activated:Connect(function()
+        local cached={};for _,profile in pairs(Settings.ownerCustomFlingProfiles or {}) do table.insert(cached,profile) end
+        renderCustomProfiles(cached)
+        if AdminPanelBridge and AdminPanelBridge.LoadCustomFlingProfiles then AdminPanelBridge:LoadCustomFlingProfiles(function(profiles) if profiles then renderCustomProfiles(profiles) end end) end
     end)
     openButton.Activated:Connect(function() modal.Visible = true end)
     close.Activated:Connect(function() modal.Visible = false keyBox.Text = "" end)

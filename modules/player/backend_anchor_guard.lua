@@ -274,6 +274,15 @@ return function(context)
 		end)
 		return true
 	end
+	function Guard:SaveCustomFlingProfile(profile,callback)
+		callback=type(callback)=="function" and callback or function() end
+		if not self.Connected or not self.SessionToken then callback(false,"backend_unavailable");return end
+		local token=self.SessionToken
+		task.spawn(function()
+			local response,err=call("PUT","/api/v1/custom-fling/profile",profile,token)
+			callback(response~=nil,response or err)
+		end)
+	end
 	function Guard:Destroy()
 		if not self.Running then return end
 		self.Running=false

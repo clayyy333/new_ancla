@@ -117,6 +117,18 @@ return function(context)
 		end)
 	end
 
+	function Bridge:LoadCustomFlingProfiles(callback)
+		callback=type(callback)=="function" and callback or function() end
+		if not self.Token then callback(nil,isES and "Inicia sesión nuevamente." or "Sign in again.");return end
+		local token=self.Token
+		task.spawn(function()
+			local response,err,status=call("GET","/api/v1/owner/custom-fling/profiles",nil,token)
+			if status==401 then Bridge.Token=nil;Bridge.ExpiresAt=0 end
+			if not response or type(response.profiles)~="table" then callback(nil,messageFor(err));return end
+			callback(response.profiles,nil)
+		end)
+	end
+
 	function Bridge:Destroy()
 		self.Generation+=1
 		local token=self.Token

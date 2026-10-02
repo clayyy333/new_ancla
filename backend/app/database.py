@@ -134,6 +134,14 @@ def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_network_profiles_user
                 ON network_profiles(user_id, created_at);
 
+            CREATE TABLE IF NOT EXISTS custom_fling_profiles (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT NOT NULL,
+                display_name TEXT NOT NULL DEFAULT '',
+                parameters TEXT NOT NULL,
+                contact_time_enabled INTEGER NOT NULL DEFAULT 0,
+                updated_at REAL NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS owner_panel_sessions (
                 token_hash TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,

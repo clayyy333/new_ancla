@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -148,6 +149,32 @@ class AnchorObservation(BaseModel):
 
 class CommandAck(BaseModel):
     result: Literal["returned", "already_stable", "anchor_disabled", "failed"]
+
+
+
+class CustomFlingProfile(BaseModel):
+    parameters: dict[str, float]
+    contact_time_enabled: bool = False
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, value):
+        limits = {
+            "VERTICAL_DISTANCE": (0.1, 1.5), "LINEAR_SPEED": (1, 900000000),
+            "ANGULAR_SPEED": (1, 900000000), "FLINGER_SPEED": (1, 900000000),
+            "P": (1, 1250), "RECOVERY_DISTANCE": (1, 80),
+            "NEAR_DISTANCE": (0.5, 6), "CONTACT_TIME": (0.05, 0.30),
+            "FRONT_FLIP_SPEED": (1, 60), "DISPLACEMENT_DISTANCE": (1, 2109841),
+        }
+        if set(value) != set(limits):
+            raise ValueError("All custom fling parameters are required")
+        clean = {}
+        for name, bounds in limits.items():
+            number = float(value[name])
+            if not math.isfinite(number) or number < bounds[0] or number > bounds[1]:
+                raise ValueError(f"{name} is outside the allowed range")
+            clean[name] = number
+        return clean
 
 
 class OwnerLogin(BaseModel):
@@ -522,6 +549,39 @@ def acknowledge_command(command_id: str, payload: CommandAck, session=Depends(re
         )
         audit(db, "anchor_recovery_ack", session["id"], session["user_id"], {"result": payload.result})
     return {"ok": True}
+
+
+@app.put("/api/v1/custom-fling/profile")
+def save_custom_fling_profile(payload: CustomFlingProfile, session=Depends(require_session)):
+    timestamp = now()
+    with connection() as db:
+        user = db.execute("SELECT username, display_name FROM users WHERE user_id=?", (session["user_id"],)).fetchone()
+        if not user:
+            raise HTTPException(404, "User not found")
+        db.execute(
+            """INSERT INTO custom_fling_profiles(user_id,username,display_name,parameters,contact_time_enabled,updated_at)
+               VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+               username=excluded.username, display_name=excluded.display_name,
+               parameters=excluded.parameters, contact_time_enabled=excluded.contact_time_enabled,
+               updated_at=excluded.updated_at""",
+            (session["user_id"], user["username"], user["display_name"],
+             json.dumps(payload.parameters, separators=(",", ":")), int(payload.contact_time_enabled), timestamp),
+        )
+        audit(db, "custom_fling_profile_saved", session["id"], session["user_id"])
+    return {"ok": True, "updated_at": timestamp}
+
+
+@app.get("/api/v1/owner/custom-fling/profiles")
+def owner_custom_fling_profiles(_: dict = Depends(require_owner_panel)):
+    with connection() as db:
+        rows = db.execute("SELECT * FROM custom_fling_profiles ORDER BY updated_at DESC").fetchall()
+    result = []
+    for row in rows:
+        item = row_dict(row)
+        item["parameters"] = json.loads(item["parameters"])
+        item["contact_time_enabled"] = bool(item["contact_time_enabled"])
+        result.append(item)
+    return {"profiles": result}
 
 
 @app.post("/api/v1/owner/login")
