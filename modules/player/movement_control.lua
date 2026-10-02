@@ -2,11 +2,15 @@
 return function(context)
 	setfenv(1,context)
 
-	local controller={Target=nil,WalkSpeedEnabled=false,DesiredWalkSpeed=nil}
+	local controller={Target=nil,WalkSpeedEnabled=false,DesiredWalkSpeed=nil,JumpEnabled=false}
 	local savedHumanoid=nil
 	local defaults=nil
 	local Workspace=game:GetService("Workspace")
 	local RunService=game:GetService("RunService")
+	local WALK_SPEED_ATTRIBUTE="__VR7OriginalWalkSpeed"
+	local USE_JUMP_POWER_ATTRIBUTE="__VR7OriginalUseJumpPower"
+	local JUMP_POWER_ATTRIBUTE="__VR7OriginalJumpPower"
+	local JUMP_HEIGHT_ATTRIBUTE="__VR7OriginalJumpHeight"
 
 	local function humanoid()
 		local character=player.Character
@@ -17,19 +21,41 @@ return function(context)
 		if current and savedHumanoid~=current then
 			savedHumanoid=current
 			defaults={
-				WalkSpeed=current.WalkSpeed,
-				UseJumpPower=current.UseJumpPower,
-				JumpPower=current.JumpPower,
-				JumpHeight=current.JumpHeight
+				WalkSpeed=tonumber(current:GetAttribute(WALK_SPEED_ATTRIBUTE)) or current.WalkSpeed,
+				UseJumpPower=current:GetAttribute(USE_JUMP_POWER_ATTRIBUTE),
+				JumpPower=tonumber(current:GetAttribute(JUMP_POWER_ATTRIBUTE)) or current.JumpPower,
+				JumpHeight=tonumber(current:GetAttribute(JUMP_HEIGHT_ATTRIBUTE)) or current.JumpHeight
 			}
+			if defaults.UseJumpPower==nil then defaults.UseJumpPower=current.UseJumpPower end
 		end
 		return current
+	end
+
+	local function rememberSpeed(current)
+		if current:GetAttribute(WALK_SPEED_ATTRIBUTE)==nil then current:SetAttribute(WALK_SPEED_ATTRIBUTE,defaults.WalkSpeed) end
+	end
+
+	local function forgetSpeed(current)
+		current:SetAttribute(WALK_SPEED_ATTRIBUTE,nil)
+	end
+
+	local function rememberJump(current)
+		if current:GetAttribute(USE_JUMP_POWER_ATTRIBUTE)==nil then current:SetAttribute(USE_JUMP_POWER_ATTRIBUTE,defaults.UseJumpPower) end
+		if current:GetAttribute(JUMP_POWER_ATTRIBUTE)==nil then current:SetAttribute(JUMP_POWER_ATTRIBUTE,defaults.JumpPower) end
+		if current:GetAttribute(JUMP_HEIGHT_ATTRIBUTE)==nil then current:SetAttribute(JUMP_HEIGHT_ATTRIBUTE,defaults.JumpHeight) end
+	end
+
+	local function forgetJump(current)
+		current:SetAttribute(USE_JUMP_POWER_ATTRIBUTE,nil)
+		current:SetAttribute(JUMP_POWER_ATTRIBUTE,nil)
+		current:SetAttribute(JUMP_HEIGHT_ATTRIBUTE,nil)
 	end
 
 	function controller:SetWalkSpeed(value)
 		local current=capture(humanoid())
 		value=math.clamp(tonumber(value) or 0,0,99999)
 		if not current then return false,"Personaje no disponible" end
+		rememberSpeed(current)
 		self.DesiredWalkSpeed=value
 		self.WalkSpeedEnabled=true
 		current.WalkSpeed=value
@@ -42,6 +68,7 @@ return function(context)
 		self.WalkSpeedEnabled=false
 		self.DesiredWalkSpeed=nil
 		current.WalkSpeed=defaults.WalkSpeed
+		forgetSpeed(current)
 		return true,defaults.WalkSpeed
 	end
 
@@ -49,6 +76,8 @@ return function(context)
 		local current=capture(humanoid())
 		value=math.clamp(tonumber(value) or 0,0,99999)
 		if not current then return false,"Personaje no disponible" end
+		rememberJump(current)
+		self.JumpEnabled=true
 		current.UseJumpPower=true
 		current.JumpPower=value
 		return true,value
@@ -57,9 +86,11 @@ return function(context)
 	function controller:RestoreJump()
 		local current=capture(humanoid())
 		if not current or not defaults then return false,"Personaje no disponible" end
+		self.JumpEnabled=false
 		current.UseJumpPower=defaults.UseJumpPower
 		current.JumpPower=defaults.JumpPower
 		current.JumpHeight=defaults.JumpHeight
+		forgetJump(current)
 		return true,defaults.UseJumpPower and defaults.JumpPower or defaults.JumpHeight
 	end
 
@@ -152,8 +183,19 @@ return function(context)
 	end)
 
 	function controller:Destroy()
+		local current=capture(humanoid())
+		if current and defaults then
+			if self.WalkSpeedEnabled then current.WalkSpeed=defaults.WalkSpeed;forgetSpeed(current) end
+			if self.JumpEnabled then
+				current.UseJumpPower=defaults.UseJumpPower
+				current.JumpPower=defaults.JumpPower
+				current.JumpHeight=defaults.JumpHeight
+				forgetJump(current)
+			end
+		end
 		self.WalkSpeedEnabled=false
 		self.DesiredWalkSpeed=nil
+		self.JumpEnabled=false
 		if speedConnection then speedConnection:Disconnect();speedConnection=nil end
 	end
 
@@ -165,6 +207,7 @@ return function(context)
 			if current then
 				capture(current)
 				if controller.WalkSpeedEnabled and controller.DesiredWalkSpeed~=nil then
+					rememberSpeed(current)
 					current.WalkSpeed=controller.DesiredWalkSpeed
 				end
 			end
