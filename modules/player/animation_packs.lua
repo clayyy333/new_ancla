@@ -16,6 +16,7 @@ return function(context)
 	local ownershipConnections={}
 	local animationIdConnections={}
 	local desiredFolders={}
+	local managedAnimations={}
 	local reconcileQueued={}
 	local reconciling={}
 	local ownershipAnimate=nil
@@ -191,6 +192,9 @@ return function(context)
 		end
 	end
 
+	-- VEHICLE LOCOMOTION RECONCILIATION
+	-- Protege únicamente los objetos Animation que este módulo administra y
+	-- reconcilia generaciones duplicadas del mismo Walk/Run personalizado.
 	local function disconnectList(list)
 		for _,connection in ipairs(list) do
 			pcall(function() connection:Disconnect() end)
@@ -205,6 +209,7 @@ return function(context)
 			animationIdConnections[name]=nil
 		end
 		table.clear(desiredFolders)
+		table.clear(managedAnimations)
 		table.clear(reconcileQueued)
 		table.clear(reconciling)
 		ownershipAnimate=nil
@@ -226,29 +231,25 @@ return function(context)
 	local reconcileFolder
 	local queueReconcile
 
-	local function refreshAnimationIdConnections(name,folder)
+	local function refreshManagedIdConnections(name)
 		local previous=animationIdConnections[name]
 		if previous then disconnectList(previous) end
 		local list={}
 		animationIdConnections[name]=list
-		for _,child in ipairs(folder:GetChildren()) do
-			if child:IsA("Animation") then
-				list[#list+1]=child:GetPropertyChangedSignal("AnimationId"):Connect(function()
-					queueReconcile(name)
+		for index,animation in ipairs(managedAnimations[name] or {}) do
+			local desired=desiredFolders[name] and desiredFolders[name][index]
+			if animation and desired then
+				local managedAnimation=animation
+				local desiredId=desired
+				local folderName=name
+				list[#list+1]=managedAnimation:GetPropertyChangedSignal("AnimationId"):Connect(function()
+					if reconciling[folderName] or managedAnimation.Parent==nil then return end
+					if normalizedId(managedAnimation.AnimationId)~=desiredId then
+						reconciling[folderName]=true
+						managedAnimation.AnimationId=desiredId
+						reconciling[folderName]=nil
+					end
 				end)
-			end
-		end
-	end
-
-	local function stopTracksFromRemovedAnimations(animate,removed)
-		if not next(removed) then return end
-		local character=animate and animate.Parent
-		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
-		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
-		if not animator then return end
-		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
-			if track.Animation and removed[track.Animation] then
-				pcall(function() track:Stop(0.08) end)
 			end
 		end
 	end
@@ -261,48 +262,45 @@ return function(context)
 		if not folder then return end
 		reconciling[name]=true
 		local ok,err=pcall(function()
-			local available={}
-			for _,child in ipairs(folder:GetChildren()) do
-				if child:IsA("Animation") then
-					local id=normalizedId(child.AnimationId)
-					available[id]=available[id] or {}
-					table.insert(available[id],child)
-				end
-			end
-			local keep={}
-			local missing={}
+			local managed=managedAnimations[name] or {}
+			managedAnimations[name]=managed
+			local used={}
 			for index,id in ipairs(desired) do
-				local normalized=normalizedId(id)
-				local candidates=available[normalized]
-				local existing=candidates and table.remove(candidates,1)
-				if existing then
-					keep[existing]=true
-				else
-					missing[#missing+1]={index=index,id=normalized}
+				local animation=managed[index]
+				if not animation or animation.Parent~=folder then
+					animation=nil
+					local template=(originals[name] or {})[index] or (originals[name] or {})[1]
+					local expectedName=template and template.Name or ("Animation"..index)
+					for _,candidate in ipairs(folder:GetChildren()) do
+						if candidate:IsA("Animation") and not used[candidate]
+							and normalizedId(candidate.AnimationId)==id then
+							animation=candidate
+							break
+						end
+					end
+					if not animation then
+						for _,candidate in ipairs(folder:GetChildren()) do
+							if candidate:IsA("Animation") and not used[candidate] and candidate.Name==expectedName then
+								animation=candidate
+								break
+							end
+						end
+					end
+					if not animation then
+						animation=template and template:Clone() or Instance.new("Animation")
+						if not template then animation.Name=expectedName end
+						animation.Parent=folder
+					end
+					managed[index]=animation
 				end
+				used[animation]=true
+				if normalizedId(animation.AnimationId)~=id then animation.AnimationId=id end
 			end
-			local removed={}
-			for _,child in ipairs(folder:GetChildren()) do
-				if child:IsA("Animation") and not keep[child] then
-					removed[child]=true
-				end
-			end
-			stopTracksFromRemovedAnimations(animate,removed)
-			for child in pairs(removed) do child:Destroy() end
-			local templates=originals[name] or {}
-			for _,entry in ipairs(missing) do
-				local template=templates[entry.index] or templates[1]
-				local animation=template and template:Clone() or Instance.new("Animation")
-				if not template then animation.Name="Animation"..entry.index end
-				animation.AnimationId=entry.id
-				animation.Parent=folder
-			end
+			for index=#managed,#desired+1,-1 do managed[index]=nil end
 		end)
 		reconciling[name]=nil
 		if not ok then warn("[Animations] Could not reconcile "..name..": "..tostring(err)) end
-		if ownershipAnimate==animate and desiredFolders[name] then
-			refreshAnimationIdConnections(name,folder)
-		end
+		if ownershipAnimate==animate and desiredFolders[name] then refreshManagedIdConnections(name) end
 	end
 
 	queueReconcile=function(name)
@@ -314,37 +312,32 @@ return function(context)
 		end)
 	end
 
-	local function stopControlledLocomotionTracks(animate)
-		local walkIds={}
+	local function reconcileLocomotionGeneration(animator,newTrack)
+		local animation=newTrack and newTrack.Animation
+		local id=animation and normalizedId(animation.AnimationId) or ""
+		local controlled=false
 		for _,name in ipairs({"walk","run"}) do
-			for _,id in ipairs(desiredFolders[name] or {}) do
-				walkIds[normalizedId(id)]=true
+			for _,desired in ipairs(desiredFolders[name] or {}) do
+				if id==desired then controlled=true break end
 			end
+			if controlled then break end
 		end
-		if not next(walkIds) then return end
-		local character=animate and animate.Parent
-		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
-		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
-		if not humanoid or not animator or humanoid.MoveDirection.Magnitude>0.01 then return end
-		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
-			local animation=track.Animation
-			if animation and walkIds[normalizedId(animation.AnimationId)] then
-				pcall(function() track:Stop(0.06) end)
+		if not controlled then return end
+		task.delay(0.08,function()
+			if ownershipAnimate~=getAnimate() or not newTrack.IsPlaying or newTrack.WeightCurrent<=0.01 then return end
+			local active={}
+			for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+				local trackAnimation=track.Animation
+				if trackAnimation and normalizedId(trackAnimation.AnimationId)==id
+					and track.IsPlaying and track.WeightCurrent>0.01 then
+					active[#active+1]=track
+				end
 			end
-		end
-	end
-
-	local function queueIdleLocomotionCleanup(animate)
-		task.defer(function()
-			if ownershipAnimate==animate and animate==getAnimate() then
-				stopControlledLocomotionTracks(animate)
+			if #active<=1 then return end
+			for _,track in ipairs(active) do
+				if track~=newTrack then pcall(function() track:Stop(0.08) end) end
 			end
 		end)
-	end
-	local function folderNameFromAnimation(instance)
-		if not instance or not instance:IsA("Animation") then return nil end
-		local parent=instance.Parent
-		return parent and parent.Parent==ownershipAnimate and parent.Name or nil
 	end
 
 	local function bindOwnership(animate,resolved)
@@ -359,35 +352,25 @@ return function(context)
 					if folder and targetIds then
 						desiredFolders[name]={}
 						for index,id in ipairs(targetIds) do desiredFolders[name][index]=normalizedId(id) end
+						managedAnimations[name]={}
 						reconcileFolder(name)
+						local folderName=name
+						ownershipConnections[#ownershipConnections+1]=folder.ChildAdded:Connect(function(child)
+							if child:IsA("Animation") then queueReconcile(folderName) end
+						end)
+						ownershipConnections[#ownershipConnections+1]=folder.ChildRemoved:Connect(function(child)
+							if child:IsA("Animation") then queueReconcile(folderName) end
+						end)
 					end
 				end
 			end
 		end
-		ownershipConnections[#ownershipConnections+1]=animate.DescendantAdded:Connect(function(instance)
-			local name=folderNameFromAnimation(instance)
-			if name and desiredFolders[name] then queueReconcile(name) end
-		end)
-		ownershipConnections[#ownershipConnections+1]=animate.DescendantRemoving:Connect(function(instance)
-			local name=folderNameFromAnimation(instance)
-			if name and desiredFolders[name] then queueReconcile(name) end
-		end)
-		ownershipConnections[#ownershipConnections+1]=animate.ChildAdded:Connect(function(folder)
-			if desiredFolders[folder.Name] then queueReconcile(folder.Name) end
-		end)
 		local character=animate.Parent
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			ownershipConnections[#ownershipConnections+1]=humanoid.Running:Connect(function(speed)
-				if speed<=0.05 then queueIdleLocomotionCleanup(animate) end
-			end)
-			ownershipConnections[#ownershipConnections+1]=humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
-				if humanoid.MoveDirection.Magnitude<=0.01 then queueIdleLocomotionCleanup(animate) end
-			end)
-			ownershipConnections[#ownershipConnections+1]=humanoid.StateChanged:Connect(function(_,newState)
-				if newState==Enum.HumanoidStateType.Seated or newState==Enum.HumanoidStateType.GettingUp then
-					queueIdleLocomotionCleanup(animate)
-				end
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if animator then
+			ownershipConnections[#ownershipConnections+1]=animator.AnimationPlayed:Connect(function(track)
+				reconcileLocomotionGeneration(animator,track)
 			end)
 		end
 	end
