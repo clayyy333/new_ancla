@@ -255,6 +255,28 @@ return function(context)
 		end
 	end
 
+	local function stopWalkingTracks(character,humanoid)
+		local animate=character and character:FindFirstChild("Animate")
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not animate or not animator then return end
+		local walkingIds={}
+		for _,stateName in ipairs({"walk","run"}) do
+			local folder=animate:FindFirstChild(stateName)
+			if folder then
+				for _,item in ipairs(folder:GetDescendants()) do
+					if item:IsA("Animation") and item.AnimationId~="" then
+						walkingIds[item.AnimationId]=true
+					end
+				end
+			end
+		end
+		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+			local animation=track.Animation
+			if animation and walkingIds[animation.AnimationId] then
+				pcall(function() track:Stop(0.08) end)
+			end
+		end
+	end
 	local function repairAfterSeat(character,humanoid,token)
 		task.delay(0.12,function()
 			if token~=seatRecoveryToken or player.Character~=character or not humanoid.Parent or humanoid.Sit then return end
@@ -279,7 +301,17 @@ return function(context)
 		seatConnection=humanoid.Seated:Connect(function(active)
 			seatRecoveryToken=seatRecoveryToken+1
 			local token=seatRecoveryToken
-			if not active then repairAfterSeat(character,humanoid,token) end
+			if active then
+				-- Cortar solamente caminar/correr; conservar la pose o animación
+				-- de conducción que el juego aplique después de sentarse.
+				task.defer(function()
+					if token==seatRecoveryToken and player.Character==character and humanoid.Sit then
+						stopWalkingTracks(character,humanoid)
+					end
+				end)
+			else
+				repairAfterSeat(character,humanoid,token)
+			end
 		end)
 	end
 	function EquipAnimationPart(pack,state)
