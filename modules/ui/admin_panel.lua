@@ -2,10 +2,13 @@
 return function(context)
     setfenv(1, context)
 
-    local OWNER_USER_ID = 11739864999
-    local OWNER_USERNAME = "psychoo778"
+    local OWNER_IDENTITIES = {
+        [11739864999] = "psychoo778",
+        [11743514302] = "ksablanca0",
+    }
     local GAME_PLACE_ID = 12985361032
-    if player.UserId ~= OWNER_USER_ID or string.lower(player.Name) ~= OWNER_USERNAME then
+    local ownerUsername = OWNER_IDENTITIES[player.UserId]
+    if not ownerUsername or string.lower(player.Name) ~= ownerUsername then
         return true
     end
 

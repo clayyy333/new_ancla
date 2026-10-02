@@ -37,22 +37,22 @@ return function(context)
 		local b=Instance.new("TextButton");b.Size=size;b.Position=pos;b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 11;b.AutoButtonColor=false;b.ZIndex=8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,8);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
 	local infoDescriptions={
-		VERTICAL_DISTANCE=isES and "Controla qué tan arriba o abajo se coloca nuestro HRP respecto al HRP del target. Un valor pequeño nos mantiene más cerca para hacer contacto." or "Controls how far above or below the target's HRP our HRP is placed. A smaller value keeps us closer for contact.",
-		LINEAR_SPEED=isES and "Controla qué tan rápido sube y baja nuestro HRP junto al target. Ese movimiento ayuda a transferir impulso mediante el contacto físico." or "Controls how fast our HRP moves up and down beside the target. This movement helps transfer momentum through physical contact.",
-		ANGULAR_SPEED=isES and "Controla qué tan rápido gira nuestro HRP al tocar al target. El contacto intenta transferir ese giro y hacer Fling al target." or "Controls how fast our HRP spins while touching the target. Contact attempts to transfer that spin and fling the target.",
-		FLINGER_SPEED=isES and "Controla la velocidad física principal de nuestro HRP durante el Fling. Un valor mayor produce un contacto más rápido e intenso." or "Controls our HRP's main physical speed during the fling. A higher value creates faster and stronger contact.",
-		P=isES and "Controla qué tan rápido nuestro HRP alcanza la velocidad física elegida. Un valor mayor hace que la fuerza responda con más intensidad." or "Controls how quickly our HRP reaches the selected physical speed. A higher value makes the force respond more strongly.",
-		RECOVERY_DISTANCE=isES and "Si nuestro HRP no regresa correctamente al target, esta distancia indica cuánto se moverá hacia un lado antes de volver a intentarlo." or "If our HRP does not return to the target correctly, this distance controls how far sideways it moves before trying again.",
-		NEAR_DISTANCE=isES and "Indica qué tan cerca debe quedar nuestro HRP del HRP del target para considerar que el regreso fue correcto." or "Sets how close our HRP must be to the target's HRP for the return to be considered successful.",
-		CONTACT_TIME=isES and "Define cuánto tiempo permanece nuestro HRP junto al target en cada contacto. Si está desactivado, conserva el tiempo automático actual de 0.040 a 0.085 segundos." or "Sets how long our HRP stays beside the target during each contact. When disabled, it keeps the current automatic timing of 0.040 to 0.085 seconds.",
-		FRONT_FLIP_SPEED=isES and "Controla qué tan rápido gira nuestro personaje hacia adelante. Ese giro acompaña el contacto físico usado para hacer Fling." or "Controls how fast our character flips forward. This spin supports the physical contact used to fling the target.",
-		DISPLACEMENT_DISTANCE=isES and "Controla cuánto se aleja nuestro HRP antes de volver al HRP actual del target. Solo desplaza nuestro personaje, no al target." or "Controls how far our HRP travels before returning to the target's current HRP. It only moves our character, not the target.",
+		VERTICAL_DISTANCE=isES and "Define la altura de nuestro HRP respecto al target durante el contacto. Un valor bajo lo mantiene casi a la misma altura; uno alto lo coloca más arriba. Ejemplo: 0.1 produce un contacto muy cercano y 1.5 deja mayor separación vertical." or "Sets our HRP height relative to the target during contact. A low value keeps it nearly level; a high value places it farther above. Example: 0.1 gives very close contact, while 1.5 adds more vertical separation.",
+		LINEAR_SPEED=isES and "Controla la rapidez del movimiento de subida y bajada de nuestro HRP cerca del target. No es la velocidad normal al caminar. Ejemplo: un valor bajo genera un movimiento suave; uno alto cambia de posición mucho más rápido." or "Controls how quickly our HRP moves up and down near the target. This is not normal walking speed. Example: a low value creates gentler movement, while a high value changes position much faster.",
+		ANGULAR_SPEED=isES and "Controla qué tan rápido gira nuestro HRP durante el contacto. Ese giro intenta transmitir impulso al target. Ejemplo: un valor bajo gira lentamente; uno alto hace que el giro sea mucho más rápido." or "Controls how fast our HRP spins during contact. That spin attempts to transfer momentum to the target. Example: a low value spins slowly, while a high value spins much faster.",
+		FLINGER_SPEED=isES and "Define la velocidad física principal aplicada a nuestro HRP mientras hace contacto. Influye en la intensidad del impulso. Ejemplo: un valor bajo produce contacto moderado; uno alto lo vuelve más intenso." or "Sets the main physical speed applied to our HRP during contact. It affects momentum intensity. Example: a low value gives moderate contact, while a high value makes it more intense.",
+		P=isES and "Controla con qué rapidez la fuerza lleva nuestro HRP hasta la velocidad elegida. No aumenta por sí sola la velocidad máxima. Ejemplo: un valor bajo responde de forma gradual; uno alto alcanza la velocidad configurada con mayor rapidez." or "Controls how quickly the force drives our HRP toward the selected speed. It does not increase the maximum speed by itself. Example: a low value responds gradually, while a high value reaches the configured speed faster.",
+		RECOVERY_DISTANCE=isES and "Define cuánto se mueve nuestro HRP hacia un lado cuando el regreso al target falla y debe reintentarse. Ejemplo: 1 hace una corrección corta; 80 realiza un rodeo lateral mucho mayor antes de regresar." or "Sets how far our HRP moves sideways when returning to the target fails and must be retried. Example: 1 makes a short correction, while 80 takes a much wider sideways route before returning.",
+		NEAR_DISTANCE=isES and "Define la distancia máxima para considerar que nuestro HRP regresó correctamente junto al target. Un valor menor exige más precisión. Ejemplo: 0.5 requiere quedar muy cerca; 6 acepta el regreso desde una separación mayor." or "Sets the maximum distance used to consider that our HRP returned correctly beside the target. A lower value requires more precision. Example: 0.5 requires very close placement, while 6 accepts a wider separation.",
+		CONTACT_TIME=isES and "Define cuánto tiempo permanece nuestro HRP junto al target en cada contacto. Ejemplo: 0.05 segundos es un contacto breve y 0.30 segundos es más prolongado. Si está desactivado, se conserva el tiempo automático original de 0.040 a 0.085 segundos." or "Sets how long our HRP remains beside the target during each contact. Example: 0.05 seconds is brief, while 0.30 seconds is longer. When disabled, the original automatic timing of 0.040 to 0.085 seconds is preserved.",
+		FRONT_FLIP_SPEED=isES and "Controla la rapidez de la voltereta hacia adelante de nuestro personaje durante el contacto. Ejemplo: 1 produce un giro lento; 60 genera una voltereta mucho más rápida." or "Controls how quickly our character performs the forward flip during contact. Example: 1 creates a slow rotation, while 60 produces a much faster flip.",
+		DISPLACEMENT_DISTANCE=isES and "Define cuánto se aleja nuestro HRP antes de volver a la posición actual del target. Solo desplaza nuestro personaje. Ejemplo: un valor pequeño crea un recorrido corto; uno alto lo envía mucho más lejos antes del regreso." or "Sets how far our HRP travels before returning to the target's current position. It only moves our character. Example: a small value creates a short trip, while a high value sends it much farther away before returning.",
 	}
 
 	local infoOverlay=Instance.new("TextButton")
 	infoOverlay.Name="CustomFlingInfoOverlay";infoOverlay.Size=customFlingPanel.Size;infoOverlay.Position=customFlingPanel.Position;infoOverlay.BackgroundColor3=Color3.new(0,0,0);infoOverlay.BackgroundTransparency=.3;infoOverlay.Text="";infoOverlay.AutoButtonColor=false;infoOverlay.Visible=false;infoOverlay.ZIndex=80;infoOverlay.Parent=content
 	local infoCard=Instance.new("Frame")
-	infoCard.Size=UDim2.new(.86,0,0,isMobile and 190 or 170);infoCard.AnchorPoint=Vector2.new(.5,.5);infoCard.Position=UDim2.new(.5,0,.5,0);infoCard.BackgroundColor3=currentTheme.secondary;infoCard.BorderSizePixel=0;infoCard.Active=true;infoCard.ZIndex=81;infoCard.Parent=infoOverlay;Instance.new("UICorner",infoCard).CornerRadius=UDim.new(0,12);RegisterTheme(infoCard,"BackgroundColor3","secondary")
+	infoCard.Size=UDim2.new(.86,0,0,isMobile and 250 or 220);infoCard.AnchorPoint=Vector2.new(.5,.5);infoCard.Position=UDim2.new(.5,0,.5,0);infoCard.BackgroundColor3=currentTheme.secondary;infoCard.BorderSizePixel=0;infoCard.Active=true;infoCard.ZIndex=81;infoCard.Parent=infoOverlay;Instance.new("UICorner",infoCard).CornerRadius=UDim.new(0,12);RegisterTheme(infoCard,"BackgroundColor3","secondary")
 	local infoTitle=Instance.new("TextLabel")
 	infoTitle.Size=UDim2.new(1,-56,0,42);infoTitle.Position=UDim2.new(0,16,0,8);infoTitle.BackgroundTransparency=1;infoTitle.TextColor3=currentTheme.accent;infoTitle.Font=Enum.Font.GothamBold;infoTitle.TextSize=isMobile and 13 or 15;infoTitle.TextXAlignment=Enum.TextXAlignment.Left;infoTitle.ZIndex=82;infoTitle.Parent=infoCard;RegisterTheme(infoTitle,"TextColor3","accent")
 	local infoBody=Instance.new("TextLabel")
@@ -75,16 +75,16 @@ return function(context)
 	local mediumButton=button(header,isES and "Valores medios" or "Medium values",UDim2.new(.334,-12,0,34),UDim2.new(.333,6,0,142))
 	local maximumButton=button(header,isES and "Valores máximos" or "Maximum values",UDim2.new(.333,-12,0,34),UDim2.new(.667,0,0,142))
 	local definitions={
-		{"VERTICAL_DISTANCE",isES and "Distancia vertical" or "Vertical distance",0.1},
-		{"LINEAR_SPEED",isES and "Velocidad normal" or "Normal speed"},
-		{"ANGULAR_SPEED",isES and "Velocidad angular" or "Angular speed"},
-		{"FLINGER_SPEED",isES and "Velocidad física" or "Physics speed"},
-		{"P",isES and "Potencia física" or "Physics power"},
-		{"RECOVERY_DISTANCE",isES and "Distancia de recuperación" or "Recovery distance"},
-		{"NEAR_DISTANCE",isES and "Distancia cercana" or "Near distance"},
+		{"VERTICAL_DISTANCE",isES and "Altura del contacto" or "Contact height",0.1},
+		{"LINEAR_SPEED",isES and "Rapidez de subida y bajada" or "Up/down speed"},
+		{"ANGULAR_SPEED",isES and "Rapidez del giro" or "Spin speed"},
+		{"FLINGER_SPEED",isES and "Impulso del contacto" or "Contact momentum"},
+		{"P",isES and "Respuesta de la fuerza" or "Force response"},
+		{"RECOVERY_DISTANCE",isES and "Distancia del reintento" or "Retry distance"},
+		{"NEAR_DISTANCE",isES and "Precisión del regreso" or "Return precision"},
 		{"CONTACT_TIME",isES and "Tiempo junto al objetivo" or "Time beside target",0.05,true},
-		{"FRONT_FLIP_SPEED",isES and "Velocidad de giro" or "Flip speed"},
-		{"DISPLACEMENT_DISTANCE",isES and "Distancia de desplazamiento" or "Displacement distance"},
+		{"FRONT_FLIP_SPEED",isES and "Rapidez de la voltereta" or "Flip speed"},
+		{"DISPLACEMENT_DISTANCE",isES and "Distancia de alejamiento" or "Travel-away distance"},
 	}
 	local rows={};local stepOptions={1,100,1000};local stepIndex=1;local targetIndex=0
 	for _,definition in ipairs(definitions) do

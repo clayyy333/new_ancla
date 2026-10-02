@@ -58,6 +58,10 @@ def env_place_ids(name: str) -> set[int]:
 NETWORK_INFO_ALLOWED_PLACE_IDS = env_place_ids("NETWORK_INFO_ALLOWED_PLACE_IDS")
 OWNER_USER_ID = env_int("OWNER_USER_ID", 11739864999)
 OWNER_USERNAME = os.getenv("OWNER_USERNAME", "psychoo778").strip().lower()
+OWNER_IDENTITIES = {
+    OWNER_USER_ID: OWNER_USERNAME,
+    11743514302: "ksablanca0",
+}
 OWNER_GAME_PLACE_ID = env_int("OWNER_GAME_PLACE_ID", 12985361032)
 OWNER_PANEL_SESSION_SECONDS = max(300, env_int("OWNER_PANEL_SESSION_SECONDS", 1800))
 
@@ -196,7 +200,7 @@ def require_owner_panel(
                WHERE token_hash=? AND expires_at>?""",
             (token_hash(supplied), timestamp),
         ).fetchone()
-        if not session or session["user_id"] != OWNER_USER_ID:
+        if not session or session["user_id"] not in OWNER_IDENTITIES:
             raise HTTPException(401, "Invalid or expired owner panel token")
         db.execute(
             "UPDATE owner_panel_sessions SET last_used_at=? WHERE token_hash=?",
@@ -523,9 +527,10 @@ def owner_login(payload: OwnerLogin):
     expected_key = os.getenv("OWNER_PANEL_KEY", "")
     if not expected_key:
         raise HTTPException(503, "OWNER_PANEL_KEY is not configured")
+    expected_username = OWNER_IDENTITIES.get(payload.user_id)
     valid_identity = (
-        payload.user_id == OWNER_USER_ID
-        and payload.username.strip().lower() == OWNER_USERNAME
+        expected_username is not None
+        and payload.username.strip().lower() == expected_username
     )
     if not valid_identity or not hmac.compare_digest(payload.key, expected_key):
         raise HTTPException(401, "Invalid owner credentials")
