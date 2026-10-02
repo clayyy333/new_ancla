@@ -3,8 +3,10 @@ return function(context)
 	setfenv(1, context)
 
 	local LocalPlayer = player
-	local OWNER_USER_ID = 11739864999
-	local OWNER_USERNAME = "psychoo778"
+	local CUSTOM_FLING_OWNERS = {
+		[11739864999] = "psychoo778",
+		[11743514302] = "ksablanca0",
+	}
 	local function T(es,en) return isES and es or en end
 local CONFIG = {
 	VERTICAL_DISTANCE = 0.1,
@@ -88,7 +90,8 @@ VR7EfficientCore.__index = VR7EfficientCore
 function VR7EfficientCore.new(provider)
 	local self = setmetatable({}, VR7EfficientCore)
 	self.Provider = provider
-	self.Authorized = LocalPlayer.UserId == OWNER_USER_ID and string.lower(LocalPlayer.Name) == OWNER_USERNAME
+	local ownerName = CUSTOM_FLING_OWNERS[LocalPlayer.UserId]
+	self.Authorized = ownerName ~= nil and string.lower(LocalPlayer.Name) == ownerName
 	self.Running = false
 	self.Stopping = false
 	self.StopCycle = 0

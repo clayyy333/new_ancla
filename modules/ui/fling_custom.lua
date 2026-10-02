@@ -4,7 +4,12 @@ return function(context)
 	customFlingPanel=Instance.new("ScrollingFrame")
 	customFlingPanel.Name="CustomFlingPanel";customFlingPanel.Size=UDim2.new(1,-16,1,-(titleH+20));customFlingPanel.Position=UDim2.new(0,8,0,titleH+8);customFlingPanel.BackgroundTransparency=1;customFlingPanel.BorderSizePixel=0;customFlingPanel.ScrollBarThickness=3;customFlingPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;customFlingPanel.CanvasSize=UDim2.new();customFlingPanel.Visible=false;customFlingPanel.ZIndex=6;customFlingPanel.Parent=content
 	local layout=Instance.new("UIListLayout",customFlingPanel);layout.Padding=UDim.new(0,6)
-	if player.UserId ~= 11739864999 or string.lower(player.Name) ~= "psychoo778" then
+	local customFlingOwners={
+		[11739864999]="psychoo778",
+		[11743514302]="ksablanca0",
+	}
+	local ownerName=customFlingOwners[player.UserId]
+	if not ownerName or string.lower(player.Name)~=ownerName then
 		local comingSoon=Instance.new("Frame")
 		comingSoon.Name="ComingSoon"
 		comingSoon.Size=UDim2.new(1,-4,0,isMobile and 54 or 62)
