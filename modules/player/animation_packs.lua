@@ -13,6 +13,12 @@ return function(context)
 	local request=0
 	local resolvedCache={}
 	local bundleCache={}
+	local ownershipConnections={}
+	local animationIdConnections={}
+	local desiredFolders={}
+	local reconcileQueued={}
+	local reconciling={}
+	local ownershipAnimate=nil
 	local function persistSelection()
 		local saved={}
 		for _,state in ipairs(stateOrder) do
@@ -185,37 +191,190 @@ return function(context)
 		end
 	end
 
-	local function replaceState(animate,state,ids)
-		for _,name in ipairs(states[state]) do
-			local targetIds=ids
-			if state=='Swim' then
-				if name=='swimidle' then
-					if ids[2] then targetIds={ids[2]} else targetIds=nil end
-				else
-					targetIds={ids[1]}
+	local function disconnectList(list)
+		for _,connection in ipairs(list) do
+			pcall(function() connection:Disconnect() end)
+		end
+		table.clear(list)
+	end
+
+	local function disconnectOwnership()
+		disconnectList(ownershipConnections)
+		for name,list in pairs(animationIdConnections) do
+			disconnectList(list)
+			animationIdConnections[name]=nil
+		end
+		table.clear(desiredFolders)
+		table.clear(reconcileQueued)
+		table.clear(reconciling)
+		ownershipAnimate=nil
+	end
+
+	local function normalizedId(value)
+		local id=tostring(value or ""):match("%d+")
+		return id and ("rbxassetid://"..id) or ""
+	end
+
+	local function targetIdsForFolder(state,name,ids)
+		if state~="Swim" then return ids end
+		if name=="swimidle" then
+			return ids[2] and {ids[2]} or nil
+		end
+		return ids[1] and {ids[1]} or nil
+	end
+
+	local reconcileFolder
+	local queueReconcile
+
+	local function refreshAnimationIdConnections(name,folder)
+		local previous=animationIdConnections[name]
+		if previous then disconnectList(previous) end
+		local list={}
+		animationIdConnections[name]=list
+		for _,child in ipairs(folder:GetChildren()) do
+			if child:IsA("Animation") then
+				list[#list+1]=child:GetPropertyChangedSignal("AnimationId"):Connect(function()
+					queueReconcile(name)
+				end)
+			end
+		end
+	end
+
+	local function stopTracksFromRemovedAnimations(animate,removed)
+		if not next(removed) then return end
+		local character=animate and animate.Parent
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not animator then return end
+		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+			if track.Animation and removed[track.Animation] then
+				pcall(function() track:Stop(0.08) end)
+			end
+		end
+	end
+
+	reconcileFolder=function(name)
+		local animate=ownershipAnimate
+		local desired=desiredFolders[name]
+		if not animate or animate~=getAnimate() or not desired or reconciling[name] then return end
+		local folder=animate:FindFirstChild(name)
+		if not folder then return end
+		reconciling[name]=true
+		local ok,err=pcall(function()
+			local available={}
+			for _,child in ipairs(folder:GetChildren()) do
+				if child:IsA("Animation") then
+					local id=normalizedId(child.AnimationId)
+					available[id]=available[id] or {}
+					table.insert(available[id],child)
 				end
 			end
+			local keep={}
+			local missing={}
+			for index,id in ipairs(desired) do
+				local normalized=normalizedId(id)
+				local candidates=available[normalized]
+				local existing=candidates and table.remove(candidates,1)
+				if existing then
+					keep[existing]=true
+				else
+					missing[#missing+1]={index=index,id=normalized}
+				end
+			end
+			local removed={}
+			for _,child in ipairs(folder:GetChildren()) do
+				if child:IsA("Animation") and not keep[child] then
+					removed[child]=true
+				end
+			end
+			stopTracksFromRemovedAnimations(animate,removed)
+			for child in pairs(removed) do child:Destroy() end
+			local templates=originals[name] or {}
+			for _,entry in ipairs(missing) do
+				local template=templates[entry.index] or templates[1]
+				local animation=template and template:Clone() or Instance.new("Animation")
+				if not template then animation.Name="Animation"..entry.index end
+				animation.AnimationId=entry.id
+				animation.Parent=folder
+			end
+		end)
+		reconciling[name]=nil
+		if not ok then warn("[Animations] Could not reconcile "..name..": "..tostring(err)) end
+		if ownershipAnimate==animate and desiredFolders[name] then
+			refreshAnimationIdConnections(name,folder)
+		end
+	end
+
+	queueReconcile=function(name)
+		if reconcileQueued[name] or reconciling[name] or not desiredFolders[name] then return end
+		reconcileQueued[name]=true
+		task.defer(function()
+			reconcileQueued[name]=nil
+			reconcileFolder(name)
+		end)
+	end
+
+	local function folderNameFromAnimation(instance)
+		if not instance or not instance:IsA("Animation") then return nil end
+		local parent=instance.Parent
+		return parent and parent.Parent==ownershipAnimate and parent.Name or nil
+	end
+
+	local function bindOwnership(animate,resolved)
+		disconnectOwnership()
+		ownershipAnimate=animate
+		for _,state in ipairs(stateOrder) do
+			local ids=resolved[state]
+			if ids then
+				for _,name in ipairs(states[state]) do
+					local targetIds=targetIdsForFolder(state,name,ids)
+					local folder=animate:FindFirstChild(name)
+					if folder and targetIds then
+						desiredFolders[name]={}
+						for index,id in ipairs(targetIds) do desiredFolders[name][index]=normalizedId(id) end
+						reconcileFolder(name)
+					end
+				end
+			end
+		end
+		ownershipConnections[#ownershipConnections+1]=animate.DescendantAdded:Connect(function(instance)
+			local name=folderNameFromAnimation(instance)
+			if name and desiredFolders[name] then queueReconcile(name) end
+		end)
+		ownershipConnections[#ownershipConnections+1]=animate.DescendantRemoving:Connect(function(instance)
+			local name=folderNameFromAnimation(instance)
+			if name and desiredFolders[name] then queueReconcile(name) end
+		end)
+		ownershipConnections[#ownershipConnections+1]=animate.ChildAdded:Connect(function(folder)
+			if desiredFolders[folder.Name] then queueReconcile(folder.Name) end
+		end)
+	end
+	local function replaceState(animate,state,ids)
+		for _,name in ipairs(states[state]) do
+			local targetIds=targetIdsForFolder(state,name,ids)
 			local folder=animate:FindFirstChild(name)
 			if folder and targetIds then
+				local templates=originals[name] or {}
 				for _,child in ipairs(folder:GetChildren()) do
 					if child:IsA("Animation") then child:Destroy() end
 				end
 				for index,id in ipairs(targetIds) do
-					local animation=Instance.new("Animation")
-					animation.Name="Animation"..index
-					animation.AnimationId=id
+					local template=templates[index] or templates[1]
+					local animation=template and template:Clone() or Instance.new("Animation")
+					if not template then animation.Name="Animation"..index end
+					animation.AnimationId=normalizedId(id)
 					animation.Parent=folder
 				end
 			end
 		end
 	end
-
 	local function applySelection()
 		request=request+1
 		local thisRequest=request
 		local animate=getAnimate()
 		if not animate then return end
 		captureOriginal(animate)
+		disconnectOwnership()
 		task.spawn(function()
 			local resolved={}
 			for _,state in ipairs(stateOrder) do
@@ -232,6 +391,7 @@ return function(context)
 				for _,state in ipairs(stateOrder) do
 					if resolved[state] then replaceState(animate,state,resolved[state]) end
 				end
+				bindOwnership(animate,resolved)
 			end)
 			task.wait(0.05)
 			pcall(function() if animate.Parent then animate.Enabled=true end end)
@@ -308,6 +468,7 @@ return function(context)
 	-- El nuevo personaje recibe otro script Animate; reaplicar la selección
 	-- existente cuando ese script ya esté disponible.
 	player.CharacterAdded:Connect(function(character)
+		disconnectOwnership()
 		task.spawn(function()
 			local animate=character:WaitForChild("Animate",8)
 			if not animate or player.Character~=character then return end
