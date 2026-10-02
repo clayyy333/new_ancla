@@ -27,6 +27,7 @@ local CONFIG = {
 	FRONT_FLIP_SPEED = 1,
 	NEAR_MIN_TIME = 0.040,
 	NEAR_MAX_TIME = 0.085,
+	CONTACT_TIME = 0.10,
 	DIRECT_RETURN_TOLERANCE = 4,
 	FAR_DISTANCES = {4487425, 7554477, 9193601, 11000000, 12572022, 15000000, 17003482, 21098414},
 	SHORT_DISTANCE_SCALE = 0.10,
@@ -36,7 +37,8 @@ local LIMITS = {
 	VERTICAL_DISTANCE={min=0.1,max=1.5,decimal=true},
 	LINEAR_SPEED={min=1,max=900000000}, ANGULAR_SPEED={min=1,max=900000000},
 	FLINGER_SPEED={min=1,max=900000000}, P={min=1,max=1250},
-	RECOVERY_DISTANCE={min=1,max=80}, NEAR_DISTANCE={min=1,max=6},
+	RECOVERY_DISTANCE={min=1,max=80}, NEAR_DISTANCE={min=0.5,max=6,decimal=true},
+	CONTACT_TIME={min=0.05,max=0.30,decimal=true},
 	FRONT_FLIP_SPEED={min=1,max=60},
 	DISPLACEMENT_DISTANCE={min=1,max=2109841},
 }
@@ -102,6 +104,7 @@ function VR7EfficientCore.new(provider)
 	self.Direction = 1
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
+	self.ContactTimeEnabled = false
 
 	-- Front Flip
 	self.FrontFlipEnabled = true
@@ -150,6 +153,22 @@ function VR7EfficientCore:IsShortDisplacementEnabled()
 	return self.ShortDisplacementEnabled
 end
 
+function VR7EfficientCore:SetContactTimeEnabled(enabled)
+	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar esta opción.","Stop Custom Fling before changing this option.") end
+	if not self:IsAuthorized() then return false,T("Disponible próximamente.","Coming soon.") end
+	self.ContactTimeEnabled = enabled and true or false
+	return true,self.ContactTimeEnabled
+end
+
+function VR7EfficientCore:IsContactTimeEnabled()
+	return self.ContactTimeEnabled == true
+end
+
+function VR7EfficientCore:GetContactDuration()
+	if self.ContactTimeEnabled then return CONFIG.CONTACT_TIME end
+	return CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+end
+
 function VR7EfficientCore:GetParameters()
 	local result={}
 	for name in pairs(LIMITS) do result[name]=CONFIG[name] end
@@ -166,7 +185,9 @@ function VR7EfficientCore:SetParameter(name,value)
 	local limit=LIMITS[name];value=tonumber(value)
 	if not limit or not value then return false,T("Parámetro inválido.","Invalid parameter.") end
 	value=math.clamp(value,limit.min,limit.max)
-	if not limit.decimal then value=math.floor(value+0.5) end
+	if name=="NEAR_DISTANCE" then value=value<1 and 0.5 or math.floor(value+0.5)
+	elseif name=="CONTACT_TIME" then value=math.floor(value*20+0.5)/20
+	elseif not limit.decimal then value=math.floor(value+0.5) end
 	CONFIG[name]=value
 	if name=="FLINGER_SPEED" then CONFIG.FLINGER_VELOCITY=Vector3.new(value,value,value) end
 	return true,value
@@ -179,6 +200,8 @@ function VR7EfficientCore:ApplyPreset(preset)
 	for name,limit in pairs(LIMITS) do
 		local value=limit.min
 		if preset=="MAXIMUM" then value=limit.max
+		elseif preset=="MEDIUM" and name=="NEAR_DISTANCE" then value=3
+		elseif preset=="MEDIUM" and name=="CONTACT_TIME" then value=0.15
 		elseif preset=="MEDIUM" then
 			value=(limit.min+limit.max)/2
 			if limit.decimal then value=math.floor(value*10+0.5)/10 else value=math.floor(value+0.5) end
@@ -377,7 +400,7 @@ function VR7EfficientCore:Start()
 	self.LastTargetCFrame = targetRoot.CFrame
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = "NEAR"
-	self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
+	self.NearUntil = os.clock() + self:GetContactDuration()
 	self.ReturnSide = 1
 
 	attackerHumanoid.PlatformStand = false
@@ -434,7 +457,7 @@ function VR7EfficientCore:Start()
 		elseif self.EfficientPhase == "VERIFY_RETURN" then
 			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.NEAR_DISTANCE then
 				self.EfficientPhase = "NEAR"
-				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+				self.NearUntil = os.clock() + self:GetContactDuration()
 			else
 				self.ReturnSide = -self.ReturnSide
 				self.EfficientPhase = "RETURN_16"
@@ -445,7 +468,7 @@ function VR7EfficientCore:Start()
 		else
 			placeNear()
 			self.EfficientPhase = "NEAR"
-			self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+			self.NearUntil = os.clock() + self:GetContactDuration()
 		end
 	end)
 

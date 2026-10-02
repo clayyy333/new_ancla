@@ -44,6 +44,7 @@ return function(context)
 		P=isES and "Controla qué tan rápido nuestro HRP alcanza la velocidad física elegida. Un valor mayor hace que la fuerza responda con más intensidad." or "Controls how quickly our HRP reaches the selected physical speed. A higher value makes the force respond more strongly.",
 		RECOVERY_DISTANCE=isES and "Si nuestro HRP no regresa correctamente al target, esta distancia indica cuánto se moverá hacia un lado antes de volver a intentarlo." or "If our HRP does not return to the target correctly, this distance controls how far sideways it moves before trying again.",
 		NEAR_DISTANCE=isES and "Indica qué tan cerca debe quedar nuestro HRP del HRP del target para considerar que el regreso fue correcto." or "Sets how close our HRP must be to the target's HRP for the return to be considered successful.",
+		CONTACT_TIME=isES and "Define cuánto tiempo permanece nuestro HRP junto al target en cada contacto. Si está desactivado, conserva el tiempo automático actual de 0.040 a 0.085 segundos." or "Sets how long our HRP stays beside the target during each contact. When disabled, it keeps the current automatic timing of 0.040 to 0.085 seconds.",
 		FRONT_FLIP_SPEED=isES and "Controla qué tan rápido gira nuestro personaje hacia adelante. Ese giro acompaña el contacto físico usado para hacer Fling." or "Controls how fast our character flips forward. This spin supports the physical contact used to fling the target.",
 		DISPLACEMENT_DISTANCE=isES and "Controla cuánto se aleja nuestro HRP antes de volver al HRP actual del target. Solo desplaza nuestro personaje, no al target." or "Controls how far our HRP travels before returning to the target's current HRP. It only moves our character, not the target.",
 	}
@@ -81,28 +82,51 @@ return function(context)
 		{"P",isES and "Potencia física" or "Physics power"},
 		{"RECOVERY_DISTANCE",isES and "Distancia de recuperación" or "Recovery distance"},
 		{"NEAR_DISTANCE",isES and "Distancia cercana" or "Near distance"},
+		{"CONTACT_TIME",isES and "Tiempo junto al objetivo" or "Time beside target",0.05,true},
 		{"FRONT_FLIP_SPEED",isES and "Velocidad de giro" or "Flip speed"},
 		{"DISPLACEMENT_DISTANCE",isES and "Distancia de desplazamiento" or "Displacement distance"},
 	}
 	local rows={};local stepOptions={1,100,1000};local stepIndex=1;local targetIndex=0
 	for _,definition in ipairs(definitions) do
-		local key,label,fixedStep=definition[1],definition[2],definition[3]
+		local key,label,fixedStep,hasToggle=definition[1],definition[2],definition[3],definition[4]==true
 		local row=Instance.new("Frame");row.Size=UDim2.new(1,-4,0,50);row.BackgroundColor3=currentTheme.secondary;row.BorderSizePixel=0;row.ZIndex=7;row.Parent=customFlingPanel;Instance.new("UICorner",row).CornerRadius=UDim.new(0,10);RegisterTheme(row,"BackgroundColor3","secondary")
-		local name=Instance.new("TextLabel");name.Size=UDim2.new(.28,-12,1,0);name.Position=UDim2.new(0,12,0,0);name.BackgroundTransparency=1;name.Text=label;name.TextColor3=currentTheme.text;name.Font=Enum.Font.Gotham;name.TextSize=isMobile and 9 or 11;name.TextWrapped=true;name.TextXAlignment=Enum.TextXAlignment.Left;name.ZIndex=8;name.Parent=row;RegisterTheme(name,"TextColor3","text")
-		local infoButton=button(row,isES and "Información" or "Information",UDim2.new(.17,-6,0,28),UDim2.new(.28,0,.5,-14));infoButton.TextSize=isMobile and 8 or 9
+		local name=Instance.new("TextLabel");name.Size=UDim2.new(hasToggle and .22 or .28,-12,1,0);name.Position=UDim2.new(0,12,0,0);name.BackgroundTransparency=1;name.Text=label;name.TextColor3=currentTheme.text;name.Font=Enum.Font.Gotham;name.TextSize=isMobile and 9 or 11;name.TextWrapped=true;name.TextXAlignment=Enum.TextXAlignment.Left;name.ZIndex=8;name.Parent=row;RegisterTheme(name,"TextColor3","text")
+		local infoButton=button(row,isES and "Información" or "Information",UDim2.new(hasToggle and .14 or .17,-6,0,28),UDim2.new(hasToggle and .22 or .28,0,.5,-14));infoButton.TextSize=isMobile and 8 or 9
 		infoButton.Activated:Connect(function() showInfo(key,label) end)
-		local minus=button(row,"−",UDim2.new(0,34,0,32),UDim2.new(.45,0,.5,-16));local value=button(row,"0",UDim2.new(.55,-92,0,32),UDim2.new(.45,40,.5,-16));value.Active=false;local plus=button(row,"+",UDim2.new(0,34,0,32),UDim2.new(1,-40,.5,-16))
-		rows[key]={value=value,minus=minus,plus=plus,fixedStep=fixedStep}
+		local controlsX=hasToggle and .55 or .45
+		local optionToggle=nil
+		if hasToggle then optionToggle=button(row,isES and "Desactivado" or "Disabled",UDim2.new(.19,-6,0,28),UDim2.new(.36,0,.5,-14));optionToggle.TextSize=isMobile and 8 or 9 end
+		local minus=button(row,"−",UDim2.new(0,34,0,32),UDim2.new(controlsX,0,.5,-16));local value=button(row,"0",UDim2.new(1-controlsX,-92,0,32),UDim2.new(controlsX,40,.5,-16));value.Active=false;local plus=button(row,"+",UDim2.new(0,34,0,32),UDim2.new(1,-40,.5,-16))
+		rows[key]={value=value,minus=minus,plus=plus,fixedStep=fixedStep,toggle=optionToggle}
 		local function change(direction)
 			if CustomFlingCore.Running or CustomFlingCore.Stopping then return end
-			local values=CustomFlingCore:GetParameters();local amount=fixedStep or stepOptions[stepIndex]
-			CustomFlingCore:SetParameter(key,values[key]+amount*direction);UpdateCustomFlingPanel()
+			if hasToggle and not CustomFlingCore:IsContactTimeEnabled() then return end
+			local values=CustomFlingCore:GetParameters()
+			if key=="NEAR_DISTANCE" then
+				local nextValue=direction<0 and (values[key]<=1 and 0.5 or values[key]-1) or (values[key]<1 and 1 or values[key]+1)
+				CustomFlingCore:SetParameter(key,nextValue)
+			else
+				local amount=fixedStep or stepOptions[stepIndex]
+				CustomFlingCore:SetParameter(key,values[key]+amount*direction)
+			end
+			UpdateCustomFlingPanel()
 		end
 		minus.Activated:Connect(function() change(-1) end);plus.Activated:Connect(function() change(1) end)
+		if optionToggle then optionToggle.Activated:Connect(function() local ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled());if ok then UpdateCustomFlingPanel() end end) end
 	end
 	UpdateCustomFlingPanel=function(message)
 		local values=CustomFlingCore:GetParameters();local limits=CustomFlingCore:GetParameterLimits();local locked=CustomFlingCore.Running or CustomFlingCore.Stopping
-		for key,row in pairs(rows) do row.value.Text=tostring(values[key]);row.minus.Active=not locked and values[key]>limits[key].min;row.plus.Active=not locked and values[key]<limits[key].max end
+		for key,row in pairs(rows) do
+			row.value.Text=tostring(values[key])
+			local optionEnabled=not row.toggle or CustomFlingCore:IsContactTimeEnabled()
+			row.minus.Active=not locked and optionEnabled and values[key]>limits[key].min
+			row.plus.Active=not locked and optionEnabled and values[key]<limits[key].max
+			if row.toggle then
+				row.toggle.Active=not locked
+				row.toggle.Text=optionEnabled and (isES and "Activado" or "Enabled") or (isES and "Desactivado" or "Disabled")
+				row.toggle.BackgroundColor3=optionEnabled and currentTheme.accent or currentTheme.tertiary
+			end
+		end
 		local target=CustomFlingCore:GetTarget();targetButton.Text=target and (target.DisplayName or target.Name) or (isES and "Seleccionar jugador" or "Select player")
 		toggleButton.Text=CustomFlingCore.Running and (isES and "Desactivar Fling personalizable" or "Disable Custom Fling") or (isES and "Activar Fling personalizable" or "Enable Custom Fling")
 		stepButton.Text=(isES and "Aumentar o disminuir ajustes en: " or "Increase or decrease settings by: ")..tostring(stepOptions[stepIndex])
