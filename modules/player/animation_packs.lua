@@ -13,6 +13,15 @@ return function(context)
 	local request=0
 	local resolvedCache={}
 	local bundleCache={}
+	local function persistSelection()
+		local saved={}
+		for _,state in ipairs(stateOrder) do
+			local entry=selected[state]
+			if entry and tonumber(entry.id) then saved[state]={id=tonumber(entry.id),name=tostring(entry.name or "")} end
+		end
+		Settings.animationPackSelection=saved
+		SaveLocalData()
+	end
 	-- Este paquete llega con un orden distinto en bundledItems; IDs comprobados por tipo.
 	local verifiedPacks={
 		[226897222628299]={
@@ -240,6 +249,9 @@ return function(context)
 			return false
 		end
 		selected[state]={id=mapped[state],name=pack.name}
+		lastVexroAnimationPack=nil
+		Settings.animationPackBundleId=nil
+		persistSelection()
 		applySelection()
 		Notify(isES and "Animación equipada" or "Animation equipped",
 			(pack.name or "").." - "..state)
@@ -266,7 +278,7 @@ return function(context)
 		if count==0 then return false end
 		lastVexroAnimationPack=pack
 		Settings.animationPackBundleId=tonumber(pack.bundleId)
-		SaveLocalData()
+		persistSelection()
 		applySelection()
 		if not silent then Notify(isES and "Paquete equipado" or "Pack equipped",pack.name or "") end
 		return true
@@ -277,6 +289,7 @@ return function(context)
 		lastVexroAnimationPack=nil
 		if not silent then
 			Settings.animationPackBundleId=nil
+			Settings.animationPackSelection={}
 			SaveLocalData()
 		end
 		applySelection()
@@ -302,8 +315,22 @@ return function(context)
 			if player.Character==character then ReapplyAnimationSelection() end
 		end)
 	end)
+	local restoredSelection=false
+	for _,state in ipairs(stateOrder) do
+		local entry=type(Settings.animationPackSelection)=="table" and Settings.animationPackSelection[state]
+		local id=type(entry)=="table" and tonumber(entry.id)
+		if id then
+			selected[state]={id=id,name=tostring(entry.name or "")}
+			restoredSelection=true
+		end
+	end
 	local savedBundleId=tonumber(Settings.animationPackBundleId)
-	if savedBundleId then
+	if restoredSelection then
+		task.defer(function()
+			local character=player.Character or player.CharacterAdded:Wait()
+			if character and character:WaitForChild("Animate",5) then applySelection() end
+		end)
+	elseif savedBundleId then
 		task.defer(function()
 			local savedPack=nil
 			for _,pack in ipairs(AnimationPacks or {}) do
