@@ -13,6 +13,9 @@ return function(context)
 	local request=0
 	local resolvedCache={}
 	local bundleCache={}
+	local RunService=game:GetService("RunService")
+	local seatConnection=nil
+	local seatRecoveryToken=0
 	local function persistSelection()
 		local saved={}
 		for _,state in ipairs(stateOrder) do
@@ -239,6 +242,46 @@ return function(context)
 		end)
 	end
 
+	-- Al salir de un asiento, Roblox puede dejar activa una pista de locomoción
+	-- anterior. Eso desfasa el ciclo de caminar y hace que parezca usar una sola
+	-- pierna. La recuperación se ejecuta una vez por cada salida del asiento.
+	local function stopLocomotionTracks(humanoid)
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not animator then return end
+		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+			if track.Priority.Value<=Enum.AnimationPriority.Movement.Value then
+				pcall(function() track:Stop(0.08) end)
+			end
+		end
+	end
+
+	local function repairAfterSeat(character,humanoid,token)
+		task.delay(0.12,function()
+			if token~=seatRecoveryToken or player.Character~=character or not humanoid.Parent or humanoid.Sit then return end
+			local animate=character:FindFirstChild("Animate")
+			if not animate then return end
+			stopLocomotionTracks(humanoid)
+			pcall(function() animate.Enabled=false end)
+			RunService.Heartbeat:Wait()
+			if token~=seatRecoveryToken or player.Character~=character or not animate.Parent or humanoid.Sit then return end
+			pcall(function() animate.Enabled=true end)
+		end)
+	end
+
+	local function bindSeatRecovery(character)
+		if seatConnection then
+			seatConnection:Disconnect()
+			seatConnection=nil
+		end
+		seatRecoveryToken=seatRecoveryToken+1
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		if not humanoid then return end
+		seatConnection=humanoid.Seated:Connect(function(active)
+			seatRecoveryToken=seatRecoveryToken+1
+			local token=seatRecoveryToken
+			if not active then repairAfterSeat(character,humanoid,token) end
+		end)
+	end
 	function EquipAnimationPart(pack,state)
 		if not states[state] or not pack or (not pack.bundleId and not pack[state]) then return false end
 		if not getAnimate() then return false end
@@ -309,12 +352,15 @@ return function(context)
 	-- existente cuando ese script ya esté disponible.
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(function()
+			local humanoid=character:WaitForChild("Humanoid",8)
 			local animate=character:WaitForChild("Animate",8)
-			if not animate or player.Character~=character then return end
+			if not humanoid or not animate or player.Character~=character then return end
+			bindSeatRecovery(character)
 			task.wait(0.15)
 			if player.Character==character then ReapplyAnimationSelection() end
 		end)
 	end)
+	if player.Character then bindSeatRecovery(player.Character) end
 	local restoredSelection=false
 	for _,state in ipairs(stateOrder) do
 		local entry=type(Settings.animationPackSelection)=="table" and Settings.animationPackSelection[state]
