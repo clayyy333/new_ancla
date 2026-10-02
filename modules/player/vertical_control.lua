@@ -1,13 +1,15 @@
--- Desplazamiento vertical persistente compatible con el emote seleccionado.
+-- Desplazamiento vertical anclado y persistente con emote Invisible.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-100,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
+	local Core={Running=false,Offset=-5,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 		local root=character and character:FindFirstChild("HumanoidRootPart")
 		return character,humanoid,root
 	end
+	local INVISIBLE_EMOTE_ID=131900540866459
+	local INVISIBLE_EMOTE_NAME="Invisible"
 	local function finite(value)
 		value=tonumber(value)
 		return value and value==value and math.abs(value)<math.huge and value or nil
@@ -16,10 +18,10 @@ return function(context)
 	function Core:GetOffset()return self.Offset end
 	function Core:SetOffset(value)
 		value=finite(value)
-		if not value then return false,isES and"Escribe una ubicacion vertical valida."or"Enter a valid vertical location."end
-		self.Offset=value
+		if not value then return false,isES and"Escribe una ubicación vertical válida."or"Enter a valid vertical location."end
+		self.Offset=math.clamp(value,-10,10)
 		if self.Running then self:Apply()end
-		return true,value
+		return true,self.Offset
 	end
 	function Core:SetCharacterCollisions(disabled)
 		local character=player.Character
@@ -155,13 +157,16 @@ return function(context)
 		self.SavedCameraType=nil;self.SavedCameraSubject=nil
 	end
 	function Core:CaptureSelectedEmote()
-		local selected=_genv().lastVexroEmote
-		if type(selected)=="table" and selected.id then
-			self.SelectedEmoteId=selected.id
-			self.SelectedEmoteName=selected.name or tostring(selected.id)
-			return true
-		end
-		return self.SelectedEmoteId~=nil
+		self.SelectedEmoteId=INVISIBLE_EMOTE_ID
+		self.SelectedEmoteName=INVISIBLE_EMOTE_NAME
+		return true
+	end
+	function Core:IsInvisibleEmotePlaying()
+		local track=currentAnimTrack
+		if not track or not track.IsPlaying then return false end
+		local animation=track.Animation
+		local animationId=animation and tostring(animation.AnimationId):match("%d+")
+		return animationId==tostring(INVISIBLE_EMOTE_ID)
 	end
 	function Core:RestoreSelectedEmote()
 		self:CaptureSelectedEmote()
@@ -177,20 +182,33 @@ return function(context)
 		if not valid then return false,message end
 		local _,humanoid,root=rig()
 		if not humanoid or humanoid.Health<=0 or not root then return false,isES and"Tu personaje no esta disponible."or"Your character is unavailable."end
+		if not AnchorCore then return false,isES and"El controlador de Ancla no está disponible."or"Anchor controller is unavailable."end
+		if AutoAnchorCore and AutoAnchorCore.Busy then return false,isES and"El Ancla automática está ocupada."or"Automatic Anchor is busy."end
+		if AutoAnchorCore and AutoAnchorCore.Mode then AutoAnchorCore:Stop() end
+		if AnchorCore.TestEnabled then AnchorCore:SetTest(false) end
+		if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
+		AnchorCore:SetAntiSeat(false)
+		AnchorCore:SetHeartbeat(false)
 		self.Checkpoint=root.CFrame
 		self:SetCharacterCollisions(true)
 		self.Running=true
+		local anchored,anchorMessage=AnchorCore:SetAncla(true)
+		if not anchored then self.Running=false;self:SetCharacterCollisions(false);return false,anchorMessage end
+		AnchorCore.Checkpoint=self.Checkpoint
+		AnchorCore:SetAntiSeat(true)
+		AnchorCore:SetHeartbeat(true)
 		self:LockCamera()
 		self:CaptureSelectedEmote()
+		self:RestoreSelectedEmote()
 		self:Apply()
 		self.EmoteClock=0
 		self.Connection=RunService.Heartbeat:Connect(function(dt)
 			if not self.Running then return end
 			if not self:Apply(dt)then return end
 			self.EmoteClock=self.EmoteClock+(tonumber(dt)or 0)
-			if self.EmoteClock>=0.15 then
+			if self.EmoteClock>=0.75 then
 				self.EmoteClock=0
-				self:CaptureSelectedEmote()
+				if not self:IsInvisibleEmotePlaying() then self:RestoreSelectedEmote() end
 			end
 		end)
 		self.VisualConnection=RunService.RenderStepped:Connect(function()
@@ -207,6 +225,12 @@ return function(context)
 		self:RestoreVisualOffset()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
+		if type(StopEmote)=="function" then pcall(function() StopEmote(false) end) end
+		if AnchorCore then
+			AnchorCore:SetHeartbeat(false)
+			AnchorCore:SetAntiSeat(false)
+			if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
+		end
 		local checkpoint=self.Checkpoint
 		self.Checkpoint=nil
 		self.LastAppliedCFrame=nil
@@ -238,10 +262,18 @@ return function(context)
 		task.spawn(function()
 			local root=character:WaitForChild("HumanoidRootPart",8)
 			if not Core.Running or not root or not Core.Checkpoint then return end
-			local restored=Core.LastAppliedCFrame or (Core.Checkpoint*CFrame.new(0,Core.Offset,0))
-			root.CFrame=Core:IsAnchorHolding(root) and Core.Checkpoint or restored
+			if AnchorCore then
+				if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
+				AnchorCore:SetAntiSeat(false)
+				AnchorCore:SetHeartbeat(false)
+			end
+			root.CFrame=Core.Checkpoint
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
+			if AnchorCore then
+				local anchored=AnchorCore:SetAncla(true)
+				if anchored then AnchorCore.Checkpoint=Core.Checkpoint;AnchorCore:SetAntiSeat(true);AnchorCore:SetHeartbeat(true) end
+			end
 			local humanoid=character:WaitForChild("Humanoid",8)
 			if not Core.Running or not humanoid then return end
 			humanoid:WaitForChild("Animator",4)
