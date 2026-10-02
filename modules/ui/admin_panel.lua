@@ -189,11 +189,14 @@ return function(context)
             item.Size = UDim2.new(1, -4, 0, 46)
             item.BackgroundColor3 = currentTheme.secondary
             item.Text = string.format(
-                "  %s   |   %.2f h   |   %s   |   %s",
+                "  %s   |   %.2f h   |   %s   |   %s   |   %s",
                 tostring(info.username or ""),
                 (tonumber(info.total_seconds) or 0) / 3600,
                 tostring(info.country_code or "UN"),
-                tostring(info.user_id or "")
+                tostring(info.user_id or ""),
+                ((info.custom_fling_open == true or tonumber(info.custom_fling_open) == 1)
+                    and (isES and "En Fling personalizado" or "In Custom Fling")
+                    or (isES and "Fuera" or "Outside"))
             )
             item.TextColor3 = currentTheme.text
             item.Font = Enum.Font.Gotham

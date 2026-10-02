@@ -134,6 +134,7 @@ class SessionStart(BaseModel):
 
 class Heartbeat(BaseModel):
     anchored: bool = False
+    custom_fling_open: bool = False
     anchor_mode: str = Field(default="", max_length=40)
     checkpoint_x: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
     checkpoint_y: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
@@ -353,12 +354,13 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         anchored = payload.anchored and anchor_guard_allowed(session)
         db.execute(
             """UPDATE sessions SET last_seen=?,credited_seconds=credited_seconds+?,
-               anchored=?,anchor_mode=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
+               anchored=?,anchor_mode=?,custom_fling_open=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
             (
                 timestamp,
                 elapsed,
                 int(anchored),
                 payload.anchor_mode if anchored else "",
+                int(payload.custom_fling_open),
                 payload.checkpoint_x if anchored else None,
                 payload.checkpoint_y if anchored else None,
                 payload.checkpoint_z if anchored else None,
@@ -376,7 +378,7 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
 def end_session(session=Depends(require_session)):
     timestamp = now()
     with connection() as db:
-        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0 WHERE id=?", (timestamp, timestamp, session["id"]))
+        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,custom_fling_open=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}
 
@@ -593,6 +595,7 @@ def owner_players(
         rows = db.execute(
             f"""SELECT u.user_id,u.username,u.display_name,u.country_code,
                 MAX(s.last_seen) AS last_seen,
+                MAX(s.custom_fling_open) AS custom_fling_open,
                 COUNT(DISTINCT s.job_id) AS active_servers,
                 COALESCE((
                     SELECT SUM(s2.credited_seconds)
@@ -671,7 +674,7 @@ def admin_sessions(
         rows = db.execute(
             f"""SELECT s.id,s.user_id,u.username,u.display_name,u.country_code,
                 s.place_id,s.job_id,s.game_name,s.executor,s.script_version,
-                s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,s.anchor_mode
+                s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,s.anchor_mode,s.custom_fling_open
                 FROM sessions s JOIN users u ON u.user_id=s.user_id
                 {where} ORDER BY s.last_seen DESC LIMIT ?""",
             values,

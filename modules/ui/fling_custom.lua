@@ -4,35 +4,6 @@ return function(context)
 	customFlingPanel=Instance.new("ScrollingFrame")
 	customFlingPanel.Name="CustomFlingPanel";customFlingPanel.Size=UDim2.new(1,-16,1,-(titleH+20));customFlingPanel.Position=UDim2.new(0,8,0,titleH+8);customFlingPanel.BackgroundTransparency=1;customFlingPanel.BorderSizePixel=0;customFlingPanel.ScrollBarThickness=3;customFlingPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;customFlingPanel.CanvasSize=UDim2.new();customFlingPanel.Visible=false;customFlingPanel.ZIndex=6;customFlingPanel.Parent=content
 	local layout=Instance.new("UIListLayout",customFlingPanel);layout.Padding=UDim.new(0,6)
-	local customFlingOwners={
-		[11739864999]="psychoo778",
-		[11743514302]="ksablanca0",
-	}
-	local ownerName=customFlingOwners[player.UserId]
-	if not ownerName or string.lower(player.Name)~=ownerName then
-		local comingSoon=Instance.new("Frame")
-		comingSoon.Name="ComingSoon"
-		comingSoon.Size=UDim2.new(1,-4,0,isMobile and 54 or 62)
-		comingSoon.BackgroundColor3=currentTheme.secondary
-		comingSoon.BorderSizePixel=0
-		comingSoon.ZIndex=7
-		comingSoon.Parent=customFlingPanel
-		Instance.new("UICorner",comingSoon).CornerRadius=UDim.new(0,12)
-		RegisterTheme(comingSoon,"BackgroundColor3","secondary")
-
-		local message=Instance.new("TextLabel")
-		message.Size=UDim2.new(1,-20,1,0)
-		message.Position=UDim2.new(0,10,0,0)
-		message.BackgroundTransparency=1
-		message.Text=isES and "Disponible Próximamente..." or "Coming Soon..."
-		message.TextColor3=currentTheme.accent
-		message.Font=Enum.Font.GothamBold
-		message.TextSize=isMobile and 12 or 14
-		message.ZIndex=8
-		message.Parent=comingSoon
-		RegisterTheme(message,"TextColor3","accent")
-		return true
-	end
 	local function button(parent,text,size,pos)
 		local b=Instance.new("TextButton");b.Size=size;b.Position=pos;b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 11;b.AutoButtonColor=false;b.ZIndex=8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,8);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
