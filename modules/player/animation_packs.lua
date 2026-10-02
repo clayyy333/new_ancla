@@ -314,6 +314,33 @@ return function(context)
 		end)
 	end
 
+	local function stopControlledLocomotionTracks(animate)
+		local walkIds={}
+		for _,name in ipairs({"walk","run"}) do
+			for _,id in ipairs(desiredFolders[name] or {}) do
+				walkIds[normalizedId(id)]=true
+			end
+		end
+		if not next(walkIds) then return end
+		local character=animate and animate.Parent
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not humanoid or not animator or humanoid.MoveDirection.Magnitude>0.01 then return end
+		for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
+			local animation=track.Animation
+			if animation and walkIds[normalizedId(animation.AnimationId)] then
+				pcall(function() track:Stop(0.06) end)
+			end
+		end
+	end
+
+	local function queueIdleLocomotionCleanup(animate)
+		task.defer(function()
+			if ownershipAnimate==animate and animate==getAnimate() then
+				stopControlledLocomotionTracks(animate)
+			end
+		end)
+	end
 	local function folderNameFromAnimation(instance)
 		if not instance or not instance:IsA("Animation") then return nil end
 		local parent=instance.Parent
@@ -348,6 +375,21 @@ return function(context)
 		ownershipConnections[#ownershipConnections+1]=animate.ChildAdded:Connect(function(folder)
 			if desiredFolders[folder.Name] then queueReconcile(folder.Name) end
 		end)
+		local character=animate.Parent
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			ownershipConnections[#ownershipConnections+1]=humanoid.Running:Connect(function(speed)
+				if speed<=0.05 then queueIdleLocomotionCleanup(animate) end
+			end)
+			ownershipConnections[#ownershipConnections+1]=humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
+				if humanoid.MoveDirection.Magnitude<=0.01 then queueIdleLocomotionCleanup(animate) end
+			end)
+			ownershipConnections[#ownershipConnections+1]=humanoid.StateChanged:Connect(function(_,newState)
+				if newState==Enum.HumanoidStateType.Seated or newState==Enum.HumanoidStateType.GettingUp then
+					queueIdleLocomotionCleanup(animate)
+				end
+			end)
+		end
 	end
 	local function replaceState(animate,state,ids)
 		for _,name in ipairs(states[state]) do
