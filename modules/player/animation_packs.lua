@@ -15,6 +15,7 @@ return function(context)
 	local bundleCache={}
 	local RunService=game:GetService("RunService")
 	local seatConnection=nil
+	local movementRecoveryConnection=nil
 	local seatRecoveryToken=0
 	local function persistSelection()
 		local saved={}
@@ -278,22 +279,45 @@ return function(context)
 		end
 	end
 	local function repairAfterSeat(character,humanoid,token)
-		task.delay(0.12,function()
+		if movementRecoveryConnection then
+			movementRecoveryConnection:Disconnect()
+			movementRecoveryConnection=nil
+		end
+		local repaired=false
+		local function repairWhenReady()
+			if repaired then return end
 			if token~=seatRecoveryToken or player.Character~=character or not humanoid.Parent or humanoid.Sit then return end
+			repaired=true
+			if movementRecoveryConnection then
+				movementRecoveryConnection:Disconnect()
+				movementRecoveryConnection=nil
+			end
 			local animate=character:FindFirstChild("Animate")
 			if not animate then return end
 			stopLocomotionTracks(humanoid)
 			pcall(function() animate.Enabled=false end)
+			-- Dos fotogramas permiten que finalice la transición propia del vehículo.
+			RunService.Heartbeat:Wait()
 			RunService.Heartbeat:Wait()
 			if token~=seatRecoveryToken or player.Character~=character or not animate.Parent or humanoid.Sit then return end
 			pcall(function() animate.Enabled=true end)
+		end
+		-- La corrección debe coincidir con el primer paso real, cuando el juego ya
+		-- terminó de desmontar al personaje y no puede reponer la pista del vehículo.
+		movementRecoveryConnection=humanoid.Running:Connect(function(speed)
+			if speed>0.5 then repairWhenReady() end
 		end)
+		-- Si permanece quieto, dejar preparado Animate después de la transición.
+		task.delay(1.5,repairWhenReady)
 	end
-
 	local function bindSeatRecovery(character)
 		if seatConnection then
 			seatConnection:Disconnect()
 			seatConnection=nil
+		end
+		if movementRecoveryConnection then
+			movementRecoveryConnection:Disconnect()
+			movementRecoveryConnection=nil
 		end
 		seatRecoveryToken=seatRecoveryToken+1
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
