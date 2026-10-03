@@ -2,11 +2,11 @@
 return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
-	local Flight={NormalSpeed=80,SprintSpeed=400,Flying=false,Braking=false,SprintExternal=false,Velocity=Vector3.zero,Position=nil}
+	local Flight={NormalSpeed=80,SprintSpeed=400,Flying=false,Braking=false,SprintExternal=false,Velocity=Vector3.zero,Position=nil,CameraYaw=0,CameraPitch=0,CameraDistance=12,CameraTouch=nil,CameraLastTouch=nil,SavedCameraType=nil,SavedCameraSubject=nil}
 	local keys={W=false,S=false,A=false,D=false,Up=false,Down=false}
 	local mobile={Forward=false,Backward=false,Left=false,Right=false,Up=false,Down=false}
 	local connections={}
-	local heartbeat
+	local heartbeat,cameraRender
 	local function character()
 		local c=player.Character
 		return c,c and c:FindFirstChild("HumanoidRootPart"),c and c:FindFirstChildOfClass("Humanoid")
@@ -53,6 +53,55 @@ return function(context)
 		end
 		return d.Magnitude>0 and d.Unit or d
 	end
+	local function pointerOverGui(position)
+		local playerGui=player:FindFirstChildOfClass("PlayerGui")
+		if not playerGui then return false end
+		local ok,objects=pcall(function() return playerGui:GetGuiObjectsAtPosition(position.X,position.Y) end)
+		if not ok then return false end
+		for _,object in ipairs(objects) do
+			local current=object
+			while current and current~=playerGui do
+				if current:IsA("GuiButton") or current:IsA("TextBox") or current:IsA("ScrollingFrame") then return true end
+				current=current.Parent
+			end
+		end
+		return false
+	end
+	function Flight:EnableMobileCamera(root,humanoid)
+		if not UserInputService.TouchEnabled then return end
+		local camera=Workspace.CurrentCamera;if not camera then return end
+		self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject
+		local focus=root.Position+Vector3.new(0,2,0)
+		local offset=camera.CFrame.Position-focus
+		self.CameraDistance=math.clamp(offset.Magnitude,6,24)
+		local look=camera.CFrame.LookVector
+		self.CameraYaw=math.atan2(-look.X,-look.Z)
+		self.CameraPitch=math.clamp(math.asin(look.Y),math.rad(-85),math.rad(85))
+		camera.CameraType=Enum.CameraType.Scriptable
+		if cameraRender then cameraRender:Disconnect() end
+		cameraRender=RunService.RenderStepped:Connect(function()
+			if not self.Flying then return end
+			local _,currentRoot=character();camera=Workspace.CurrentCamera
+			if not currentRoot or not camera then return end
+			camera.CameraType=Enum.CameraType.Scriptable
+			local target=currentRoot.Position+Vector3.new(0,2,0)
+			local rotation=CFrame.fromOrientation(self.CameraPitch,self.CameraYaw,0)
+			local cameraPosition=target-rotation.LookVector*self.CameraDistance
+			camera.CFrame=CFrame.lookAt(cameraPosition,target,Vector3.yAxis)
+			camera.Focus=CFrame.new(target)
+		end)
+	end
+	function Flight:DisableMobileCamera()
+		if cameraRender then cameraRender:Disconnect();cameraRender=nil end
+		self.CameraTouch=nil;self.CameraLastTouch=nil
+		local camera=Workspace.CurrentCamera
+		if camera then
+			camera.CameraType=self.SavedCameraType or Enum.CameraType.Custom
+			if self.SavedCameraSubject and self.SavedCameraSubject.Parent then camera.CameraSubject=self.SavedCameraSubject
+			else local _,_,humanoid=character();if humanoid then camera.CameraSubject=humanoid end end
+		end
+		self.SavedCameraType=nil;self.SavedCameraSubject=nil
+	end
 	function Flight:Start()
 		if self.Flying then return true end
 		local _,root,humanoid=character()
@@ -60,6 +109,7 @@ return function(context)
 		self.Flying=true; self.Braking=false; self.Velocity=Vector3.zero; self.Position=root.Position
 		humanoid.PlatformStand=true; humanoid.AutoRotate=false
 		root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero
+		self:EnableMobileCamera(root,humanoid)
 		if heartbeat then heartbeat:Disconnect() end
 		heartbeat=RunService.Heartbeat:Connect(function(dt)
 			if not self.Flying then return end
@@ -88,6 +138,7 @@ return function(context)
 	function Flight:Stop()
 		self.Flying=false; self.Braking=false; self.SprintExternal=false; self.Velocity=Vector3.zero; self.Position=nil
 		if heartbeat then heartbeat:Disconnect(); heartbeat=nil end
+		self:DisableMobileCamera()
 		self:ClearMobileInput(); for k in pairs(keys) do keys[k]=false end
 		local _,root,humanoid=character()
 		if root then root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero end
@@ -98,6 +149,20 @@ return function(context)
 		if key==Enum.KeyCode.W then keys.W=value elseif key==Enum.KeyCode.S then keys.S=value elseif key==Enum.KeyCode.A then keys.A=value elseif key==Enum.KeyCode.D then keys.D=value elseif key==Enum.KeyCode.Space then keys.Up=value elseif key==Enum.KeyCode.LeftControl or key==Enum.KeyCode.C then keys.Down=value elseif key==Enum.KeyCode.LeftShift then keys.Sprint=value end
 		if value then Flight.Braking=false end
 	end
+	connections[#connections+1]=UserInputService.TouchStarted:Connect(function(touch,processed)
+		if not Flight.Flying or Flight.CameraTouch or processed then return end
+		local camera=Workspace.CurrentCamera;if not camera or touch.Position.X<camera.ViewportSize.X*0.34 or pointerOverGui(touch.Position) then return end
+		Flight.CameraTouch=touch;Flight.CameraLastTouch=touch.Position
+	end)
+	connections[#connections+1]=UserInputService.TouchMoved:Connect(function(touch)
+		if not Flight.Flying or touch~=Flight.CameraTouch or not Flight.CameraLastTouch then return end
+		local delta=touch.Position-Flight.CameraLastTouch;Flight.CameraLastTouch=touch.Position
+		Flight.CameraYaw-=delta.X*0.0065
+		Flight.CameraPitch=math.clamp(Flight.CameraPitch-delta.Y*0.0065,math.rad(-85),math.rad(85))
+	end)
+	connections[#connections+1]=UserInputService.TouchEnded:Connect(function(touch)
+		if touch==Flight.CameraTouch then Flight.CameraTouch=nil;Flight.CameraLastTouch=nil end
+	end)
 	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed) if not processed then setKey(input,true) end end)
 	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input) setKey(input,false) end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function() if Flight.Flying then task.wait(0.5); Flight:Stop() end end)
