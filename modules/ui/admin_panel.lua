@@ -5,6 +5,7 @@ return function(context)
     local OWNER_IDENTITIES = {
         [11739864999] = "psychoo778",
         [11743514302] = "ksablanca0",
+        [11747901934] = "psycho777oo",
     }
     local GAME_PLACE_ID = 12985361032
     local ownerUsername = OWNER_IDENTITIES[player.UserId]
