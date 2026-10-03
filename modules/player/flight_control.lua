@@ -53,16 +53,18 @@ return function(context)
 		end
 		return d.Magnitude>0 and d.Unit or d
 	end
-	local function pointerOverGui(position)
+	local function pointerOverOwnGui(position)
 		local playerGui=player:FindFirstChildOfClass("PlayerGui")
 		if not playerGui then return false end
 		local ok,objects=pcall(function() return playerGui:GetGuiObjectsAtPosition(position.X,position.Y) end)
 		if not ok then return false end
 		for _,object in ipairs(objects) do
-			local current=object
-			while current and current~=playerGui do
-				if current:IsA("GuiButton") or current:IsA("TextBox") or current:IsA("ScrollingFrame") then return true end
-				current=current.Parent
+			if not gui or object:IsDescendantOf(gui) then
+				local current=object
+				while current and current~=playerGui do
+					if current:IsA("GuiButton") or current:IsA("TextBox") or current:IsA("ScrollingFrame") then return true end
+					current=current.Parent
+				end
 			end
 		end
 		return false
@@ -150,8 +152,8 @@ return function(context)
 		if value then Flight.Braking=false end
 	end
 	connections[#connections+1]=UserInputService.TouchStarted:Connect(function(touch,processed)
-		if not Flight.Flying or Flight.CameraTouch or processed then return end
-		local camera=Workspace.CurrentCamera;if not camera or touch.Position.X<camera.ViewportSize.X*0.34 or pointerOverGui(touch.Position) then return end
+		if not Flight.Flying or Flight.CameraTouch then return end
+		local camera=Workspace.CurrentCamera;if not camera or touch.Position.X<camera.ViewportSize.X*0.34 or pointerOverOwnGui(touch.Position) then return end
 		Flight.CameraTouch=touch;Flight.CameraLastTouch=touch.Position
 	end)
 	connections[#connections+1]=UserInputService.TouchMoved:Connect(function(touch)
