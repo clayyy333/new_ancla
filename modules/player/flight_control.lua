@@ -49,7 +49,16 @@ return function(context)
 		if keys.Down or mobile.Down then d-=Vector3.yAxis end
 		local hasManualHorizontal=keys.W or keys.S or keys.A or keys.D or mobile.Forward or mobile.Backward or mobile.Left or mobile.Right
 		if not hasManualHorizontal and UserInputService.TouchEnabled and humanoid and humanoid.MoveDirection.Magnitude>0.05 then
-			d+=humanoid.MoveDirection
+			local move=humanoid.MoveDirection
+			local flatLook=Vector3.new(camera.CFrame.LookVector.X,0,camera.CFrame.LookVector.Z)
+			local flatRight=Vector3.new(camera.CFrame.RightVector.X,0,camera.CFrame.RightVector.Z)
+			if flatLook.Magnitude>0.001 and flatRight.Magnitude>0.001 then
+				local forwardAmount=move:Dot(flatLook.Unit)
+				local rightAmount=move:Dot(flatRight.Unit)
+				d+=camera.CFrame.LookVector*forwardAmount+camera.CFrame.RightVector*rightAmount
+			else
+				d+=move
+			end
 		end
 		return d.Magnitude>0 and d.Unit or d
 	end
