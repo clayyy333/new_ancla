@@ -11,7 +11,7 @@ return function(context)
  local Core={
   Running=false,SafeCFrame=nil,LastPosition=nil,GraceUntil=0,Corrections=0,
   StableSince=0,RecoveryUntil=0,RecoveryMinUntil=0,ThreatUntil=0,
-  LastReport=nil,History={},BrokenBridges=0,AntiRamBlocks=0,
+  LastReport=nil,History={},SafeHistory={},LastSafeSample=0,BrokenBridges=0,AntiRamBlocks=0,
  }
  local persistent,runtime={},{ }
  local collisions={} -- [BasePart]={original=boolean,expires=number,permanent=boolean}
@@ -102,6 +102,20 @@ return function(context)
     object.AssemblyAngularVelocity=Vector3.zero
    end
   end
+ end
+ local function pushSafePosition(root,now)
+  if not root or now-Core.LastSafeSample<0.05 then return end
+  Core.LastSafeSample=now
+  Core.SafeHistory[#Core.SafeHistory+1]={CFrame=root.CFrame,Time=now}
+  if #Core.SafeHistory>30 then table.remove(Core.SafeHistory,1) end
+ end
+
+ local function newestSafeBeforeImpact(now)
+  for index=#Core.SafeHistory,1,-1 do
+   local sample=Core.SafeHistory[index]
+   if sample and now-sample.Time>=0.08 and now-sample.Time<=2 then return sample.CFrame end
+  end
+  return Core.SafeCFrame
  end
 
  local function externalContainer(part)
@@ -297,9 +311,15 @@ return function(context)
  function Core:Correct()
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.SafeCFrame then return false end
-  character:PivotTo(self.SafeCFrame)
+  local now=os.clock()
+  local returnCFrame=newestSafeBeforeImpact(now) or self.SafeCFrame
+  self.SafeCFrame=returnCFrame
+  character:PivotTo(returnCFrame)
   zeroCharacter(character)
-  self.LastPosition=self.SafeCFrame.Position
+  table.clear(self.SafeHistory)
+  self.LastSafeSample=0
+  pushSafePosition(root,now)
+  self.LastPosition=returnCFrame.Position
   self.GraceUntil=os.clock()+0.08
   self.RecoveryMinUntil=os.clock()+0.08
   self.RecoveryUntil=os.clock()+0.18
@@ -336,6 +356,9 @@ return function(context)
   self.AntiRamBlocks=0
   table.clear(self.History)
   self.LastReport=nil
+  table.clear(self.SafeHistory)
+  self.LastSafeSample=0
+  pushSafePosition(root,os.clock())
   lastSpatialScan=0
   lastBridgeScan=0
 
@@ -401,7 +424,9 @@ return function(context)
 
    self.LastPosition=currentRoot.Position
    local grounded=currentHumanoid.FloorMaterial~=Enum.Material.Air
-   local stable=grounded and now>=self.ThreatUntil and math.abs(velocity.Y)<12 and velocity.Magnitude<math.max(32,currentHumanoid.WalkSpeed+12) and angular<8
+   local motionStable=grounded and math.abs(velocity.Y)<8 and velocity.Magnitude<math.max(26,currentHumanoid.WalkSpeed+8) and angular<5
+   if motionStable then pushSafePosition(currentRoot,now) end
+   local stable=motionStable and now>=self.ThreatUntil
    if stable then
     if self.StableSince==0 then self.StableSince=now end
     if now-self.StableSince>=0.18 then self.SafeCFrame=currentRoot.CFrame end
@@ -424,6 +449,8 @@ return function(context)
   self.RecoveryMinUntil=0
   self.ThreatUntil=0
   self.StableSince=0
+  table.clear(self.SafeHistory)
+  self.LastSafeSample=0
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
   return true
  end
