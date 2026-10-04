@@ -91,7 +91,7 @@ return function(context)
   local count=0
   for _ in pairs(state.pairs) do count+=1 end
   for _,bodyPart in ipairs(character:GetDescendants()) do
-   if count>=28 then break end
+   if count>=12 then break end
    if bodyPart:IsA("BasePart") and not state.pairs[bodyPart] then
     local ok,constraint=pcall(function()
      local noCollision=Instance.new("NoCollisionConstraint")
@@ -256,31 +256,57 @@ return function(context)
   local character=player.Character
   if not seed or not seed:IsA("BasePart") or belongsTo(seed,character) then return false end
   local now=os.clock()
-  local parts,assemblyRoot=connectedAssembly(seed)
-  local duration=(reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT" or reason=="HIGH_SPEED_PLAYER") and 4 or 1.75
+  local assemblyRoot=seed.AssemblyRootPart or seed
   local hostile=hostiles[assemblyRoot]
   local isNew=hostile==nil
-  if not hostile then hostile={expires=0,seed=seed,reason=reason,lastRecord=0};hostiles[assemblyRoot]=hostile end
+  local parts
+  if hostile and hostile.parts then
+   parts=hostile.parts
+  else
+   parts,assemblyRoot=connectedAssembly(seed)
+   hostile=hostiles[assemblyRoot]
+   isNew=hostile==nil
+  end
+  local duration=(reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT" or reason=="HIGH_SPEED_PLAYER") and 3 or 1.35
+  if not hostile then
+   hostile={expires=0,seed=seed,reason=reason,lastRecord=0,parts=parts,phaseParts={}}
+   hostiles[assemblyRoot]=hostile
+  end
   hostile.expires=math.max(hostile.expires,now+duration)
   hostile.seed=seed
   hostile.reason=reason
+  hostile.parts=hostile.parts or parts
+  hostile.phaseParts=hostile.phaseParts or {}
+  local root=character:FindFirstChild("HumanoidRootPart")
   local count,phaseCount=0,0
-  for _,part in ipairs(parts) do
-   if part:IsA("BasePart") and not belongsTo(part,character) and not isSupportPart(part,now) then
-    local closeEnough=(part.Position-(character:FindFirstChild("HumanoidRootPart") and character.HumanoidRootPart.Position or part.Position)).Magnitude<14
-    local shouldPhase=part.CanCollide or closeEnough
+  for _,part in ipairs(hostile.parts) do
+   if part and part.Parent and part:IsA("BasePart") and not belongsTo(part,character) and not isSupportPart(part,now) then
+    local closeEnough=root and (part.Position-root.Position).Magnitude<11
+    local shouldPhase=(part.CanCollide or closeEnough) and #hostile.phaseParts<6
     if suppressPart(part,duration,false) then
      count+=1
-     if shouldPhase and phaseCount<12 then phasePart(part,duration);phaseCount+=1 end
+     if shouldPhase then
+      phasePart(part,duration)
+      hostile.phaseParts[#hostile.phaseParts+1]=part
+      phaseCount+=1
+     end
     end
    end
   end
+  -- Una detección repetida solo extiende la protección; no vuelve a crear
+  -- cientos de constraints ni vuelve a analizar todo el vehículo.
+  if not isNew then
+   for _,part in ipairs(hostile.phaseParts) do
+    local phase=phaseLinks[part]
+    if phase then phase.expires=math.max(phase.expires,hostile.expires) end
+   end
+  end
   if count>0 then
-   Core.ThreatUntil=math.max(Core.ThreatUntil,now+0.55)
+   Core.ThreatUntil=math.max(Core.ThreatUntil,now+0.45)
    Core.AntiRamBlocks+=1
    local contact=reason=="TOUCHED" or reason=="TOUCHED_NEW_PART" or reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT"
-   setState(contact and "CONTACT" or "ALERT",0.6,reason)
-   if isNew or now-hostile.lastRecord>0.5 then
+   setState(contact and "CONTACT" or "ALERT",0.55,reason)
+   if isNew or now-hostile.lastRecord>0.75 then
     hostile.lastRecord=now
     record("COLLISION_ASSEMBLY",{
      Reason=reason,ExternalEndpoint=seed,ExternalAssemblyRoot=assemblyRoot,
@@ -293,24 +319,28 @@ return function(context)
  end
 
  local function maintainHostiles(now)
-  if now-Core.LastHostileMaintain<0.03 then return end
+  local active=now<Core.ThreatUntil
+  local interval=active and 0.08 or 0.18
+  if now-Core.LastHostileMaintain<interval then return end
   Core.LastHostileMaintain=now
   for assemblyRoot,state in pairs(hostiles) do
    if not assemblyRoot or not assemblyRoot.Parent or now>=state.expires then
     hostiles[assemblyRoot]=nil
    else
-    local parts=connectedAssembly(state.seed or assemblyRoot)
-    local phaseCount=0
-    for _,part in ipairs(parts) do
-     if part:IsA("BasePart") and not isSupportPart(part,now) then
-      suppressPart(part,math.max(0.2,state.expires-now),false)
-      if phaseCount<12 then phasePart(part,math.max(0.2,state.expires-now));phaseCount+=1 end
+    local remaining=math.max(0.2,state.expires-now)
+    for _,part in ipairs(state.parts or {}) do
+     if part and part.Parent and part:IsA("BasePart") and not isSupportPart(part,now) then
+      local collision=collisions[part]
+      if part.CanCollide or not collision then suppressPart(part,remaining,false) end
      end
+    end
+    for _,part in ipairs(state.phaseParts or {}) do
+     local phase=phaseLinks[part]
+     if phase then phase.expires=math.max(phase.expires,state.expires) end
     end
    end
   end
  end
-
  local function endpoints(connection)
   local part0,part1
   if connection:IsA("WeldConstraint") or connection:IsA("JointInstance") then
@@ -428,13 +458,14 @@ return function(context)
  end
 
  local function spatialAntiRam(now,character,root)
-  if now-lastSpatialScan<0.03 then return end
+  local interval=now<Core.ThreatUntil and 0.045 or 0.11
+  if now-lastSpatialScan<interval then return end
   lastSpatialScan=now
   local params=OverlapParams.new()
   params.FilterType=Enum.RaycastFilterType.Exclude
   params.FilterDescendantsInstances={character}
-  params.MaxParts=140
-  local ok,nearby=pcall(function()return workspace:GetPartBoundsInRadius(root.Position,28,params)end)
+  params.MaxParts=80
+  local ok,nearby=pcall(function()return workspace:GetPartBoundsInRadius(root.Position,22,params)end)
   if not ok then return end
   local checked={}
   for _,part in ipairs(nearby) do
@@ -456,7 +487,8 @@ return function(context)
  end
 
  local function scanPlayerThreats(now,localCharacter)
-  if now-Core.LastThreatScan<0.03 then return end
+  local interval=now<Core.ThreatUntil and 0.06 or 0.14
+  if now-Core.LastThreatScan<interval then return end
   Core.LastThreatScan=now
   for _,other in ipairs(Players:GetPlayers()) do
    local otherCharacter=other~=player and other.Character
@@ -503,9 +535,8 @@ return function(context)
   local humanoidState=humanoid:GetState()
   local legitimateJump=(humanoidState==Enum.HumanoidStateType.Jumping or humanoidState==Enum.HumanoidStateType.Freefall) and vertical>0 and vertical<70
   if math.abs(vertical)>70 or (not legitimateJump and math.abs(vertical)>42) then vertical=0 end
-  for _,object in ipairs(character:GetDescendants()) do
-   if object:IsA("BasePart") then object.AssemblyAngularVelocity=Vector3.zero end
-  end
+  -- El HRP gobierna el ensamblaje del personaje; no recorremos cada miembro
+  -- en cada paso físico salvo durante las correcciones de emergencia.
   root.AssemblyLinearVelocity=Vector3.new(desired.X,vertical,desired.Z)
   root.AssemblyAngularVelocity=Vector3.zero
  end
@@ -633,7 +664,6 @@ return function(context)
     spatialAntiRam(now,currentCharacter,currentRoot)
     scanPlayerThreats(now,currentCharacter)
     maintainHostiles(now)
-    cleanupPhase(now,false)
     clampThreatMotion(currentCharacter,currentHumanoid,currentRoot)
    end
   end)
@@ -650,7 +680,8 @@ return function(context)
    refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
    maintainHostiles(now)
    if now>=self.StateUntil and next(hostiles)==nil and self.State~="NORMAL" then self.State="NORMAL";record("STATE_CHANGE",{State="NORMAL",Reason="CLEAR"}) end
-   if now-lastBridgeScan>=0.05 then lastBridgeScan=now;scanCharacterBridges(currentCharacter) end
+   local bridgeInterval=now<self.ThreatUntil and 0.08 or 0.25
+   if now-lastBridgeScan>=bridgeInterval then lastBridgeScan=now;scanCharacterBridges(currentCharacter) end
 
    local velocity=currentRoot.AssemblyLinearVelocity
    local angular=currentRoot.AssemblyAngularVelocity.Magnitude
