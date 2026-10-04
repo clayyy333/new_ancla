@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local Workspace=game:GetService("Workspace")
-	local Flight={NormalSpeed=80,SprintSpeed=400,Flying=false,Braking=false,SprintExternal=false,Velocity=Vector3.zero,Position=nil,CameraYaw=0,CameraPitch=0,CameraDistance=12,CameraTouch=nil,CameraLastTouch=nil,SavedCameraType=nil,SavedCameraSubject=nil}
+	local Flight={NormalSpeed=80,SprintSpeed=400,Flying=false,Braking=false,SprintExternal=false,Velocity=Vector3.zero,Position=nil,CameraYaw=0,CameraPitch=0,CameraDistance=12,CameraTouch=nil,CameraLastTouch=nil,SavedCameraType=nil,SavedCameraSubject=nil,DesktopRotating=false,SavedMouseBehavior=nil,SavedMouseIconEnabled=nil}
 	local keys={W=false,S=false,A=false,D=false,Up=false,Down=false}
 	local mobile={Forward=false,Backward=false,Left=false,Right=false,Up=false,Down=false}
 	local connections={}
@@ -87,9 +87,12 @@ return function(context)
 		return false
 	end
 	function Flight:EnableMobileCamera(root,humanoid)
-		if not mobileFlightMode() then return end
 		local camera=Workspace.CurrentCamera;if not camera then return end
 		self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject
+		if not mobileFlightMode() then
+			self.SavedMouseBehavior=UserInputService.MouseBehavior
+			self.SavedMouseIconEnabled=UserInputService.MouseIconEnabled
+		end
 		local focus=root.Position+Vector3.new(0,2,0)
 		local offset=camera.CFrame.Position-focus
 		self.CameraDistance=math.clamp(offset.Magnitude,6,24)
@@ -112,14 +115,16 @@ return function(context)
 	end
 	function Flight:DisableMobileCamera()
 		if cameraRender then cameraRender:Disconnect();cameraRender=nil end
-		self.CameraTouch=nil;self.CameraLastTouch=nil
+		self.CameraTouch=nil;self.CameraLastTouch=nil;self.DesktopRotating=false
+		if self.SavedMouseBehavior then UserInputService.MouseBehavior=self.SavedMouseBehavior end
+		if self.SavedMouseIconEnabled~=nil then UserInputService.MouseIconEnabled=self.SavedMouseIconEnabled end
 		local camera=Workspace.CurrentCamera
 		if camera then
 			camera.CameraType=self.SavedCameraType or Enum.CameraType.Custom
 			if self.SavedCameraSubject and self.SavedCameraSubject.Parent then camera.CameraSubject=self.SavedCameraSubject
 			else local _,_,humanoid=character();if humanoid then camera.CameraSubject=humanoid end end
 		end
-		self.SavedCameraType=nil;self.SavedCameraSubject=nil
+		self.SavedCameraType=nil;self.SavedCameraSubject=nil;self.SavedMouseBehavior=nil;self.SavedMouseIconEnabled=nil
 	end
 	function Flight:Start()
 		if self.Flying then return true end
@@ -128,15 +133,7 @@ return function(context)
 		self.Flying=true; self.Braking=false; self.Velocity=Vector3.zero; self.Position=root.Position
 		humanoid.PlatformStand=true; humanoid.AutoRotate=false
 		root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero
-		if mobileFlightMode() then
-			self:EnableMobileCamera(root,humanoid)
-		else
-			local camera=Workspace.CurrentCamera
-			if camera then
-				camera.CameraType=Enum.CameraType.Custom
-				camera.CameraSubject=humanoid
-			end
-		end
+		self:EnableMobileCamera(root,humanoid)
 		if heartbeat then heartbeat:Disconnect() end
 		heartbeat=RunService.Heartbeat:Connect(function(dt)
 			if not self.Flying then return end
@@ -190,8 +187,33 @@ return function(context)
 	connections[#connections+1]=UserInputService.TouchEnded:Connect(function(touch)
 		if touch==Flight.CameraTouch then Flight.CameraTouch=nil;Flight.CameraLastTouch=nil end
 	end)
-	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed) if not processed then setKey(input,true) end end)
-	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input) setKey(input,false) end)
+	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed)
+		if Flight.Flying and not mobileFlightMode() and input.UserInputType==Enum.UserInputType.MouseButton2 and not pointerOverOwnGui(input.Position) then
+			Flight.DesktopRotating=true
+			UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
+			UserInputService.MouseIconEnabled=false
+			return
+		end
+		if not processed then setKey(input,true) end
+	end)
+	connections[#connections+1]=UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType==Enum.UserInputType.MouseButton2 then
+			Flight.DesktopRotating=false
+			if Flight.Flying and not mobileFlightMode() then
+				UserInputService.MouseBehavior=Enum.MouseBehavior.Default
+				UserInputService.MouseIconEnabled=true
+			end
+		end
+		setKey(input,false)
+	end)
+	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input)
+		if not Flight.Flying or mobileFlightMode() or not Flight.DesktopRotating then return end
+		if input.UserInputType==Enum.UserInputType.MouseMovement then
+			local delta=input.Delta
+			Flight.CameraYaw-=delta.X*0.0045
+			Flight.CameraPitch=math.clamp(Flight.CameraPitch-delta.Y*0.0045,math.rad(-85),math.rad(85))
+		end
+	end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function() if Flight.Flying then task.wait(0.5); Flight:Stop() end end)
 	function Flight:Destroy() self:Stop(); for _,c in ipairs(connections) do c:Disconnect() end; table.clear(connections) end
 	FlightController=Flight
