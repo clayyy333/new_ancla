@@ -308,6 +308,25 @@ return function(context)
  function Core:GetLastReport()return self.LastReport end
  function Core:GetHistory()return self.History end
 
+ function Core:Deflect(dt)
+  local character,humanoid,root=rig()
+  if not character or not humanoid or not root or not self.LastPosition then return false end
+  local now=os.clock()
+  local velocity=root.AssemblyLinearVelocity
+  local step=math.min(humanoid.WalkSpeed*math.max(dt,1/60)*1.2,2.5)
+  local horizontal=humanoid.MoveDirection.Magnitude>0.05 and humanoid.MoveDirection.Unit*step or Vector3.zero
+  local targetY=root.Position.Y
+  if math.abs(velocity.Y)>42 then targetY=self.LastPosition.Y end
+  local targetPosition=Vector3.new(self.LastPosition.X+horizontal.X,targetY,self.LastPosition.Z+horizontal.Z)
+  local targetCFrame=CFrame.new(targetPosition)*root.CFrame.Rotation
+  character:PivotTo(targetCFrame)
+  zeroCharacter(character)
+  root.AssemblyLinearVelocity=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
+  root.AssemblyAngularVelocity=Vector3.zero
+  self.LastPosition=targetPosition
+  self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
+  return true
+ end
  function Core:Correct()
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.SafeCFrame then return false end
@@ -409,7 +428,16 @@ return function(context)
    local delta=self.LastPosition and (currentRoot.Position-self.LastPosition).Magnitude or 0
    local allowed=math.max(5,(currentHumanoid.WalkSpeed+18)*math.max(dt,1/60)*3)
    local threatened=now>self.GraceUntil and (velocity.Magnitude>58 or angular>16 or delta>allowed)
-   if threatened then self:Correct();return end
+   if threatened then
+    self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
+    if delta>22 or (self.SafeCFrame and currentRoot.Position.Y<self.SafeCFrame.Position.Y-30) then
+     self:Correct()
+    else
+     self:Deflect(dt)
+     record("IMPULSE_DEFLECTED",{Delta=delta,Velocity=velocity.Magnitude,AngularVelocity=angular})
+    end
+    return
+   end
 
    if now<self.RecoveryUntil then
     currentCharacter:PivotTo(self.SafeCFrame)
