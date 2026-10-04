@@ -14,6 +14,14 @@ return function(context)
 	local function moving()
 		return keys.W or keys.S or keys.A or keys.D or keys.Up or keys.Down or mobile.Forward or mobile.Backward or mobile.Left or mobile.Right or mobile.Up or mobile.Down
 	end
+	local function mobileFlightMode()
+		local ok,platform=pcall(function() return UserInputService:GetPlatform() end)
+		if ok then
+			if platform==Enum.Platform.Android or platform==Enum.Platform.IOS then return true end
+			if platform==Enum.Platform.Windows or platform==Enum.Platform.OSX then return false end
+		end
+		return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	end
 	function Flight:SetNormalSpeed(v) self.NormalSpeed=math.clamp(tonumber(v) or self.NormalSpeed,20,300); return self.NormalSpeed end
 	function Flight:SetSprintSpeed(v) self.SprintSpeed=math.clamp(tonumber(v) or self.SprintSpeed,100,1000); return self.SprintSpeed end
 	function Flight:GetNormalSpeed() return self.NormalSpeed end
@@ -48,7 +56,7 @@ return function(context)
 		if keys.Up or mobile.Up then d+=Vector3.yAxis end
 		if keys.Down or mobile.Down then d-=Vector3.yAxis end
 		local hasManualHorizontal=keys.W or keys.S or keys.A or keys.D or mobile.Forward or mobile.Backward or mobile.Left or mobile.Right
-		if not hasManualHorizontal and UserInputService.TouchEnabled and humanoid and humanoid.MoveDirection.Magnitude>0.05 then
+		if not hasManualHorizontal and mobileFlightMode() and humanoid and humanoid.MoveDirection.Magnitude>0.05 then
 			local move=humanoid.MoveDirection
 			local flatLook=Vector3.new(camera.CFrame.LookVector.X,0,camera.CFrame.LookVector.Z)
 			local flatRight=Vector3.new(camera.CFrame.RightVector.X,0,camera.CFrame.RightVector.Z)
@@ -79,7 +87,7 @@ return function(context)
 		return false
 	end
 	function Flight:EnableMobileCamera(root,humanoid)
-		if not UserInputService.TouchEnabled then return end
+		if not mobileFlightMode() then return end
 		local camera=Workspace.CurrentCamera;if not camera then return end
 		self.SavedCameraType=camera.CameraType;self.SavedCameraSubject=camera.CameraSubject
 		local focus=root.Position+Vector3.new(0,2,0)
@@ -120,14 +128,22 @@ return function(context)
 		self.Flying=true; self.Braking=false; self.Velocity=Vector3.zero; self.Position=root.Position
 		humanoid.PlatformStand=true; humanoid.AutoRotate=false
 		root.AssemblyLinearVelocity=Vector3.zero; root.AssemblyAngularVelocity=Vector3.zero
-		self:EnableMobileCamera(root,humanoid)
+		if mobileFlightMode() then
+			self:EnableMobileCamera(root,humanoid)
+		else
+			local camera=Workspace.CurrentCamera
+			if camera then
+				camera.CameraType=Enum.CameraType.Custom
+				camera.CameraSubject=humanoid
+			end
+		end
 		if heartbeat then heartbeat:Disconnect() end
 		heartbeat=RunService.Heartbeat:Connect(function(dt)
 			if not self.Flying then return end
 			local _,r,h=character(); local camera=Workspace.CurrentCamera
 			if not r or not h or not camera then return end
 			h.PlatformStand=true; h.AutoRotate=false
-			if UserInputService.TouchEnabled and h.MoveDirection.Magnitude>0.05 then self.Braking=false end
+			if mobileFlightMode() and h.MoveDirection.Magnitude>0.05 then self.Braking=false end
 			local d=self.Braking and Vector3.zero or direction(camera,h)
 			local target=d*(self:IsSprinting() and self.SprintSpeed or self.NormalSpeed)
 			local response=target.Magnitude>0 and (self:IsSprinting() and 18 or 8) or 14
@@ -161,12 +177,12 @@ return function(context)
 		if value then Flight.Braking=false end
 	end
 	connections[#connections+1]=UserInputService.TouchStarted:Connect(function(touch,processed)
-		if not Flight.Flying or Flight.CameraTouch then return end
+		if not Flight.Flying or not mobileFlightMode() or Flight.CameraTouch then return end
 		local camera=Workspace.CurrentCamera;if not camera or touch.Position.X<camera.ViewportSize.X*0.34 or pointerOverOwnGui(touch.Position) then return end
 		Flight.CameraTouch=touch;Flight.CameraLastTouch=touch.Position
 	end)
 	connections[#connections+1]=UserInputService.TouchMoved:Connect(function(touch)
-		if not Flight.Flying or touch~=Flight.CameraTouch or not Flight.CameraLastTouch then return end
+		if not Flight.Flying or not mobileFlightMode() or touch~=Flight.CameraTouch or not Flight.CameraLastTouch then return end
 		local delta=touch.Position-Flight.CameraLastTouch;Flight.CameraLastTouch=touch.Position
 		Flight.CameraYaw-=delta.X*0.0065
 		Flight.CameraPitch=math.clamp(Flight.CameraPitch-delta.Y*0.0065,math.rad(-85),math.rad(85))
