@@ -260,8 +260,8 @@ return function(context)
   local duration=(reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT" or reason=="HIGH_SPEED_PLAYER") and 4 or 1.75
   local hostile=hostiles[assemblyRoot]
   local isNew=hostile==nil
-  if not hostile then hostile={until=0,seed=seed,reason=reason,lastRecord=0};hostiles[assemblyRoot]=hostile end
-  hostile.until=math.max(hostile.until,now+duration)
+  if not hostile then hostile={expires=0,seed=seed,reason=reason,lastRecord=0};hostiles[assemblyRoot]=hostile end
+  hostile.expires=math.max(hostile.expires,now+duration)
   hostile.seed=seed
   hostile.reason=reason
   local count,phaseCount=0,0
@@ -296,15 +296,15 @@ return function(context)
   if now-Core.LastHostileMaintain<0.03 then return end
   Core.LastHostileMaintain=now
   for assemblyRoot,state in pairs(hostiles) do
-   if not assemblyRoot or not assemblyRoot.Parent or now>=state.until then
+   if not assemblyRoot or not assemblyRoot.Parent or now>=state.expires then
     hostiles[assemblyRoot]=nil
    else
     local parts=connectedAssembly(state.seed or assemblyRoot)
     local phaseCount=0
     for _,part in ipairs(parts) do
      if part:IsA("BasePart") and not isSupportPart(part,now) then
-      suppressPart(part,math.max(0.2,state.until-now),false)
-      if phaseCount<12 then phasePart(part,math.max(0.2,state.until-now));phaseCount+=1 end
+      suppressPart(part,math.max(0.2,state.expires-now),false)
+      if phaseCount<12 then phasePart(part,math.max(0.2,state.expires-now));phaseCount+=1 end
      end
     end
    end
