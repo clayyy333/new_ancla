@@ -1,7 +1,7 @@
 -- Desplazamiento vertical anclado y persistente con emote Invisible.
 return function(context)
 	setfenv(1,context)
-	local Core={Running=false,Offset=-5,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={},RespawnToken=0,RespawnVisibility=nil,RespawnVisibilityConnection=nil}
+	local Core={Running=false,Offset=-5,Checkpoint=nil,SelectedEmoteId=nil,SelectedEmoteName=nil,Connection=nil,VisualConnection=nil,CharacterConnection=nil,CharacterAddedConnection=nil,EmoteClock=0,CameraAnchor=nil,SavedCameraType=nil,SavedCameraSubject=nil,Status=nil,LastAppliedCFrame=nil,VisualJoint=nil,VisualC0=nil,VisualC1=nil,SavedCollisions={}}
 	local function rig()
 		local character=player.Character
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
@@ -38,26 +38,6 @@ return function(context)
 			end
 			table.clear(self.SavedCollisions)
 		end
-	end
-	function Core:HideRespawnTransition(character)
-		self:ShowRespawnTransition()
-		local saved={}
-		self.RespawnVisibility=saved
-		local function hide(object)
-			if object:IsA("BasePart")and saved[object]==nil then
-				saved[object]=object.LocalTransparencyModifier
-				object.LocalTransparencyModifier=1
-			end
-		end
-		for _,object in ipairs(character:GetDescendants())do hide(object)end
-		self.RespawnVisibilityConnection=character.DescendantAdded:Connect(hide)
-	end
-	function Core:ShowRespawnTransition()
-		if self.RespawnVisibilityConnection then self.RespawnVisibilityConnection:Disconnect();self.RespawnVisibilityConnection=nil end
-		for object,value in pairs(self.RespawnVisibility or {})do
-			if object and object.Parent then pcall(function()object.LocalTransparencyModifier=value end)end
-		end
-		self.RespawnVisibility=nil
 	end
 	function Core:IsAnchorHolding(root)
 		return (root and root.Anchored)
@@ -243,7 +223,6 @@ return function(context)
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
 		if self.VisualConnection then self.VisualConnection:Disconnect();self.VisualConnection=nil end
 		self:RestoreVisualOffset()
-		self:ShowRespawnTransition()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
 		if type(StopEmote)=="function" then pcall(function() StopEmote(false) end) end
@@ -274,32 +253,28 @@ return function(context)
 	end
 	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
 		if not Core.Running then return end
-		Core.RespawnToken+=1
-		Core:ShowRespawnTransition()
 		Core:RestoreVisualOffset()
 		table.clear(Core.SavedCollisions)
 		Core.Status=isES and"Reiniciando desplazamiento vertical..."or"Restarting vertical displacement..."
 	end)
 	Core.CharacterAddedConnection=player.CharacterAdded:Connect(function(character)
 		if not Core.Running then return end
-		Core.RespawnToken+=1
-		local token=Core.RespawnToken
-		Core:HideRespawnTransition(character)
 		task.spawn(function()
 			local root=character:WaitForChild("HumanoidRootPart",8)
 			local humanoid=character:WaitForChild("Humanoid",8)
-			if not Core.Running or token~=Core.RespawnToken or not root or not humanoid or not Core.Checkpoint then Core:ShowRespawnTransition();return end
+			if not Core.Running or player.Character~=character or not root or not humanoid or not Core.Checkpoint then return end
 
-			-- El HRP vuelve primero al punto superior original. Nunca aplicamos el
-			-- offset físico al spawn: los studs se aplican al cuerpo visual después.
-			root.CFrame=Core.Checkpoint
-			root.AssemblyLinearVelocity=Vector3.zero
-			root.AssemblyAngularVelocity=Vector3.zero
+			-- Primero recuperamos el punto superior del ancla; el offset guardado
+			-- se aplica al cuerpo visual únicamente cuando el nuevo rig está listo.
 			if AnchorCore then
 				if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
 				AnchorCore:SetAntiSeat(false)
 				AnchorCore:SetHeartbeat(false)
-				root.CFrame=Core.Checkpoint
+			end
+			root.CFrame=Core.Checkpoint
+			root.AssemblyLinearVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
+			if AnchorCore then
 				local anchored=AnchorCore:SetAncla(true)
 				if anchored then
 					AnchorCore.Checkpoint=Core.Checkpoint
@@ -307,44 +282,27 @@ return function(context)
 					AnchorCore:SetHeartbeat(true)
 				end
 			end
+
 			Core:SetCharacterCollisions(true)
 			humanoid:WaitForChild("Animator",4)
 			character:WaitForChild("LowerTorso",4)
-
-			-- Esperamos a que Roblox termine de construir el RootJoint.
-			local jointDeadline=os.clock()+2
-			repeat
-				if not Core.Running or token~=Core.RespawnToken then Core:ShowRespawnTransition();return end
-				root.CFrame=Core.Checkpoint
-				Core:RestoreVisualOffset()
-				Core:ApplyVisualOffset(character,root)
-				task.wait(.05)
-			until Core.VisualJoint or os.clock()>=jointDeadline
-
 			Core.EmoteClock=0
-			local nextEmoteAttempt=0
-			local emoteRebased=false
-			local stabilizeUntil=os.clock()+1.35
-			while Core.Running and token==Core.RespawnToken and os.clock()<stabilizeUntil do
+
+			-- El emote y el RootJoint pueden aparecer en frames distintos. Durante
+			-- esta ventana volvemos a tomar la base real y aplicamos los mismos studs.
+			for attempt=1,10 do
+				if not Core.Running or player.Character~=character then return end
 				root.CFrame=Core.Checkpoint
 				root.AssemblyLinearVelocity=Vector3.zero
 				root.AssemblyAngularVelocity=Vector3.zero
-				if not Core:IsInvisibleEmotePlaying()and os.clock()>=nextEmoteAttempt then
+				if not Core:IsInvisibleEmotePlaying()and(attempt==1 or attempt%3==0)then
 					Core:RestoreSelectedEmote()
-					nextEmoteAttempt=os.clock()+.35
-				elseif Core:IsInvisibleEmotePlaying()and not emoteRebased then
-					-- La pista ya tomó control del rig: capturamos ahora el RootJoint
-					-- definitivo y aplicamos nuevamente exactamente los studs guardados.
-					Core:RestoreVisualOffset()
-					Core:ApplyVisualOffset(character,root)
-					emoteRebased=true
 				end
+				Core:RestoreVisualOffset()
 				Core:ApplyVisualOffset(character,root)
-				task.wait(.05)
+				task.wait(.12)
 			end
-			if not Core.Running or token~=Core.RespawnToken then Core:ShowRespawnTransition();return end
-			Core:ApplyVisualOffset(character,root)
-			Core:ShowRespawnTransition()
+			Core:Apply(0)
 			Core.Status=isES and"Desplazamiento vertical restaurado."or"Vertical displacement restored."
 			if UpdateVerticalControlPanel then UpdateVerticalControlPanel(Core.Status) end
 		end)
