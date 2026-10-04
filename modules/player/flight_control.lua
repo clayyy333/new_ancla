@@ -106,6 +106,12 @@ return function(context)
 			local _,currentRoot=character();camera=Workspace.CurrentCamera
 			if not currentRoot or not camera then return end
 			camera.CameraType=Enum.CameraType.Scriptable
+			if not mobileFlightMode() and self.DesktopRotating then
+				UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
+				local delta=UserInputService:GetMouseDelta()
+				self.CameraYaw-=delta.X*0.0045
+				self.CameraPitch=math.clamp(self.CameraPitch-delta.Y*0.0045,math.rad(-85),math.rad(85))
+			end
 			local target=currentRoot.Position+Vector3.new(0,2,0)
 			local rotation=CFrame.fromOrientation(self.CameraPitch,self.CameraYaw,0)
 			local cameraPosition=target-rotation.LookVector*self.CameraDistance
@@ -188,7 +194,7 @@ return function(context)
 		if touch==Flight.CameraTouch then Flight.CameraTouch=nil;Flight.CameraLastTouch=nil end
 	end)
 	connections[#connections+1]=UserInputService.InputBegan:Connect(function(input,processed)
-		if Flight.Flying and not mobileFlightMode() and input.UserInputType==Enum.UserInputType.MouseButton2 and not pointerOverOwnGui(input.Position) then
+		if Flight.Flying and not mobileFlightMode() and input.UserInputType==Enum.UserInputType.MouseButton2 then
 			Flight.DesktopRotating=true
 			UserInputService.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
 			UserInputService.MouseIconEnabled=false
@@ -205,14 +211,6 @@ return function(context)
 			end
 		end
 		setKey(input,false)
-	end)
-	connections[#connections+1]=UserInputService.InputChanged:Connect(function(input)
-		if not Flight.Flying or mobileFlightMode() or not Flight.DesktopRotating then return end
-		if input.UserInputType==Enum.UserInputType.MouseMovement then
-			local delta=input.Delta
-			Flight.CameraYaw-=delta.X*0.0045
-			Flight.CameraPitch=math.clamp(Flight.CameraPitch-delta.Y*0.0045,math.rad(-85),math.rad(85))
-		end
 	end)
 	connections[#connections+1]=player.CharacterAdded:Connect(function() if Flight.Flying then task.wait(0.5); Flight:Stop() end end)
 	function Flight:Destroy() self:Stop(); for _,c in ipairs(connections) do c:Disconnect() end; table.clear(connections) end
