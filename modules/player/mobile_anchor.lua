@@ -12,11 +12,16 @@ return function(context)
   Running=false,SafeCFrame=nil,LastPosition=nil,GraceUntil=0,Corrections=0,
   StableSince=0,RecoveryUntil=0,RecoveryMinUntil=0,ThreatUntil=0,
   LastReport=nil,History={},SafeHistory={},LastSafeSample=0,BrokenBridges=0,AntiRamBlocks=0,
+  State="NORMAL",StateUntil=0,PhaseFolder=nil,LastThreatScan=0,LastHostileMaintain=0,
  }
  local persistent,runtime={},{ }
  local collisions={} -- [BasePart]={original=boolean,expires=number,permanent=boolean}
+ local supports={} -- [BasePart]=expiry
+ local hostiles={} -- [AssemblyRootPart]={until,seed,reason,lastRecord}
+ local phaseLinks={} -- [ExternalPart]={expires,pairs={[CharacterPart]=NoCollisionConstraint}}
  local lastSpatialScan=0
  local lastBridgeScan=0
+ local lastSupportScan=0
 
  local function authorized()
   return expected~=nil and string.lower(player.Name)==expected
@@ -44,9 +49,79 @@ return function(context)
   Core.History[#Core.History+1]=report
   if #Core.History>40 then table.remove(Core.History,1) end
  end
+ local function setState(state,duration,reason)
+  local now=os.clock()
+  local rank={NORMAL=0,ALERT=1,CONTACT=2,EMERGENCY=3}
+  local previousUntil=Core.StateUntil
+  if Core.State~=state and (now>=previousUntil or (rank[state] or 0)>=(rank[Core.State] or 0)) then
+   Core.State=state
+   record("STATE_CHANGE",{State=state,Reason=reason})
+  end
+  Core.StateUntil=math.max(previousUntil,now+(duration or 0))
+ end
+
+ local function isOtherCharacterPart(part)
+  for _,other in ipairs(Players:GetPlayers()) do
+   if other~=player and other.Character and belongsTo(part,other.Character) then return true end
+  end
+  return false
+ end
+
+ local function isSupportPart(part,now)
+  return part~=nil and (supports[part] or 0)>(now or os.clock())
+ end
+
+ local function ensurePhaseFolder(character)
+  if Core.PhaseFolder and Core.PhaseFolder.Parent==character then return Core.PhaseFolder end
+  if Core.PhaseFolder then pcall(function()Core.PhaseFolder:Destroy()end) end
+  local folder=Instance.new("Folder")
+  folder.Name="MobileAnchorPhase"
+  folder.Parent=character
+  Core.PhaseFolder=folder
+  return folder
+ end
+
+ local function phasePart(externalPart,duration)
+  local character=player.Character
+  if not character or not externalPart or not externalPart:IsA("BasePart") or belongsTo(externalPart,character) or isSupportPart(externalPart) then return end
+  local state=phaseLinks[externalPart]
+  if not state then state={expires=0,pairs={}};phaseLinks[externalPart]=state end
+  state.expires=math.max(state.expires,os.clock()+(duration or 1))
+  local folder=ensurePhaseFolder(character)
+  local count=0
+  for _ in pairs(state.pairs) do count+=1 end
+  for _,bodyPart in ipairs(character:GetDescendants()) do
+   if count>=28 then break end
+   if bodyPart:IsA("BasePart") and not state.pairs[bodyPart] then
+    local ok,constraint=pcall(function()
+     local noCollision=Instance.new("NoCollisionConstraint")
+     noCollision.Part0=bodyPart
+     noCollision.Part1=externalPart
+     noCollision.Parent=folder
+     return noCollision
+    end)
+    if ok and constraint then state.pairs[bodyPart]=constraint;count+=1 end
+   end
+  end
+ end
+
+ local function cleanupPhase(now,force)
+  for externalPart,state in pairs(phaseLinks) do
+   if force or not externalPart or not externalPart.Parent or now>=state.expires then
+    for _,constraint in pairs(state.pairs) do pcall(function()constraint:Destroy()end) end
+    phaseLinks[externalPart]=nil
+   end
+  end
+  if force and Core.PhaseFolder then pcall(function()Core.PhaseFolder:Destroy()end);Core.PhaseFolder=nil end
+ end
+
+ local function clearSupportState()
+  table.clear(supports)
+ end
 
  local function suppressPart(part,duration,permanent)
-  if not part or not part:IsA("BasePart") then return end
+  if not part or not part:IsA("BasePart") then return false end
+  if not permanent and isSupportPart(part) then return false end
   local state=collisions[part]
   if not state then
    state={original=part.CanCollide,expires=0,permanent=false}
@@ -55,6 +130,7 @@ return function(context)
   state.permanent=state.permanent or permanent==true
   state.expires=math.max(state.expires,os.clock()+(duration or 1))
   pcall(function()part.CanCollide=false end)
+  return true
  end
 
  local function restoreExpiredCollisions(now)
@@ -117,6 +193,39 @@ return function(context)
   end
   return Core.SafeCFrame
  end
+ local function refreshSupports(now,character,humanoid,root)
+  if now-lastSupportScan<0.04 then return end
+  lastSupportScan=now
+  for part,expiry in pairs(supports) do
+   if not part or not part.Parent or now>=expiry then supports[part]=nil end
+  end
+  local params=RaycastParams.new()
+  params.FilterType=Enum.RaycastFilterType.Exclude
+  params.FilterDescendantsInstances={character}
+  params.IgnoreWater=false
+  local right=root.CFrame.RightVector*1.15
+  local forward=Vector3.new(root.CFrame.LookVector.X,0,root.CFrame.LookVector.Z)
+  if forward.Magnitude>0.001 then forward=forward.Unit*1.15 else forward=Vector3.new(0,0,-1.15) end
+  local origins={Vector3.zero,right,-right,forward,-forward}
+  local length=math.max(5.5,humanoid.HipHeight+root.Size.Y*0.5+3)
+  for _,offset in ipairs(origins) do
+   local result=workspace:Raycast(root.Position+offset+Vector3.new(0,0.5,0),Vector3.new(0,-length,0),params)
+   local part=result and result.Instance
+   if part and part:IsA("BasePart") and not isOtherCharacterPart(part) then
+    local linear=part.AssemblyLinearVelocity
+    local angular=part.AssemblyAngularVelocity.Magnitude
+    local behavesAsFloor=math.abs(linear.Y)<12 and linear.Magnitude<35 and angular<6 and result.Normal.Y>0.35
+    if behavesAsFloor then
+     supports[part]=now+0.24
+     local collisionState=collisions[part]
+     if collisionState and not collisionState.permanent then
+      pcall(function()part.CanCollide=collisionState.original end)
+      collisions[part]=nil
+     end
+    end
+   end
+  end
+ end
 
  local function externalContainer(part)
   if not part then return nil end
@@ -145,25 +254,61 @@ return function(context)
 
  local function isolateAssembly(seed,reason)
   local character=player.Character
-  if not seed or belongsTo(seed,character) then return false end
+  if not seed or not seed:IsA("BasePart") or belongsTo(seed,character) then return false end
+  local now=os.clock()
   local parts,assemblyRoot=connectedAssembly(seed)
-  local count=0
+  local duration=(reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT" or reason=="HIGH_SPEED_PLAYER") and 4 or 1.75
+  local hostile=hostiles[assemblyRoot]
+  local isNew=hostile==nil
+  if not hostile then hostile={until=0,seed=seed,reason=reason,lastRecord=0};hostiles[assemblyRoot]=hostile end
+  hostile.until=math.max(hostile.until,now+duration)
+  hostile.seed=seed
+  hostile.reason=reason
+  local count,phaseCount=0,0
   for _,part in ipairs(parts) do
-   if part:IsA("BasePart") and not belongsTo(part,character) then
-    suppressPart(part,1.25,false)
-    count+=1
+   if part:IsA("BasePart") and not belongsTo(part,character) and not isSupportPart(part,now) then
+    local closeEnough=(part.Position-(character:FindFirstChild("HumanoidRootPart") and character.HumanoidRootPart.Position or part.Position)).Magnitude<14
+    local shouldPhase=part.CanCollide or closeEnough
+    if suppressPart(part,duration,false) then
+     count+=1
+     if shouldPhase and phaseCount<12 then phasePart(part,duration);phaseCount+=1 end
+    end
    end
   end
   if count>0 then
-   Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+0.45)
+   Core.ThreatUntil=math.max(Core.ThreatUntil,now+0.55)
    Core.AntiRamBlocks+=1
-   record("COLLISION_ASSEMBLY",{
-    Reason=reason,ExternalEndpoint=seed,ExternalAssemblyRoot=assemblyRoot,
-    ExternalContainer=externalContainer(seed),PartCount=count,
-   })
+   local contact=reason=="TOUCHED" or reason=="TOUCHED_NEW_PART" or reason=="DIRECT_BRIDGE" or reason=="FORCED_SEAT"
+   setState(contact and "CONTACT" or "ALERT",0.6,reason)
+   if isNew or now-hostile.lastRecord>0.5 then
+    hostile.lastRecord=now
+    record("COLLISION_ASSEMBLY",{
+     Reason=reason,ExternalEndpoint=seed,ExternalAssemblyRoot=assemblyRoot,
+     ExternalContainer=externalContainer(seed),PartCount=count,PhaseParts=phaseCount,
+    })
+   end
    return true
   end
   return false
+ end
+
+ local function maintainHostiles(now)
+  if now-Core.LastHostileMaintain<0.03 then return end
+  Core.LastHostileMaintain=now
+  for assemblyRoot,state in pairs(hostiles) do
+   if not assemblyRoot or not assemblyRoot.Parent or now>=state.until then
+    hostiles[assemblyRoot]=nil
+   else
+    local parts=connectedAssembly(state.seed or assemblyRoot)
+    local phaseCount=0
+    for _,part in ipairs(parts) do
+     if part:IsA("BasePart") and not isSupportPart(part,now) then
+      suppressPart(part,math.max(0.2,state.until-now),false)
+      if phaseCount<12 then phasePart(part,math.max(0.2,state.until-now));phaseCount+=1 end
+     end
+    end
+   end
+  end
  end
 
  local function endpoints(connection)
@@ -186,7 +331,27 @@ return function(context)
   local character=player.Character
   if not character then return false end
   if connection:IsA("Motor6D") or connection.Name=="AccessoryWeld" then return false end
+  if connection:IsA("BodyMover") and belongsTo(connection,character) then
+   local parent=connection.Parent
+   local className=connection.ClassName
+   pcall(function()connection:Destroy()end)
+   Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+0.65)
+   setState("CONTACT",0.65,"EXTERNAL_BODY_MOVER")
+   record("EXTERNAL_ACTUATOR_REMOVED",{BridgeClass=className,CharacterEndpoint=parent})
+   return true
+  end
   local part0,part1=endpoints(connection)
+  if (part0 and not part1) or (part1 and not part0) then
+   local endpoint=part0 or part1
+   if belongsTo(endpoint,character) and not belongsTo(connection,character) then
+    local className=connection.ClassName
+    pcall(function()connection:Destroy()end)
+    Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+0.65)
+    setState("CONTACT",0.65,"EXTERNAL_ACTUATOR")
+    record("EXTERNAL_ACTUATOR_REMOVED",{BridgeClass=className,CharacterEndpoint=endpoint})
+    return true
+   end
+  end
   if not part0 or not part1 then return false end
   local inside0=belongsTo(part0,character)
   local inside1=belongsTo(part1,character)
@@ -224,6 +389,8 @@ return function(context)
       if not seen[joint] then seen[joint]=true;inspectBridge(joint) end
      end
     end
+   elseif object:IsA("BodyMover") then
+    inspectBridge(object)
    elseif object:IsA("Attachment") then
     local ok,constraints=pcall(function()return object:GetConstraints()end)
     if ok then
@@ -261,13 +428,13 @@ return function(context)
  end
 
  local function spatialAntiRam(now,character,root)
-  if now-lastSpatialScan<0.05 then return end
+  if now-lastSpatialScan<0.03 then return end
   lastSpatialScan=now
   local params=OverlapParams.new()
   params.FilterType=Enum.RaycastFilterType.Exclude
   params.FilterDescendantsInstances={character}
-  params.MaxParts=80
-  local ok,nearby=pcall(function()return workspace:GetPartBoundsInRadius(root.Position,16,params)end)
+  params.MaxParts=140
+  local ok,nearby=pcall(function()return workspace:GetPartBoundsInRadius(root.Position,28,params)end)
   if not ok then return end
   local checked={}
   for _,part in ipairs(nearby) do
@@ -288,6 +455,44 @@ return function(context)
   end
  end
 
+ local function scanPlayerThreats(now,localCharacter)
+  if now-Core.LastThreatScan<0.03 then return end
+  Core.LastThreatScan=now
+  for _,other in ipairs(Players:GetPlayers()) do
+   local otherCharacter=other~=player and other.Character
+   local otherRoot=otherCharacter and otherCharacter:FindFirstChild("HumanoidRootPart")
+   local otherHumanoid=otherCharacter and otherCharacter:FindFirstChildOfClass("Humanoid")
+   if otherRoot then
+    local speed=otherRoot.AssemblyLinearVelocity.Magnitude
+    local angular=otherRoot.AssemblyAngularVelocity.Magnitude
+    if speed>85 or angular>14 then
+     if otherHumanoid and otherHumanoid.SeatPart then
+      isolateAssembly(otherHumanoid.SeatPart,"HIGH_SPEED_PLAYER")
+     else
+      local params=OverlapParams.new()
+      params.FilterType=Enum.RaycastFilterType.Exclude
+      params.FilterDescendantsInstances={localCharacter,otherCharacter}
+      params.MaxParts=50
+      local ok,parts=pcall(function()return workspace:GetPartBoundsInRadius(otherRoot.Position,14,params)end)
+      if ok then
+       local checked={}
+       for _,part in ipairs(parts) do
+        if part:IsA("BasePart") then
+         local assemblyRoot=part.AssemblyRootPart or part
+         if not checked[assemblyRoot] then
+          checked[assemblyRoot]=true
+          if assemblyRoot.AssemblyLinearVelocity.Magnitude>45 or assemblyRoot.AssemblyAngularVelocity.Magnitude>8 then
+           isolateAssembly(part,"HIGH_SPEED_PLAYER")
+          end
+         end
+        end
+       end
+      end
+     end
+    end
+   end
+  end
+ end
  local function clampThreatMotion(character,humanoid,root)
   local linear=root.AssemblyLinearVelocity
   local angular=root.AssemblyAngularVelocity.Magnitude
@@ -295,7 +500,9 @@ return function(context)
   if not active then return end
   local desired=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
   local vertical=linear.Y
-  if math.abs(vertical)>42 then vertical=0 end
+  local humanoidState=humanoid:GetState()
+  local legitimateJump=(humanoidState==Enum.HumanoidStateType.Jumping or humanoidState==Enum.HumanoidStateType.Freefall) and vertical>0 and vertical<70
+  if math.abs(vertical)>70 or (not legitimateJump and math.abs(vertical)>42) then vertical=0 end
   for _,object in ipairs(character:GetDescendants()) do
    if object:IsA("BasePart") then object.AssemblyAngularVelocity=Vector3.zero end
   end
@@ -307,6 +514,7 @@ return function(context)
  function Core:IsRunning()return self.Running end
  function Core:GetLastReport()return self.LastReport end
  function Core:GetHistory()return self.History end
+ function Core:GetState()return self.State end
 
  function Core:Deflect(dt)
   local character,humanoid,root=rig()
@@ -316,7 +524,9 @@ return function(context)
   local step=math.min(humanoid.WalkSpeed*math.max(dt,1/60)*1.2,2.5)
   local horizontal=humanoid.MoveDirection.Magnitude>0.05 and humanoid.MoveDirection.Unit*step or Vector3.zero
   local targetY=root.Position.Y
-  if math.abs(velocity.Y)>42 then targetY=self.LastPosition.Y end
+  local humanoidState=humanoid:GetState()
+  local legitimateJump=(humanoidState==Enum.HumanoidStateType.Jumping or humanoidState==Enum.HumanoidStateType.Freefall) and velocity.Y>0 and velocity.Y<70
+  if math.abs(velocity.Y)>70 or (not legitimateJump and math.abs(velocity.Y)>42) then targetY=self.LastPosition.Y end
   local targetPosition=Vector3.new(self.LastPosition.X+horizontal.X,targetY,self.LastPosition.Z+horizontal.Z)
   local targetCFrame=CFrame.new(targetPosition)*root.CFrame.Rotation
   character:PivotTo(targetCFrame)
@@ -325,6 +535,7 @@ return function(context)
   root.AssemblyAngularVelocity=Vector3.zero
   self.LastPosition=targetPosition
   self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
+  setState("CONTACT",0.55,"IMPULSE_DEFLECTED")
   return true
  end
  function Core:Correct()
@@ -345,6 +556,7 @@ return function(context)
   self.ThreatUntil=math.max(self.ThreatUntil,os.clock()+0.45)
   self.StableSince=0
   self.Corrections+=1
+  setState("EMERGENCY",0.8,"POSITION_CORRECTION")
   record("POSITION_CORRECTION",{SafeCFrame=self.SafeCFrame,Correction=self.Corrections})
   return true
  end
@@ -373,6 +585,13 @@ return function(context)
   self.Corrections=0
   self.BrokenBridges=0
   self.AntiRamBlocks=0
+  self.State="NORMAL"
+  self.StateUntil=0
+  self.LastThreatScan=0
+  self.LastHostileMaintain=0
+  table.clear(supports)
+  table.clear(hostiles)
+  cleanupPhase(os.clock(),true)
   table.clear(self.History)
   self.LastReport=nil
   table.clear(self.SafeHistory)
@@ -380,6 +599,7 @@ return function(context)
   pushSafePosition(root,os.clock())
   lastSpatialScan=0
   lastBridgeScan=0
+  lastSupportScan=0
 
   bindPlayers()
   bindCharacter(character)
@@ -387,7 +607,7 @@ return function(context)
 
   runtime[#runtime+1]=workspace.DescendantAdded:Connect(function(object)
    if not self.Running then return end
-   if object:IsA("WeldConstraint") or object:IsA("JointInstance") or object:IsA("Constraint") then
+   if object:IsA("WeldConstraint") or object:IsA("JointInstance") or object:IsA("Constraint") or object:IsA("BodyMover") then
     task.defer(function()if self.Running then inspectBridge(object) end end)
    end
   end)
@@ -408,6 +628,12 @@ return function(context)
    if not self.Running then return end
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
+    local now=os.clock()
+    refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
+    spatialAntiRam(now,currentCharacter,currentRoot)
+    scanPlayerThreats(now,currentCharacter)
+    maintainHostiles(now)
+    cleanupPhase(now,false)
     clampThreatMotion(currentCharacter,currentHumanoid,currentRoot)
    end
   end)
@@ -420,8 +646,11 @@ return function(context)
    local now=os.clock()
 
    restoreExpiredCollisions(now)
-   spatialAntiRam(now,currentCharacter,currentRoot)
-   if now-lastBridgeScan>=0.08 then lastBridgeScan=now;scanCharacterBridges(currentCharacter) end
+   cleanupPhase(now,false)
+   refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
+   maintainHostiles(now)
+   if now>=self.StateUntil and next(hostiles)==nil and self.State~="NORMAL" then self.State="NORMAL";record("STATE_CHANGE",{State="NORMAL",Reason="CLEAR"}) end
+   if now-lastBridgeScan>=0.05 then lastBridgeScan=now;scanCharacterBridges(currentCharacter) end
 
    local velocity=currentRoot.AssemblyLinearVelocity
    local angular=currentRoot.AssemblyAngularVelocity.Magnitude
@@ -477,6 +706,11 @@ return function(context)
   self.RecoveryMinUntil=0
   self.ThreatUntil=0
   self.StableSince=0
+  self.State="NORMAL"
+  self.StateUntil=0
+  table.clear(supports)
+  table.clear(hostiles)
+  cleanupPhase(os.clock(),true)
   table.clear(self.SafeHistory)
   self.LastSafeSample=0
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
