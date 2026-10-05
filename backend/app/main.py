@@ -157,6 +157,8 @@ class CommandAck(BaseModel):
 class CustomFlingProfile(BaseModel):
     parameters: dict[str, float]
     contact_time_enabled: bool = False
+    auto_retry_enabled: bool = False
+    max_chase_enabled: bool = False
 
     @field_validator("parameters")
     @classmethod
@@ -167,12 +169,14 @@ class CustomFlingProfile(BaseModel):
             "P": (1, 1250), "RECOVERY_DISTANCE": (1, 80),
             "NEAR_DISTANCE": (0.5, 6), "CONTACT_TIME": (0.05, 0.30),
             "FRONT_FLIP_SPEED": (1, 60), "DISPLACEMENT_DISTANCE": (1, 2109841),
+            "MAX_CHASE_DISTANCE": (50, 5000),
         }
-        if set(value) != set(limits):
-            raise ValueError("All custom fling parameters are required")
+        legacy = set(limits) - {"MAX_CHASE_DISTANCE"}
+        if not legacy.issubset(value) or not set(value).issubset(limits):
+            raise ValueError("Custom fling parameters are incomplete or unknown")
         clean = {}
         for name, bounds in limits.items():
-            number = float(value[name])
+            number = float(value.get(name, 500))
             if not math.isfinite(number) or number < bounds[0] or number > bounds[1]:
                 raise ValueError(f"{name} is outside the allowed range")
             clean[name] = number
@@ -562,13 +566,15 @@ def save_custom_fling_profile(payload: CustomFlingProfile, session=Depends(requi
         if not user:
             raise HTTPException(404, "User not found")
         db.execute(
-            """INSERT INTO custom_fling_profiles(user_id,username,display_name,parameters,contact_time_enabled,updated_at)
-               VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+            """INSERT INTO custom_fling_profiles(user_id,username,display_name,parameters,contact_time_enabled,auto_retry_enabled,max_chase_enabled,updated_at)
+               VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
                username=excluded.username, display_name=excluded.display_name,
                parameters=excluded.parameters, contact_time_enabled=excluded.contact_time_enabled,
+               auto_retry_enabled=excluded.auto_retry_enabled, max_chase_enabled=excluded.max_chase_enabled,
                updated_at=excluded.updated_at""",
             (session["user_id"], user["username"], user["display_name"],
-             json.dumps(payload.parameters, separators=(",", ":")), int(payload.contact_time_enabled), timestamp),
+             json.dumps(payload.parameters, separators=(",", ":")), int(payload.contact_time_enabled),
+             int(payload.auto_retry_enabled), int(payload.max_chase_enabled), timestamp),
         )
         audit(db, "custom_fling_profile_saved", session["id"], session["user_id"])
     return {"ok": True, "updated_at": timestamp}
@@ -583,6 +589,8 @@ def owner_custom_fling_profiles(_: dict = Depends(require_owner_panel)):
         item = row_dict(row)
         item["parameters"] = json.loads(item["parameters"])
         item["contact_time_enabled"] = bool(item["contact_time_enabled"])
+        item["auto_retry_enabled"] = bool(item["auto_retry_enabled"])
+        item["max_chase_enabled"] = bool(item["max_chase_enabled"])
         result.append(item)
     return {"profiles": result}
 

@@ -32,6 +32,7 @@ local CONFIG = {
 	FAR_DISTANCES = {4487425, 7554477, 9193601, 11000000, 12572022, 15000000, 17003482, 21098414},
 	SHORT_DISTANCE_SCALE = 0.10,
 	DISPLACEMENT_DISTANCE = 1000,
+	MAX_CHASE_DISTANCE = 500,
 }
 local LIMITS = {
 	VERTICAL_DISTANCE={min=0.1,max=1.5,decimal=true},
@@ -40,7 +41,7 @@ local LIMITS = {
 	RECOVERY_DISTANCE={min=1,max=80}, NEAR_DISTANCE={min=0.5,max=6,decimal=true},
 	CONTACT_TIME={min=0.05,max=0.30,decimal=true},
 	FRONT_FLIP_SPEED={min=1,max=60},
-	DISPLACEMENT_DISTANCE={min=1,max=2109841},
+	DISPLACEMENT_DISTANCE={min=1,max=2109841}, MAX_CHASE_DISTANCE={min=50,max=5000},
 }
 
 
@@ -105,6 +106,8 @@ function VR7EfficientCore.new(provider)
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
 	self.ContactTimeEnabled = false
+	self.AutoRetryEnabled = false
+	self.MaxChaseEnabled = false
 
 	-- Front Flip
 	self.FrontFlipEnabled = true
@@ -113,6 +116,10 @@ function VR7EfficientCore.new(provider)
 
 	-- Force Target
 	self.LastTargetCFrame = nil
+	self.CurrentTargetRoot = nil
+	self.WaitingForTarget = false
+	self.ChaseSuspended = false
+	self.TargetStopQueued = false
 	self.DistanceFromTarget = 0
 	self.State = "IDLE" -- IDLE / NORMAL / RECOVERY
 	self.RecoveryConsecutiveNear = 0
@@ -164,6 +171,19 @@ function VR7EfficientCore:IsContactTimeEnabled()
 	return self.ContactTimeEnabled == true
 end
 
+function VR7EfficientCore:SetAutoRetryEnabled(enabled)
+	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar esta opción.","Stop Custom Fling before changing this option.") end
+	self.AutoRetryEnabled=enabled==true
+	return true,self.AutoRetryEnabled
+end
+function VR7EfficientCore:IsAutoRetryEnabled() return self.AutoRetryEnabled==true end
+
+function VR7EfficientCore:SetMaxChaseEnabled(enabled)
+	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar esta opción.","Stop Custom Fling before changing this option.") end
+	self.MaxChaseEnabled=enabled==true
+	return true,self.MaxChaseEnabled
+end
+function VR7EfficientCore:IsMaxChaseEnabled() return self.MaxChaseEnabled==true end
 function VR7EfficientCore:GetContactDuration()
 	if self.ContactTimeEnabled then return CONFIG.CONTACT_TIME end
 	return CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
@@ -193,14 +213,15 @@ function VR7EfficientCore:SetParameter(name,value)
 	return true,value
 end
 function VR7EfficientCore:ExportSettings()
-	return {parameters=self:GetParameters(),contact_time_enabled=self:IsContactTimeEnabled()}
+	return {parameters=self:GetParameters(),contact_time_enabled=self:IsContactTimeEnabled(),auto_retry_enabled=self:IsAutoRetryEnabled(),max_chase_enabled=self:IsMaxChaseEnabled()}
 end
 
 function VR7EfficientCore:ApplySettings(profile)
 	if self.Running or self.Stopping or type(profile)~="table" or type(profile.parameters)~="table" then return false end
-	for name in pairs(LIMITS) do if profile.parameters[name]==nil then return false end end
 	for name,value in pairs(profile.parameters) do if LIMITS[name] then self:SetParameter(name,value) end end
 	self.ContactTimeEnabled=profile.contact_time_enabled==true
+	self.AutoRetryEnabled=profile.auto_retry_enabled==true
+	self.MaxChaseEnabled=profile.max_chase_enabled==true
 	return true
 end
 
@@ -410,6 +431,10 @@ function VR7EfficientCore:Start()
 	self.State = "NORMAL"
 	self.RecoveryConsecutiveNear = 0
 	self.LastTargetCFrame = targetRoot.CFrame
+	self.CurrentTargetRoot = targetRoot
+	self.WaitingForTarget = false
+	self.ChaseSuspended = false
+	self.TargetStopQueued = false
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = "NEAR"
 	self.NearUntil = os.clock() + self:GetContactDuration()
@@ -437,13 +462,61 @@ function VR7EfficientCore:Start()
 		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
 		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
-		-- Esperar si el objetivo reaparece; nunca regresar a una posición antigua.
-		if not currentTargetRoot then return end
+		if not currentTargetRoot then
+			if not self.AutoRetryEnabled then
+				if not self.TargetStopQueued then
+					self.TargetStopQueued=true
+					task.defer(function()
+						self.TargetStopQueued=false
+						if self.Running then self:Stop() end
+					end)
+				end
+				return
+			end
+			if not self.WaitingForTarget then
+				self.WaitingForTarget=true
+				self.CurrentTargetRoot=nil
+				self:DestroyFlinger()
+				self:DestroyFrontFlip()
+				if self.AttackerCheckpoint then currentRoot.CFrame=self.AttackerCheckpoint end
+				currentRoot.AssemblyLinearVelocity=Vector3.zero
+				currentRoot.AssemblyAngularVelocity=Vector3.zero
+			end
+			return
+		end
+
+		local outsideChaseRange=self.MaxChaseEnabled and self.AttackerCheckpoint
+			and (currentTargetRoot.Position-self.AttackerCheckpoint.Position).Magnitude>CONFIG.MAX_CHASE_DISTANCE
+		if outsideChaseRange then
+			if not self.ChaseSuspended then
+				self.ChaseSuspended=true
+				self.WaitingForTarget=false
+				self.CurrentTargetRoot=currentTargetRoot
+				self:DestroyFlinger()
+				self:DestroyFrontFlip()
+				currentRoot.CFrame=self.AttackerCheckpoint
+				currentRoot.AssemblyLinearVelocity=Vector3.zero
+				currentRoot.AssemblyAngularVelocity=Vector3.zero
+			end
+			return
+		end
+
+		if self.WaitingForTarget or self.ChaseSuspended or self.CurrentTargetRoot~=currentTargetRoot then
+			self.WaitingForTarget=false
+			self.ChaseSuspended=false
+			self.CurrentTargetRoot=currentTargetRoot
+			self.LastTargetCFrame=currentTargetRoot.CFrame
+			self.EfficientPhase="NEAR"
+			self.NearUntil=os.clock()+self:GetContactDuration()
+			self.Direction=1
+			self.ReturnSide=1
+		end
 		self:UpdateLastTarget(currentTargetRoot)
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
 		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
 		self.Flinger.MaxForce = CONFIG.MAX_FORCE
 		self.Flinger.P = CONFIG.P
+		self:EnsureFrontFlip(currentRoot)
 
 		local function placeNear()
 			self.Direction = -self.Direction
@@ -619,6 +692,10 @@ function VR7EfficientCore:Stop()
 	self.AttackerCheckpoint = nil
 	self.Direction = 1
 	self.LastTargetCFrame = nil
+	self.CurrentTargetRoot = nil
+	self.WaitingForTarget = false
+	self.ChaseSuspended = false
+	self.TargetStopQueued = false
 	self.DistanceFromTarget = 0
 	self.RecoveryConsecutiveNear = 0
 	self.Stopping = false

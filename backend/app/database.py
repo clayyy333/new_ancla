@@ -141,6 +141,8 @@ def init_database() -> None:
                 display_name TEXT NOT NULL DEFAULT '',
                 parameters TEXT NOT NULL,
                 contact_time_enabled INTEGER NOT NULL DEFAULT 0,
+                auto_retry_enabled INTEGER NOT NULL DEFAULT 0,
+                max_chase_enabled INTEGER NOT NULL DEFAULT 0,
                 updated_at REAL NOT NULL
             );
             CREATE TABLE IF NOT EXISTS owner_panel_sessions (
@@ -169,6 +171,12 @@ def init_database() -> None:
             db.execute(
                 "ALTER TABLE sessions ADD COLUMN move_anchored_enabled INTEGER NOT NULL DEFAULT 0"
             )
+        profile_columns = {row["name"] for row in db.execute("PRAGMA table_info(custom_fling_profiles)")}
+        for column in ("auto_retry_enabled", "max_chase_enabled"):
+            if column not in profile_columns:
+                db.execute(
+                    f"ALTER TABLE custom_fling_profiles ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"
+                )
         for column in ("checkpoint_x", "checkpoint_y", "checkpoint_z"):
             if column not in columns:
                 db.execute(f"ALTER TABLE sessions ADD COLUMN {column} REAL")

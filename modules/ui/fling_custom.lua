@@ -25,6 +25,8 @@ return function(context)
 		CONTACT_TIME=isES and "Define cuánto tiempo permanece nuestro HRP junto al target en cada contacto. Ejemplo: 0.05 segundos es un contacto breve y 0.30 segundos es más prolongado. Si está desactivado, se conserva el tiempo automático original de 0.040 a 0.085 segundos." or "Sets how long our HRP remains beside the target during each contact. Example: 0.05 seconds is brief, while 0.30 seconds is longer. When disabled, the original automatic timing of 0.040 to 0.085 seconds is preserved.",
 		FRONT_FLIP_SPEED=isES and "Controla la rapidez de la voltereta hacia adelante de nuestro personaje durante el contacto. Ejemplo: 1 produce un giro lento; 60 genera una voltereta mucho más rápida." or "Controls how quickly our character performs the forward flip during contact. Example: 1 creates a slow rotation, while 60 produces a much faster flip.",
 		DISPLACEMENT_DISTANCE=isES and "Define cuánto se aleja nuestro HRP antes de volver a la posición actual del target. Solo desplaza nuestro personaje. Ejemplo: un valor pequeño crea un recorrido corto; uno alto lo envía mucho más lejos antes del regreso." or "Sets how far our HRP travels before returning to the target's current position. It only moves our character. Example: a small value creates a short trip, while a high value sends it much farther away before returning.",
+		AUTO_RETRY=isES and "Si el objetivo muere o reinicia su personaje, el flujo se mantiene activo, limpia temporalmente las fuerzas y espera su nuevo HumanoidRootPart. Cuando reaparece, reinicia el ciclo sobre el nuevo personaje." or "If the target dies or resets, the flow stays active, temporarily clears forces, and waits for the new HumanoidRootPart. When it appears, the cycle restarts on the new character.",
+		MAX_CHASE_DISTANCE=isES and "Limita cuánto puede alejarse el objetivo desde el lugar donde activaste el fling. Si supera esta distancia, vuelves al punto inicial y la persecución queda en pausa hasta que regrese al rango." or "Limits how far the target may move from where you enabled the fling. Beyond this distance, you return to the starting point and pursuit pauses until the target returns within range.",
 	}
 
 	local infoOverlay=Instance.new("TextButton")
@@ -60,13 +62,15 @@ return function(context)
 		{"P",isES and "Respuesta de la fuerza" or "Force response"},
 		{"RECOVERY_DISTANCE",isES and "Distancia del reintento" or "Retry distance"},
 		{"NEAR_DISTANCE",isES and "Precisión del regreso" or "Return precision"},
-		{"CONTACT_TIME",isES and "Tiempo junto al objetivo" or "Time beside target",0.05,true},
+		{"CONTACT_TIME",isES and "Tiempo junto al objetivo" or "Time beside target",0.05,"contact"},
 		{"FRONT_FLIP_SPEED",isES and "Rapidez de la voltereta" or "Flip speed"},
 		{"DISPLACEMENT_DISTANCE",isES and "Distancia de alejamiento" or "Travel-away distance"},
+		{"MAX_CHASE_DISTANCE",isES and "Límite de persecución" or "Pursuit limit",100,"chase"},
 	}
 	local rows={};local stepOptions={1,100,1000};local stepIndex=1;local targetIndex=0
 	for _,definition in ipairs(definitions) do
-		local key,label,fixedStep,hasToggle=definition[1],definition[2],definition[3],definition[4]==true
+		local key,label,fixedStep,toggleMode=definition[1],definition[2],definition[3],definition[4]
+		local hasToggle=toggleMode~=nil
 		local row=Instance.new("Frame");row.Size=UDim2.new(1,-4,0,50);row.BackgroundColor3=currentTheme.secondary;row.BorderSizePixel=0;row.ZIndex=7;row.Parent=customFlingPanel;Instance.new("UICorner",row).CornerRadius=UDim.new(0,10);RegisterTheme(row,"BackgroundColor3","secondary")
 		local name=Instance.new("TextLabel");name.Size=UDim2.new(hasToggle and .22 or .28,-12,1,0);name.Position=UDim2.new(0,12,0,0);name.BackgroundTransparency=1;name.Text=label;name.TextColor3=currentTheme.text;name.Font=Enum.Font.Gotham;name.TextSize=isMobile and 9 or 11;name.TextWrapped=true;name.TextXAlignment=Enum.TextXAlignment.Left;name.ZIndex=8;name.Parent=row;RegisterTheme(name,"TextColor3","text")
 		local infoButton=button(row,isES and "Información" or "Information",UDim2.new(hasToggle and .14 or .17,-6,0,28),UDim2.new(hasToggle and .22 or .28,0,.5,-14));infoButton.TextSize=isMobile and 8 or 9
@@ -75,10 +79,11 @@ return function(context)
 		local optionToggle=nil
 		if hasToggle then optionToggle=button(row,isES and "Desactivado" or "Disabled",UDim2.new(.19,-6,0,28),UDim2.new(.36,0,.5,-14));optionToggle.TextSize=isMobile and 8 or 9 end
 		local minus=button(row,"−",UDim2.new(0,34,0,32),UDim2.new(controlsX,0,.5,-16));local value=button(row,"0",UDim2.new(1-controlsX,-92,0,32),UDim2.new(controlsX,40,.5,-16));value.Active=false;local plus=button(row,"+",UDim2.new(0,34,0,32),UDim2.new(1,-40,.5,-16))
-		rows[key]={value=value,minus=minus,plus=plus,fixedStep=fixedStep,toggle=optionToggle}
+		rows[key]={value=value,minus=minus,plus=plus,fixedStep=fixedStep,toggle=optionToggle,toggleMode=toggleMode}
 		local function change(direction)
 			if CustomFlingCore.Running or CustomFlingCore.Stopping then return end
-			if hasToggle and not CustomFlingCore:IsContactTimeEnabled() then return end
+			if toggleMode=="contact" and not CustomFlingCore:IsContactTimeEnabled() then return end
+			if toggleMode=="chase" and not CustomFlingCore:IsMaxChaseEnabled() then return end
 			local values=CustomFlingCore:GetParameters()
 			if key=="NEAR_DISTANCE" then
 				local nextValue=direction<0 and (values[key]<=1 and 0.5 or values[key]-1) or (values[key]<1 and 1 or values[key]+1)
@@ -90,8 +95,14 @@ return function(context)
 			UpdateCustomFlingPanel()
 		end
 		minus.Activated:Connect(function() change(-1) end);plus.Activated:Connect(function() change(1) end)
-		if optionToggle then optionToggle.Activated:Connect(function() local ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled());if ok then markCustomFlingUsage();UpdateCustomFlingPanel() end end) end
+		if optionToggle then optionToggle.Activated:Connect(function() local ok=false;if toggleMode=="contact" then ok=CustomFlingCore:SetContactTimeEnabled(not CustomFlingCore:IsContactTimeEnabled()) elseif toggleMode=="chase" then ok=CustomFlingCore:SetMaxChaseEnabled(not CustomFlingCore:IsMaxChaseEnabled()) end;if ok then markCustomFlingUsage();UpdateCustomFlingPanel() end end) end
 	end
+	local retryRow=Instance.new("Frame");retryRow.Size=UDim2.new(1,-4,0,50);retryRow.BackgroundColor3=currentTheme.secondary;retryRow.BorderSizePixel=0;retryRow.ZIndex=7;retryRow.Parent=customFlingPanel;Instance.new("UICorner",retryRow).CornerRadius=UDim.new(0,10);RegisterTheme(retryRow,"BackgroundColor3","secondary")
+	local retryName=Instance.new("TextLabel");retryName.Size=UDim2.new(.38,-12,1,0);retryName.Position=UDim2.new(0,12,0,0);retryName.BackgroundTransparency=1;retryName.Text=isES and "Reintento automático" or "Automatic retry";retryName.TextColor3=currentTheme.text;retryName.Font=Enum.Font.Gotham;retryName.TextSize=isMobile and 9 or 11;retryName.TextWrapped=true;retryName.TextXAlignment=Enum.TextXAlignment.Left;retryName.ZIndex=8;retryName.Parent=retryRow;RegisterTheme(retryName,"TextColor3","text")
+	local retryInfo=button(retryRow,isES and "Información" or "Information",UDim2.new(.22,-6,0,28),UDim2.new(.38,0,.5,-14));retryInfo.TextSize=isMobile and 8 or 9;retryInfo.Activated:Connect(function() showInfo("AUTO_RETRY",retryName.Text) end)
+	local retryToggle=button(retryRow,isES and "Desactivado" or "Disabled",UDim2.new(.36,-12,0,32),UDim2.new(.62,0,.5,-16))
+	retryToggle.Activated:Connect(function() local ok=CustomFlingCore:SetAutoRetryEnabled(not CustomFlingCore:IsAutoRetryEnabled());if ok then markCustomFlingUsage();UpdateCustomFlingPanel() end end)
+	rows.AUTO_RETRY={toggle=retryToggle,toggleOnly=true,toggleMode="retry"}
 	local saveButton=button(customFlingPanel,isES and "Guardar ajustes" or "Save settings",UDim2.new(1,-4,0,44),UDim2.new())
 	saveButton.Activated:Connect(function()
 		local profile=CustomFlingCore:ExportSettings()
@@ -110,10 +121,15 @@ return function(context)
 	UpdateCustomFlingPanel=function(message)
 		local values=CustomFlingCore:GetParameters();local limits=CustomFlingCore:GetParameterLimits();local locked=CustomFlingCore.Running or CustomFlingCore.Stopping
 		for key,row in pairs(rows) do
-			row.value.Text=tostring(values[key])
-			local optionEnabled=not row.toggle or CustomFlingCore:IsContactTimeEnabled()
-			row.minus.Active=not locked and optionEnabled and values[key]>limits[key].min
-			row.plus.Active=not locked and optionEnabled and values[key]<limits[key].max
+			local optionEnabled=true
+			if row.toggleMode=="contact" then optionEnabled=CustomFlingCore:IsContactTimeEnabled()
+			elseif row.toggleMode=="chase" then optionEnabled=CustomFlingCore:IsMaxChaseEnabled()
+			elseif row.toggleMode=="retry" then optionEnabled=CustomFlingCore:IsAutoRetryEnabled() end
+			if not row.toggleOnly then
+				row.value.Text=tostring(values[key])
+				row.minus.Active=not locked and optionEnabled and values[key]>limits[key].min
+				row.plus.Active=not locked and optionEnabled and values[key]<limits[key].max
+			end
 			if row.toggle then
 				row.toggle.Active=not locked
 				row.toggle.Text=optionEnabled and (isES and "Activado" or "Enabled") or (isES and "Desactivado" or "Disabled")
