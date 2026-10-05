@@ -16,8 +16,11 @@ gui.Parent = playerGui
 
 selectedLang = nil
 
-if Settings.language and Settings.language ~= "" then
+if Settings.language == "ES" or Settings.language == "EN" then
 	selectedLang = Settings.language
+elseif Settings.language and Settings.language ~= "" then
+	Settings.language = nil
+	SaveData()
 end
 
 if not selectedLang then
@@ -75,10 +78,8 @@ langTitle.ZIndex = 20002
 langTitle.Parent = langBox
 
 local function MakeLangBtn(txt, flag, index, lang)
-	local col = index <= 4 and 0 or 1
-	local row = (index - 1) % 4
-	local x = col == 0 and 0.04 or 0.52
-	local y = 80 + (row * 65)
+	local x = index == 1 and 0.04 or 0.52
+	local y = 82
 
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(0.44, 0, 0, 55)
@@ -139,16 +140,10 @@ local function MakeLangBtn(txt, flag, index, lang)
 	end)
 end
 
-MakeLangBtn("Türkçe", "🇹🇷", 1, "TR")
+MakeLangBtn("Español", "🇪🇸", 1, "ES")
 MakeLangBtn("English", "🇬🇧", 2, "EN")
-MakeLangBtn("Español", "🇪🇸", 3, "ES")
-MakeLangBtn("العربية", "🇸🇦", 4, "AR")
-MakeLangBtn("Français", "🇫🇷", 5, "FR")
-MakeLangBtn("हिन्दी", "🇮🇳", 6, "HI")
-MakeLangBtn("Português", "🇵🇹", 7, "PT")
-MakeLangBtn("Русский", "🇷🇺", 8, "RU")
 
-local targetSize = isMobile and UDim2.new(0, 380, 0, 350) or UDim2.new(0, 480, 0, 350)
+local targetSize = isMobile and UDim2.new(0, 380, 0, 175) or UDim2.new(0, 480, 0, 175)
 TweenService:Create(langBox, TweenInfo.new(0.6, Enum.EasingStyle.Back), {Size = targetSize, Rotation = 0}):Play()
 
 repeat task.wait(0.1) until selectedLang
