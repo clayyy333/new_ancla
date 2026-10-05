@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1,context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
-	local Guard={Running=false,Connected=false,Generation=0,SessionToken=nil}
+	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil}
 	local targetStates={}
 	local requestFn
 
@@ -96,14 +96,15 @@ return function(context)
 			country_code=countryCode(),
 			place_id=game.PlaceId,
 			job_id=game.JobId,
-			game_name="Metro Life",
+			game_name=tostring(game.Name or ""),
 			executor=executorName(),
 			script_version="anchor-guard-1",
 		})
-		if not response or response.anchor_guard_enabled~=true or type(response.session_token)~="string" then
+		if not response or type(response.session_token)~="string" then
 			return false
 		end
 		Guard.SessionToken=response.session_token
+		Guard.AnchorGuardEnabled=response.anchor_guard_enabled==true and isMetroLife()
 		Guard.Connected=true
 		return true
 	end
@@ -224,7 +225,7 @@ return function(context)
 	end
 
 	function Guard:Start()
-		if self.Running or not isMetroLife() then return false end
+		if self.Running or Config.Enabled~=true then return false end
 		if type(Config.ClientKey)~="string" or Config.ClientKey=="" then return false end
 		requestFn=resolveRequest()
 		if not requestFn then return false end
@@ -246,10 +247,17 @@ return function(context)
 					local anchored,mode,checkpoint=anchorState()
 					local customFlingUsing=customFlingPanel~=nil and customFlingPanel.Visible==true and CustomFlingUsageActive==true
 					local moveAnchoredEnabled=MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()
+					local anchorFeatures=Guard.AnchorGuardEnabled==true
+					if not anchorFeatures then
+						anchored,mode,checkpoint=false,"",nil
+						customFlingUsing=false
+						moveAnchoredEnabled=false
+					end
 					local checkpointChanged=(checkpoint~=lastCheckpoint)
 					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingUsing~=lastCustomFlingUsing or moveAnchoredEnabled~=lastMoveAnchored then
 						if not heartbeatBusy then
-							heartbeatAt=timestamp+(tonumber(Config.HeartbeatSeconds) or 30)
+							local interval=anchorFeatures and (tonumber(Config.HeartbeatSeconds) or 30) or (tonumber(Config.ActivityHeartbeatSeconds) or 60)
+							heartbeatAt=timestamp+interval
 							lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing,lastMoveAnchored=anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled
 							heartbeatBusy=true
 							task.spawn(function()
@@ -258,20 +266,20 @@ return function(context)
 							end)
 						end
 					end
-					if timestamp>=targetsAt and not targetsBusy then
+					if anchorFeatures and timestamp>=targetsAt and not targetsBusy then
 						targetsAt=timestamp+(tonumber(Config.TargetPollSeconds) or 2.5);targetsBusy=true
 						task.spawn(function() refreshTargets();targetsBusy=false end)
 					end
-					if timestamp>=inspectAt then
+					if anchorFeatures and timestamp>=inspectAt then
 						inspectAt=timestamp+(tonumber(Config.LocalInspectSeconds) or 0.2)
 						inspectKnownTargets()
 					end
-					if anchored and timestamp>=commandsAt and not commandsBusy then
+					if anchorFeatures and anchored and timestamp>=commandsAt and not commandsBusy then
 						commandsAt=timestamp+(tonumber(Config.CommandPollSeconds) or 0.5);commandsBusy=true
 						task.spawn(function() executeCommands();commandsBusy=false end)
 					end
 				end
-				task.wait(0.05)
+				task.wait(isMetroLife() and 0.05 or 0.5)
 			end
 		end)
 		return true
@@ -292,6 +300,7 @@ return function(context)
 		local token=self.SessionToken
 		self.SessionToken=nil
 		self.Connected=false
+		self.AnchorGuardEnabled=false
 		table.clear(targetStates)
 		if token and requestFn then
 			task.spawn(function() call("POST","/api/v1/sessions/end",nil,token) end)

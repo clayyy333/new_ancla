@@ -8,6 +8,7 @@ return function(context)
 		GameId=4540138978,
 		PlaceId=12985361032,
 		HeartbeatSeconds=30,
+		ActivityHeartbeatSeconds=60,
 		TargetPollSeconds=2.5,
 		CommandPollSeconds=0.5,
 		LocalInspectSeconds=0.2,
