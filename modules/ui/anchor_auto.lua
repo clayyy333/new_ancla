@@ -68,8 +68,9 @@ return function(context)
 		xenoButton.Text=mode=="xeno" and (isES and "Desactivar Ancla con asiento Xeno" or "Disable Xeno Seat Anchor") or (isES and "Activar Ancla con asiento Xeno" or "Enable Xeno Seat Anchor")
 		deltaButton.BackgroundColor3=mode=="delta" and currentTheme.critical or currentTheme.tertiary
 		xenoButton.BackgroundColor3=mode=="xeno" and currentTheme.critical or currentTheme.tertiary
-		deltaButton.Active=not AutoAnchorCore.Busy
-		xenoButton.Active=not AutoAnchorCore.Busy
+		local mobileBusy=MobileAnchorCore and MobileAnchorCore:IsRunning()
+		deltaButton.Active=not AutoAnchorCore.Busy and not mobileBusy
+		xenoButton.Active=not AutoAnchorCore.Busy and not mobileBusy
 		local engineStatus=mode=="delta" and AutoSkateDelta.Status or mode=="xeno" and AutoSkateXeno.Status or nil
 		status.Text=message or engineStatus or AutoAnchorCore.Status
 	end

@@ -332,6 +332,7 @@ return function(context)
 
 	local anchorLabels = {
 		{"anchor", isES and "Ancla" or "Anchor"},
+		{"move_anchored", isES and "Muévete Anclado" or "Move While Anchored"},
 		{"anchor_auto", isES and "Ancla automática" or "Automatic Anchor"},
 	}
 	for index, item in ipairs(anchorLabels) do

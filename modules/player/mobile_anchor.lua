@@ -2,12 +2,6 @@
 return function(context)
  setfenv(1,context)
 
- local OWNERS={
-  [11739864999]="psychoo778",
-  [11743514302]="ksablanca0",
-  [11747901934]="psycho777oo",
- }
- local expected=OWNERS[player.UserId]
  local Core={
   Running=false,SafeCFrame=nil,LastPosition=nil,GraceUntil=0,Corrections=0,
   StableSince=0,RecoveryUntil=0,RecoveryMinUntil=0,ThreatUntil=0,
@@ -17,15 +11,13 @@ return function(context)
  local persistent,runtime={},{ }
  local collisions={} -- [BasePart]={original=boolean,expires=number,permanent=boolean}
  local supports={} -- [BasePart]=expiry
- local hostiles={} -- [AssemblyRootPart]={until,seed,reason,lastRecord}
+ local hostiles={} -- [AssemblyRootPart]={expires,seed,reason,lastRecord,parts,phaseParts}
  local phaseLinks={} -- [ExternalPart]={expires,pairs={[CharacterPart]=NoCollisionConstraint}}
  local lastSpatialScan=0
  local lastBridgeScan=0
  local lastSupportScan=0
 
- local function authorized()
-  return expected~=nil and string.lower(player.Name)==expected
- end
+ local function authorized()return true end
 
  local function rig()
   local character=player.Character
@@ -594,7 +586,6 @@ return function(context)
 
  function Core:Start()
   if self.Running then return true end
-  if not authorized() then return false,isES and "Función experimental no disponible." or "Experimental feature unavailable." end
   local character,humanoid,root=rig()
   if not character or not humanoid or humanoid.Health<=0 or not root then return false,isES and "Tu personaje no está disponible." or "Your character is unavailable." end
   if AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy) then return false,isES and "Desactiva primero el Ancla automática." or "Disable Automatic Anchor first." end
@@ -722,6 +713,9 @@ return function(context)
     self.StableSince=0
    end
   end)
+  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
+  if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
+  if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true
  end
 
@@ -744,7 +738,9 @@ return function(context)
   cleanupPhase(os.clock(),true)
   table.clear(self.SafeHistory)
   self.LastSafeSample=0
+  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
+  if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true
  end
 
