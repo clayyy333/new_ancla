@@ -67,6 +67,7 @@ def init_database() -> None:
                 anchored INTEGER NOT NULL DEFAULT 0,
                 anchor_mode TEXT NOT NULL DEFAULT '',
                 custom_fling_using INTEGER NOT NULL DEFAULT 0,
+                move_anchored_enabled INTEGER NOT NULL DEFAULT 0,
                 checkpoint_x REAL,
                 checkpoint_y REAL,
                 checkpoint_z REAL,
@@ -163,6 +164,10 @@ def init_database() -> None:
         if "custom_fling_using" not in columns:
             db.execute(
                 "ALTER TABLE sessions ADD COLUMN custom_fling_using INTEGER NOT NULL DEFAULT 0"
+            )
+        if "move_anchored_enabled" not in columns:
+            db.execute(
+                "ALTER TABLE sessions ADD COLUMN move_anchored_enabled INTEGER NOT NULL DEFAULT 0"
             )
         for column in ("checkpoint_x", "checkpoint_y", "checkpoint_z"):
             if column not in columns:
