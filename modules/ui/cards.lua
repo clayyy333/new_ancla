@@ -3,7 +3,10 @@ return function(context)
 	setfenv(1, context)
 
 local removeAnimationButton
+local saveAnimationButton
+local viewSavedAnimationButton
 local animationPicker
+local savedAnimationPicker
 local animationStateLabels={
 	{"Idle","Inactividad","Idle"},{"Walk","Caminar","Walk"},
 	{"Run","Correr","Run"},{"Jump","Saltar","Jump"},
@@ -119,6 +122,120 @@ local function ShowAnimationPackOptions(pack)
 		end
 	end
 	list.CanvasSize=UDim2.new(0,0,0,row*48)
+end
+local function ShowSavedAnimationCombinations()
+	if savedAnimationPicker then savedAnimationPicker:Destroy() end
+	local saved=GetSavedAnimationCombinations and GetSavedAnimationCombinations() or {}
+	local overlay=Instance.new("Frame")
+	overlay.Name="SavedAnimationCombinations"
+	overlay.Size=UDim2.fromScale(1,1)
+	overlay.BackgroundColor3=Color3.new(0,0,0)
+	overlay.BackgroundTransparency=0.42
+	overlay.ZIndex=80
+	overlay.Parent=gui
+	savedAnimationPicker=overlay
+
+	local width=math.min(isMobile and 340 or 390,workspace.CurrentCamera.ViewportSize.X-24)
+	local rowCount=math.max(1,math.min(#saved,3))
+	local height=130+rowCount*48
+	local panel=Instance.new("Frame")
+	panel.Size=UDim2.fromOffset(width,height)
+	panel.Position=UDim2.fromScale(0.5,0.5)
+	panel.AnchorPoint=Vector2.new(0.5,0.5)
+	panel.BackgroundColor3=currentTheme.primary
+	panel.ZIndex=81
+	panel.Parent=overlay
+	Instance.new("UICorner",panel).CornerRadius=UDim.new(0,16)
+	RegisterTheme(panel,"BackgroundColor3","primary")
+
+	local titleLabel=Instance.new("TextLabel")
+	titleLabel.Size=UDim2.new(1,-68,0,44)
+	titleLabel.Position=UDim2.fromOffset(16,8)
+	titleLabel.BackgroundTransparency=1
+	titleLabel.Text=isES and "Combinaciones guardadas" or "Saved combinations"
+	titleLabel.TextColor3=currentTheme.text
+	titleLabel.Font=Enum.Font.GothamBold
+	titleLabel.TextSize=isMobile and 15 or 17
+	titleLabel.TextXAlignment=Enum.TextXAlignment.Left
+	titleLabel.ZIndex=82
+	titleLabel.Parent=panel
+	RegisterTheme(titleLabel,"TextColor3","text")
+
+	local close=Instance.new("TextButton")
+	close.Size=UDim2.fromOffset(34,34)
+	close.Position=UDim2.new(1,-44,0,12)
+	close.BackgroundColor3=currentTheme.tertiary
+	close.Text="×"
+	close.TextColor3=currentTheme.text
+	close.Font=Enum.Font.GothamBold
+	close.TextSize=22
+	close.ZIndex=83
+	close.Parent=panel
+	Instance.new("UICorner",close).CornerRadius=UDim.new(0,10)
+	RegisterTheme(close,"BackgroundColor3","tertiary")
+	RegisterTheme(close,"TextColor3","text")
+	local function dismiss()
+		if savedAnimationPicker==overlay then savedAnimationPicker=nil end
+		overlay:Destroy()
+	end
+	close.Activated:Connect(dismiss)
+
+	local selectedIndex=nil
+	local rows={}
+	for index,profile in ipairs(saved) do
+		if index>3 then break end
+		local row=Instance.new("TextButton")
+		row.Size=UDim2.new(1,-24,0,40)
+		row.Position=UDim2.fromOffset(12,56+(index-1)*48)
+		row.BackgroundColor3=currentTheme.secondary
+		row.Text=tostring(profile.name or ((isES and "Combinación " or "Combination ")..index))
+		row.TextColor3=currentTheme.text
+		row.Font=Enum.Font.GothamMedium
+		row.TextSize=isMobile and 12 or 14
+		row.TextXAlignment=Enum.TextXAlignment.Left
+		row.ZIndex=82
+		row.Parent=panel
+		Instance.new("UICorner",row).CornerRadius=UDim.new(0,10)
+		local padding=Instance.new("UIPadding");padding.PaddingLeft=UDim.new(0,14);padding.Parent=row
+		RegisterTheme(row,"TextColor3","text")
+		rows[index]=row
+		row.Activated:Connect(function()
+			selectedIndex=index
+			for rowIndex,button in pairs(rows) do
+				button.BackgroundColor3=rowIndex==selectedIndex and currentTheme.accent or currentTheme.secondary
+			end
+		end)
+	end
+	if #saved==0 then
+		local empty=Instance.new("TextLabel")
+		empty.Size=UDim2.new(1,-24,0,40)
+		empty.Position=UDim2.fromOffset(12,56)
+		empty.BackgroundTransparency=1
+		empty.Text=isES and "Todavía no hay combinaciones guardadas." or "There are no saved combinations yet."
+		empty.TextColor3=currentTheme.textDim
+		empty.Font=Enum.Font.Gotham
+		empty.TextSize=isMobile and 11 or 13
+		empty.TextWrapped=true
+		empty.ZIndex=82
+		empty.Parent=panel
+		RegisterTheme(empty,"TextColor3","textDim")
+	end
+
+	local apply=Instance.new("TextButton")
+	apply.Size=UDim2.new(1,-24,0,40)
+	apply.Position=UDim2.new(0,12,1,-50)
+	apply.BackgroundColor3=currentTheme.tertiary
+	apply.Text=isES and "Aplicar" or "Apply"
+	apply.TextColor3=currentTheme.text
+	apply.Font=Enum.Font.GothamBold
+	apply.TextSize=14
+	apply.ZIndex=82
+	apply.Parent=panel
+	Instance.new("UICorner",apply).CornerRadius=UDim.new(0,10)
+	RegisterTheme(apply,"TextColor3","text")
+	apply.Activated:Connect(function()
+		if selectedIndex and ApplyAnimationCombination and ApplyAnimationCombination(selectedIndex) then dismiss() end
+	end)
 end
 function MakeCard(emote, ci, animate)
 	local CARD = currentCardSize
@@ -551,6 +668,8 @@ end
 
 function UpdateCards(animate)
 	if removeAnimationButton then removeAnimationButton:Destroy();removeAnimationButton=nil end
+	if saveAnimationButton then saveAnimationButton:Destroy();saveAnimationButton=nil end
+	if viewSavedAnimationButton then viewSavedAnimationButton:Destroy();viewSavedAnimationButton=nil end
 	ClearCards()
 	
 	local startIdx = (page - 1) * perPage + 1
@@ -576,22 +695,44 @@ function UpdateCards(animate)
 	scroll.CanvasPosition = Vector2.zero
 
 	if currentTab == "animations" then
+		local top=rows*(CARD_TOTAL_H+PAD)+PAD
+		local function styleAction(button,text)
+			button.BackgroundColor3=currentTheme.tertiary
+			button.Text=text
+			button.TextColor3=currentTheme.text
+			button.Font=Enum.Font.GothamBold
+			button.TextSize=isMobile and 11 or 13
+			button.ZIndex=3
+			button.Parent=scroll
+			Instance.new("UICorner",button).CornerRadius=UDim.new(0,10)
+			RegisterTheme(button,"BackgroundColor3","tertiary")
+			RegisterTheme(button,"TextColor3","text")
+		end
+
+		saveAnimationButton=Instance.new("TextButton")
+		saveAnimationButton.Name="SaveAnimationCombination"
+		saveAnimationButton.Size=UDim2.new(0.5,-12,0,40)
+		saveAnimationButton.Position=UDim2.fromOffset(8,top)
+		styleAction(saveAnimationButton,isES and "Guardar combinación" or "Save combination")
+		saveAnimationButton.Activated:Connect(function()
+			if SaveAnimationCombination then SaveAnimationCombination() end
+		end)
+
 		removeAnimationButton=Instance.new("TextButton")
 		removeAnimationButton.Name="RemoveAnimations"
-		removeAnimationButton.Size=UDim2.new(1,-16,0,40)
-		removeAnimationButton.Position=UDim2.fromOffset(8,rows*(CARD_TOTAL_H+PAD)+PAD)
-		removeAnimationButton.BackgroundColor3=currentTheme.tertiary
-		removeAnimationButton.Text=isES and "Quitar animaciones" or "Remove animations"
-		removeAnimationButton.TextColor3=currentTheme.text
-		removeAnimationButton.Font=Enum.Font.GothamBold
-		removeAnimationButton.TextSize=14
-		removeAnimationButton.ZIndex=3
-		removeAnimationButton.Parent=scroll
-		Instance.new("UICorner",removeAnimationButton).CornerRadius=UDim.new(0,10)
+		removeAnimationButton.Size=UDim2.new(0.5,-12,0,40)
+		removeAnimationButton.Position=UDim2.new(0.5,4,0,top)
+		styleAction(removeAnimationButton,isES and "Quitar animaciones" or "Remove animations")
 		removeAnimationButton.Activated:Connect(function() RemoveAnimationPacks() end)
-		scroll.CanvasSize=UDim2.new(0,0,0,rows*(CARD_TOTAL_H+PAD)+PAD+52)
-	end
 
+		viewSavedAnimationButton=Instance.new("TextButton")
+		viewSavedAnimationButton.Name="ViewSavedAnimations"
+		viewSavedAnimationButton.Size=UDim2.new(1,-16,0,40)
+		viewSavedAnimationButton.Position=UDim2.fromOffset(8,top+48)
+		styleAction(viewSavedAnimationButton,isES and "Ver guardados" or "View saved")
+		viewSavedAnimationButton.Activated:Connect(ShowSavedAnimationCombinations)
+		scroll.CanvasSize=UDim2.new(0,0,0,top+100)
+	end
 
 	local _npStart = page * perPage + 1
 	local _npEnd   = math.min((page + 1) * perPage, #filtered)

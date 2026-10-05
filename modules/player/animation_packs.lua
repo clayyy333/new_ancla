@@ -469,6 +469,69 @@ return function(context)
 		return true
 	end
 
+	local function cloneSelection(source)
+		local copy={}
+		for _,state in ipairs(stateOrder) do
+			local entry=source and source[state]
+			local id=type(entry)=="table" and tonumber(entry.id)
+			if id then copy[state]={id=id,name=tostring(entry.name or "")} end
+		end
+		return copy
+	end
+
+	function GetSavedAnimationCombinations()
+		local result={}
+		for index,profile in ipairs(Settings.savedAnimationCombinations or {}) do
+			if index>3 then break end
+			result[index]={name=tostring(profile.name or ""),selection=cloneSelection(profile.selection)}
+		end
+		return result
+	end
+
+	function SaveAnimationCombination()
+		local snapshot=cloneSelection(selected)
+		local count,names=0,{}
+		for _,state in ipairs(stateOrder) do
+			local entry=snapshot[state]
+			if entry then
+				count+=1
+				if entry.name~="" then names[entry.name]=true end
+			end
+		end
+		if count==0 then
+			Notify(isES and "Nada para guardar" or "Nothing to save",
+				isES and "Primero equipa una animación o una combinación." or "Equip an animation or combination first.")
+			return false
+		end
+		local saved=Settings.savedAnimationCombinations
+		if type(saved)~="table" then saved={};Settings.savedAnimationCombinations=saved end
+		if #saved>=3 then
+			Notify(isES and "Límite alcanzado" or "Limit reached",
+				isES and "Puedes guardar hasta 3 combinaciones." or "You can save up to 3 combinations.")
+			return false
+		end
+		local onlyName,nameCount=nil,0
+		for name in pairs(names) do onlyName=name;nameCount+=1 end
+		local displayName=nameCount==1 and onlyName or ((isES and "Combinación " or "Combination ")..tostring(#saved+1))
+		saved[#saved+1]={name=displayName,selection=snapshot}
+		SaveLocalData()
+		Notify(isES and "Combinación guardada" or "Combination saved",displayName)
+		return true
+	end
+
+	function ApplyAnimationCombination(index)
+		index=tonumber(index)
+		local profile=index and Settings.savedAnimationCombinations and Settings.savedAnimationCombinations[index]
+		local snapshot=profile and cloneSelection(profile.selection)
+		if not snapshot or not next(snapshot) or not getAnimate() then return false end
+		for _,state in ipairs(stateOrder) do selected[state]=snapshot[state] end
+		lastVexroAnimationPack=nil
+		Settings.animationPackBundleId=nil
+		persistSelection()
+		applySelection()
+		Notify(isES and "Combinación aplicada" or "Combination applied",tostring(profile.name or ""))
+		return true
+	end
 	function RemoveAnimationPacks(silent)
 		for _,state in ipairs(stateOrder) do selected[state]=nil end
 		lastVexroAnimationPack=nil
