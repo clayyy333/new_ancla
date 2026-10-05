@@ -185,7 +185,7 @@ local function ShowSavedAnimationCombinations()
 	for index,profile in ipairs(saved) do
 		if index>3 then break end
 		local row=Instance.new("TextButton")
-		row.Size=UDim2.new(1,-24,0,40)
+		row.Size=UDim2.new(1,-106,0,40)
 		row.Position=UDim2.fromOffset(12,56+(index-1)*48)
 		row.BackgroundColor3=currentTheme.secondary
 		row.Text=tostring(profile.name or ((isES and "Combinación " or "Combination ")..index))
@@ -193,16 +193,36 @@ local function ShowSavedAnimationCombinations()
 		row.Font=Enum.Font.GothamMedium
 		row.TextSize=isMobile and 12 or 14
 		row.TextXAlignment=Enum.TextXAlignment.Left
+		row.TextTruncate=Enum.TextTruncate.AtEnd
 		row.ZIndex=82
 		row.Parent=panel
 		Instance.new("UICorner",row).CornerRadius=UDim.new(0,10)
-		local padding=Instance.new("UIPadding");padding.PaddingLeft=UDim.new(0,14);padding.Parent=row
+		local padding=Instance.new("UIPadding");padding.PaddingLeft=UDim.new(0,14);padding.PaddingRight=UDim.new(0,8);padding.Parent=row
 		RegisterTheme(row,"TextColor3","text")
 		rows[index]=row
 		row.Activated:Connect(function()
 			selectedIndex=index
 			for rowIndex,button in pairs(rows) do
 				button.BackgroundColor3=rowIndex==selectedIndex and currentTheme.accent or currentTheme.secondary
+			end
+		end)
+
+		local deleteButton=Instance.new("TextButton")
+		deleteButton.Size=UDim2.fromOffset(74,40)
+		deleteButton.Position=UDim2.new(1,-86,0,56+(index-1)*48)
+		deleteButton.BackgroundColor3=currentTheme.critical
+		deleteButton.Text=isES and "Eliminar" or "Delete"
+		deleteButton.TextColor3=Color3.new(1,1,1)
+		deleteButton.Font=Enum.Font.GothamBold
+		deleteButton.TextSize=isMobile and 10 or 11
+		deleteButton.ZIndex=83
+		deleteButton.Parent=panel
+		Instance.new("UICorner",deleteButton).CornerRadius=UDim.new(0,10)
+		RegisterTheme(deleteButton,"BackgroundColor3","critical")
+		deleteButton.Activated:Connect(function()
+			if DeleteAnimationCombination and DeleteAnimationCombination(index) then
+				dismiss()
+				ShowSavedAnimationCombinations()
 			end
 		end)
 	end

@@ -190,6 +190,7 @@ return {
 		"RemoveAnimationPacks",
 		"SaveAnimationCombination",
 		"GetSavedAnimationCombinations",
+		"DeleteAnimationCombination",
 		"ApplyAnimationCombination",
 		"ReapplyAnimationSelection",
 		"MakeRow",

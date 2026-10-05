@@ -488,6 +488,14 @@ return function(context)
 		return result
 	end
 
+	local function sameSelection(a,b)
+		for _,state in ipairs(stateOrder) do
+			local aId=type(a and a[state])=="table" and tonumber(a[state].id) or nil
+			local bId=type(b and b[state])=="table" and tonumber(b[state].id) or nil
+			if aId~=bId then return false end
+		end
+		return true
+	end
 	function SaveAnimationCombination()
 		local snapshot=cloneSelection(selected)
 		local count,names=0,{}
@@ -505,6 +513,13 @@ return function(context)
 		end
 		local saved=Settings.savedAnimationCombinations
 		if type(saved)~="table" then saved={};Settings.savedAnimationCombinations=saved end
+		for _,profile in ipairs(saved) do
+			if type(profile)=="table" and sameSelection(snapshot,profile.selection) then
+				Notify(isES and "Ya está guardada" or "Already saved",
+					isES and "Esta animación o combinación ya existe." or "This animation or combination already exists.")
+				return false
+			end
+		end
 		if #saved>=3 then
 			Notify(isES and "Límite alcanzado" or "Limit reached",
 				isES and "Puedes guardar hasta 3 combinaciones." or "You can save up to 3 combinations.")
@@ -512,13 +527,31 @@ return function(context)
 		end
 		local onlyName,nameCount=nil,0
 		for name in pairs(names) do onlyName=name;nameCount+=1 end
-		local displayName=nameCount==1 and onlyName or ((isES and "Combinación " or "Combination ")..tostring(#saved+1))
+		local combinationNumber=1
+		if nameCount~=1 then
+			local used={}
+			for _,profile in ipairs(saved) do
+				local number=tostring(profile.name or ""):match("^Combinación (%d+)$") or tostring(profile.name or ""):match("^Combination (%d+)$")
+				if number then used[tonumber(number)]=true end
+			end
+			while used[combinationNumber] and combinationNumber<3 do combinationNumber+=1 end
+		end
+		local displayName=nameCount==1 and onlyName or ((isES and "Combinación " or "Combination ")..tostring(combinationNumber))
 		saved[#saved+1]={name=displayName,selection=snapshot}
 		SaveLocalData()
 		Notify(isES and "Combinación guardada" or "Combination saved",displayName)
 		return true
 	end
 
+	function DeleteAnimationCombination(index)
+		index=tonumber(index)
+		local saved=Settings.savedAnimationCombinations
+		if type(saved)~="table" or not index or not saved[index] then return false end
+		local removed=table.remove(saved,index)
+		SaveLocalData()
+		Notify(isES and "Guardado eliminado" or "Saved item deleted",tostring(removed.name or ""))
+		return true
+	end
 	function ApplyAnimationCombination(index)
 		index=tonumber(index)
 		local profile=index and Settings.savedAnimationCombinations and Settings.savedAnimationCombinations[index]
