@@ -185,14 +185,6 @@ return function(context)
   if #Core.SafeHistory>30 then table.remove(Core.SafeHistory,1) end
  end
 
- local function newestSafeBeforeImpact(now)
-  for index=#Core.SafeHistory,1,-1 do
-   local sample=Core.SafeHistory[index]
-   -- Evita regresar a un lugar por el que el jugador pasó hace varios segundos.
-   if sample and now-sample.Time>=0.05 and now-sample.Time<=0.35 then return sample.CFrame end
-  end
-  return Core.SafeCFrame
- end
  local function refreshSupports(now,character,humanoid,root)
   if now-lastSupportScan<0.04 then return end
   lastSupportScan=now
@@ -591,7 +583,7 @@ return function(context)
  function Core:GetHistory()return self.History end
  function Core:GetState()return self.State end
 
- function Core:Deflect(dt,preserveReference)
+ function Core:Deflect(dt,preserveReference,restorePosition)
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.LastPosition then return false end
   local now=os.clock()
@@ -605,8 +597,10 @@ return function(context)
   -- Un golpe normal solo se amortigua: nunca restaura X/Z. La orientación
   -- válida inmediatamente anterior bloquea el giro impuesto por el impacto.
   local protectedRotation=self.FacingRotation or root.CFrame.Rotation
-  if math.abs(targetY-root.Position.Y)>0.08 or velocity.Magnitude>58 or root.AssemblyAngularVelocity.Magnitude>16 then
-   character:PivotTo(CFrame.new(root.Position.X,targetY,root.Position.Z)*protectedRotation)
+  local targetX,targetZ=root.Position.X,root.Position.Z
+  if restorePosition then targetX,targetZ=self.LastPosition.X,self.LastPosition.Z end
+  if restorePosition or math.abs(targetY-root.Position.Y)>0.08 or velocity.Magnitude>58 or root.AssemblyAngularVelocity.Magnitude>16 then
+   character:PivotTo(CFrame.new(targetX,targetY,targetZ)*protectedRotation)
   end
   local desired=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
   local vertical=root.AssemblyLinearVelocity.Y
@@ -622,7 +616,9 @@ return function(context)
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.SafeCFrame then return false end
   local now=os.clock()
-  local returnCFrame=newestSafeBeforeImpact(now) or self.SafeCFrame
+  -- La emergencia vuelve exclusivamente al último punto observado antes del
+  -- impacto; nunca elige una posición histórica que pueda pertenecer a otra zona.
+  local returnCFrame=CFrame.new(self.LastPosition or root.Position)*(self.FacingRotation or root.CFrame.Rotation)
   returnCFrame=validateReturnCFrame(character,humanoid,root,returnCFrame)
   -- Recupera la posición sin cambiar la dirección hacia la que mira el jugador.
   local protectedRotation=self.FacingRotation or root.CFrame.Rotation
@@ -761,7 +757,8 @@ return function(context)
      self.ExtremeFrames=0
      self:Correct()
     else
-     self:Deflect(dt,extreme)
+     local displaced=delta>allowed
+     self:Deflect(dt,displaced,displaced)
      record("IMPULSE_DEFLECTED",{Delta=delta,Velocity=velocity.Magnitude,AngularVelocity=angular})
     end
     return
