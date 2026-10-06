@@ -590,7 +590,7 @@ return function(context)
  function Core:GetHistory()return self.History end
  function Core:GetState()return self.State end
 
- function Core:Deflect(dt)
+ function Core:Deflect(dt,extendThreat)
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.LastPosition then return false end
   local now=os.clock()
@@ -607,12 +607,21 @@ return function(context)
   -- referencia de posición. Solo se suma el movimiento solicitado por el usuario.
   local targetPosition=Vector3.new(self.LastPosition.X+horizontal.X,targetY,self.LastPosition.Z+horizontal.Z)
   local protectedRotation=self.FacingRotation or root.CFrame.Rotation
+  local flatDirection=Vector3.new(humanoid.MoveDirection.X,0,humanoid.MoveDirection.Z)
+  if flatDirection.Magnitude>0.05 then
+   protectedRotation=CFrame.lookAt(Vector3.zero,flatDirection.Unit).Rotation
+   self.FacingRotation=protectedRotation
+  end
   character:PivotTo(CFrame.new(targetPosition)*protectedRotation)
   zeroCharacter(character)
   root.AssemblyLinearVelocity=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
   root.AssemblyAngularVelocity=Vector3.zero
+  local state=humanoid:GetState()
+  if state==Enum.HumanoidStateType.Physics or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then
+   pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+  end
   self.LastPosition=targetPosition
-  self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
+  if extendThreat~=false then self.ThreatUntil=math.max(self.ThreatUntil,now+0.45) end
   setState("CONTACT",0.55,"IMPULSE_DEFLECTED")
   return true
  end
@@ -773,6 +782,13 @@ return function(context)
     else
      return
     end
+   end
+
+   -- Mientras el anti-ram o una unión hostil siguen activos, no aceptar la
+   -- posición/rotación impuesta por el atacante como una referencia nueva.
+   if now<self.ThreatUntil or next(hostiles)~=nil then
+    self:Deflect(dt,false)
+    return
    end
 
    self.LastPosition=currentRoot.Position
