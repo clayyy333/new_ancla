@@ -3,6 +3,7 @@ return function(context)
 	setfenv(1,context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
+	local MarketplaceService=game:GetService("MarketplaceService")
 	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil}
 	local targetStates={}
 	local requestFn
@@ -87,6 +88,16 @@ return function(context)
 		return string.upper(code)
 	end
 
+	local function gameName()
+		local ok,info=pcall(function()
+			return MarketplaceService:GetProductInfo(game.PlaceId,Enum.InfoType.Asset)
+		end)
+		if ok and type(info)=="table" and type(info.Name)=="string" and info.Name~="" then
+			return info.Name:sub(1,160)
+		end
+		return tostring(game.Name or ""):sub(1,160)
+	end
+
 	local function startSession()
 		local response=call("POST","/api/v1/sessions/start",{
 			user_id=player.UserId,
@@ -96,7 +107,7 @@ return function(context)
 			country_code=countryCode(),
 			place_id=game.PlaceId,
 			job_id=game.JobId,
-			game_name=tostring(game.Name or ""),
+			game_name=gameName(),
 			executor=executorName(),
 			script_version="anchor-guard-1",
 		})
@@ -306,6 +317,13 @@ return function(context)
 			task.spawn(function() call("POST","/api/v1/sessions/end",nil,token) end)
 		end
 	end
+
+	local sharedEnvironment=_genv and _genv() or nil
+	local previousGuard=sharedEnvironment and sharedEnvironment.VR7BackendAnchorGuard
+	if previousGuard and previousGuard~=Guard and type(previousGuard.Destroy)=="function" then
+		pcall(function() previousGuard:Destroy() end)
+	end
+	if sharedEnvironment then sharedEnvironment.VR7BackendAnchorGuard=Guard end
 
 	BackendAnchorGuard=Guard
 	task.spawn(function() Guard:Start() end)

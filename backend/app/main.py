@@ -694,7 +694,7 @@ def admin_summary():
     with connection() as db:
         users = db.execute("SELECT COUNT(*) AS value FROM users").fetchone()["value"]
         active = db.execute(
-            "SELECT COUNT(*) AS value FROM sessions WHERE ended_at IS NULL AND last_seen>=?", (cutoff,)
+            "SELECT COUNT(DISTINCT user_id) AS value FROM sessions WHERE ended_at IS NULL AND last_seen>=?", (cutoff,)
         ).fetchone()["value"]
         seconds = db.execute("SELECT COALESCE(SUM(total_seconds),0) AS value FROM users").fetchone()["value"]
         games = db.execute(
@@ -724,7 +724,7 @@ def admin_summary():
 
 @app.get("/api/v1/admin/sessions", dependencies=[Depends(require_admin)])
 def admin_sessions(
-    scope: Literal["general", "focused"] = "general",
+    scope: Literal["general", "game", "focused"] = "general",
     place_id: int | None = None,
     job_id: str | None = Query(default=None, max_length=128),
     active_only: bool = True,
@@ -734,24 +734,40 @@ def admin_sessions(
     if active_only:
         clauses.append("s.ended_at IS NULL AND s.last_seen>=?")
         values.append(active_cutoff())
+    if scope in ("game", "focused"):
+        if place_id is None:
+            raise HTTPException(400, "Game scope requires place_id")
+        clauses.append("s.place_id=?")
+        values.append(place_id)
     if scope == "focused":
-        if place_id is None or not job_id:
-            raise HTTPException(400, "Focused scope requires place_id and job_id")
-        clauses.extend(["s.place_id=?", "s.job_id=?"])
-        values.extend([place_id, job_id])
+        if not job_id:
+            raise HTTPException(400, "Focused scope requires job_id")
+        clauses.append("s.job_id=?")
+        values.append(job_id)
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     values.append(limit)
     with connection() as db:
         rows = db.execute(
-            f"""SELECT s.id,s.user_id,u.username,u.display_name,u.country_code,
-                s.place_id,s.job_id,s.game_name,s.executor,s.script_version,
-                s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,s.anchor_mode,s.custom_fling_using,s.move_anchored_enabled
+            f"""WITH ranked AS (
+                SELECT s.id,s.user_id,u.username,u.display_name,u.country_code,
+                    s.place_id,s.job_id,s.game_name,s.executor,s.script_version,
+                    s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,
+                    s.anchor_mode,s.custom_fling_using,s.move_anchored_enabled,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY s.user_id,s.place_id,s.job_id
+                        ORDER BY s.last_seen DESC,s.started_at DESC
+                    ) AS row_number
                 FROM sessions s JOIN users u ON u.user_id=s.user_id
-                {where} ORDER BY s.last_seen DESC LIMIT ?""",
+                {where}
+            )
+            SELECT id,user_id,username,display_name,country_code,place_id,job_id,
+                game_name,executor,script_version,started_at,last_seen,ended_at,
+                credited_seconds,anchored,anchor_mode,custom_fling_using,move_anchored_enabled
+            FROM ranked WHERE row_number=1
+            ORDER BY last_seen DESC LIMIT ?""",
             values,
         ).fetchall()
     return {"sessions": [row_dict(row) for row in rows]}
-
 
 @app.get("/api/v1/admin/users", dependencies=[Depends(require_admin)])
 def admin_users(limit: int = Query(default=500, ge=1, le=2000)):
@@ -785,8 +801,8 @@ def admin_network_profiles(limit: int = Query(default=500, ge=1, le=2000)):
 def admin_servers():
     with connection() as db:
         rows = db.execute(
-            """SELECT place_id,job_id,MAX(game_name) AS game_name,COUNT(*) AS active_users,
-               SUM(CASE WHEN anchored=1 THEN 1 ELSE 0 END) AS anchored_users,
+            """SELECT place_id,job_id,MAX(game_name) AS game_name,COUNT(DISTINCT user_id) AS active_users,
+               COUNT(DISTINCT CASE WHEN anchored=1 THEN user_id END) AS anchored_users,
                MAX(last_seen) AS last_seen
                FROM sessions WHERE ended_at IS NULL AND last_seen>=?
                GROUP BY place_id,job_id ORDER BY active_users DESC,last_seen DESC""",
