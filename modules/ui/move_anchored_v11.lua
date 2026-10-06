@@ -1,26 +1,26 @@
--- Vista publica del modo Muévete Anclado.
+-- Vista owner de Muévete Anclado v1.1.
 return function(context)
 	setfenv(1,context)
-	moveAnchoredPanel=Instance.new("ScrollingFrame")
-	moveAnchoredPanel.Name="MoveAnchoredPanel"
-	moveAnchoredPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
-	moveAnchoredPanel.Position=UDim2.new(0,8,0,titleH+8)
-	moveAnchoredPanel.BackgroundTransparency=1
-	moveAnchoredPanel.BorderSizePixel=0
-	moveAnchoredPanel.ScrollBarThickness=3
-	moveAnchoredPanel.ScrollingDirection=Enum.ScrollingDirection.Y
-	moveAnchoredPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y
-	moveAnchoredPanel.CanvasSize=UDim2.new()
-	moveAnchoredPanel.Active=true
-	moveAnchoredPanel.Visible=false
-	moveAnchoredPanel.ZIndex=6
-	moveAnchoredPanel.Parent=content
+	moveAnchoredV11Panel=Instance.new("ScrollingFrame")
+	moveAnchoredV11Panel.Name="MoveAnchoredV11Panel"
+	moveAnchoredV11Panel.Size=UDim2.new(1,-16,1,-(titleH+20))
+	moveAnchoredV11Panel.Position=UDim2.new(0,8,0,titleH+8)
+	moveAnchoredV11Panel.BackgroundTransparency=1
+	moveAnchoredV11Panel.BorderSizePixel=0
+	moveAnchoredV11Panel.ScrollBarThickness=3
+	moveAnchoredV11Panel.ScrollingDirection=Enum.ScrollingDirection.Y
+	moveAnchoredV11Panel.AutomaticCanvasSize=Enum.AutomaticSize.Y
+	moveAnchoredV11Panel.CanvasSize=UDim2.new()
+	moveAnchoredV11Panel.Active=true
+	moveAnchoredV11Panel.Visible=false
+	moveAnchoredV11Panel.ZIndex=6
+	moveAnchoredV11Panel.Parent=content
 
 	local card=Instance.new("Frame")
 	card.Size=UDim2.new(1,0,0,isMobile and 154 or 166)
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
-	card.Parent=moveAnchoredPanel
+	card.Parent=moveAnchoredV11Panel
 	Instance.new("UICorner",card).CornerRadius=UDim.new(0,14)
 	RegisterTheme(card,"BackgroundColor3","secondary")
 	local padding=Instance.new("UIPadding")
@@ -31,7 +31,7 @@ return function(context)
 	local beta=Instance.new("TextLabel")
 	beta.Size=UDim2.new(1,0,0,38)
 	beta.BackgroundTransparency=1
-	beta.Text=isES and "Versión beta 1.0 (esta versión puede tener errores)" or "Beta version 1.0 (this version may contain errors)"
+	beta.Text=isES and "Versión privada 1.1 (prueba para owners)" or "Private version 1.1 (owner testing)"
 	beta.TextColor3=currentTheme.textDim
 	beta.Font=Enum.Font.GothamMedium
 	beta.TextSize=isMobile and 10 or 12
@@ -67,25 +67,25 @@ return function(context)
 	status.Parent=card
 	RegisterTheme(status,"TextColor3","textDim")
 
-	UpdateMoveAnchoredPanel=function(message)
-		local running=MobileAnchorCore and MobileAnchorCore:IsRunning()
+	UpdateMoveAnchoredV11Panel=function(message)
+		local running=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
 		toggle.Text=running and (isES and "Desactivar" or "Disable") or (isES and "Activar" or "Enable")
 		toggle.BackgroundColor3=running and currentTheme.accent or currentTheme.tertiary
-		local automaticBusy=(AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
+		local automaticBusy=(AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)) or (MobileAnchorCore and MobileAnchorCore:IsRunning())
 		toggle.Active=not automaticBusy
 		status.Text=message or (running
-			and (isES and "Protección activa. Puedes caminar con el ancla." or "Protection active. You can walk while anchored.")
+			and (isES and "Protección v1.1 activa. Movimiento y seguro de superficie habilitados." or "v1.1 protection active. Movement and surface guard enabled.")
 			or (isES and "Protección detenida." or "Protection stopped."))
 	end
 
 	toggle.MouseButton1Click:Connect(function()
-		if not MobileAnchorCore then return end
-		local ok,message=MobileAnchorCore:Toggle()
-		UpdateMoveAnchoredPanel(ok and nil or message)
+		if not MobileAnchorV11Core then return end
+		local ok,message=MobileAnchorV11Core:Toggle()
+		UpdateMoveAnchoredV11Panel(ok and nil or message)
 		if UpdateAnchorPanel then UpdateAnchorPanel() end
 		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
-		if UpdateMoveAnchoredV11Panel then UpdateMoveAnchoredV11Panel() end
+		if UpdateMoveAnchoredPanel then UpdateMoveAnchoredPanel() end
 	end)
-	UpdateMoveAnchoredPanel()
+	UpdateMoveAnchoredV11Panel()
 	return true
 end

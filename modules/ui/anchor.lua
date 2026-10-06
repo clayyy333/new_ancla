@@ -79,7 +79,7 @@ return function(context)
 		heartbeatButton.BackgroundColor3=AnchorCore.HeartbeatEnabled and currentTheme.accent or currentTheme.tertiary
 		testButton.BackgroundColor3=AnchorCore.TestEnabled and currentTheme.accent or currentTheme.tertiary
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
-		local mobileBusy=MobileAnchorCore and MobileAnchorCore:IsRunning()
+		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
 		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy
 		anchorButton.Active=manualEnabled
 		antiSeatButton.Active=manualEnabled

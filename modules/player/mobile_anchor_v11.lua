@@ -1,4 +1,4 @@
--- Ancla movil experimental: locomocion protegida, puentes externos y Anti-Ram local.
+-- Muévete Anclado v1.1: variante owner con prevención anticipada y seguro de superficie.
 return function(context)
  setfenv(1,context)
 
@@ -7,6 +7,7 @@ return function(context)
   StableSince=0,RecoveryUntil=0,RecoveryMinUntil=0,ThreatUntil=0,
   LastReport=nil,History={},SafeHistory={},LastSafeSample=0,BrokenBridges=0,AntiRamBlocks=0,
   State="NORMAL",StateUntil=0,PhaseFolder=nil,LastThreatScan=0,LastHostileMaintain=0,
+  SurfaceSample=nil,SurfaceCorrections=0,
  }
  local persistent,runtime={},{ }
  local collisions={} -- [BasePart]={original=boolean,expires=number,permanent=boolean}
@@ -17,7 +18,11 @@ return function(context)
  local lastBridgeScan=0
  local lastSupportScan=0
 
- local function authorized()return true end
+ local OWNER_IDENTITIES={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
+ local function authorized()
+  local expected=OWNER_IDENTITIES[player.UserId]
+  return expected~=nil and string.lower(player.Name)==expected
+ end
 
  local function rig()
   local character=player.Character
@@ -173,6 +178,8 @@ return function(context)
  end
  local function pushSafePosition(root,now)
   if not root or now-Core.LastSafeSample<0.05 then return end
+  local surface=Core.SurfaceSample
+  if surface and now<surface.Expires and root.Position.Y<surface.RootY-0.12 then return end
   Core.LastSafeSample=now
   Core.SafeHistory[#Core.SafeHistory+1]={CFrame=root.CFrame,Time=now}
   if #Core.SafeHistory>30 then table.remove(Core.SafeHistory,1) end
@@ -199,15 +206,23 @@ return function(context)
   local forward=Vector3.new(root.CFrame.LookVector.X,0,root.CFrame.LookVector.Z)
   if forward.Magnitude>0.001 then forward=forward.Unit*1.15 else forward=Vector3.new(0,0,-1.15) end
   local origins={Vector3.zero,right,-right,forward,-forward}
-  local length=math.max(5.5,humanoid.HipHeight+root.Size.Y*0.5+3)
-  for _,offset in ipairs(origins) do
-   local result=workspace:Raycast(root.Position+offset+Vector3.new(0,0.5,0),Vector3.new(0,-length,0),params)
+  local clearance=humanoid.HipHeight+root.Size.Y*0.5
+  local length=math.max(8,clearance+5.5)
+  local bestSurface=nil
+  for index,offset in ipairs(origins) do
+   local result=workspace:Raycast(root.Position+offset+Vector3.new(0,2.5,0),Vector3.new(0,-length,0),params)
    local part=result and result.Instance
-   if part and part:IsA("BasePart") and not isOtherCharacterPart(part) then
-    local linear=part.AssemblyLinearVelocity
-    local angular=part.AssemblyAngularVelocity.Magnitude
-    local behavesAsFloor=math.abs(linear.Y)<12 and linear.Magnitude<35 and angular<6 and result.Normal.Y>0.35
+   local terrain=part==workspace.Terrain
+   if part and (terrain or part:IsA("BasePart")) and not isOtherCharacterPart(part) then
+    local linear=terrain and Vector3.zero or part.AssemblyLinearVelocity
+    local angular=terrain and 0 or part.AssemblyAngularVelocity.Magnitude
+    local collidable=terrain or part.CanCollide
+    local behavesAsFloor=collidable and math.abs(linear.Y)<12 and linear.Magnitude<35 and angular<6 and result.Normal.Y>0.35
     if behavesAsFloor then
+     local rootY=result.Position.Y+clearance
+     if index==1 and rootY<=root.Position.Y+1.5 and (not bestSurface or rootY>bestSurface.RootY) then
+      bestSurface={Part=part,Position=result.Position,Normal=result.Normal,RootY=rootY,Expires=now+0.16}
+     end
      supports[part]=now+0.24
      local collisionState=collisions[part]
      if collisionState and not collisionState.permanent then
@@ -217,6 +232,41 @@ return function(context)
     end
    end
   end
+  if bestSurface then Core.SurfaceSample=bestSurface
+  elseif Core.SurfaceSample and now>=Core.SurfaceSample.Expires then Core.SurfaceSample=nil end
+ end
+
+ local function validateReturnCFrame(character,humanoid,root,cframe)
+  local clearance=humanoid.HipHeight+root.Size.Y*0.5
+  local params=RaycastParams.new()
+  params.FilterType=Enum.RaycastFilterType.Exclude
+  params.FilterDescendantsInstances={character}
+  params.IgnoreWater=false
+  local origin=cframe.Position+Vector3.new(0,math.max(6,clearance+3),0)
+  local result=workspace:Raycast(origin,Vector3.new(0,-math.max(18,clearance+12),0),params)
+  if not result or result.Normal.Y<=0.35 or isOtherCharacterPart(result.Instance) then return cframe end
+  local floor=result.Instance
+  if floor:IsA("BasePart") and (not floor.CanCollide or floor.AssemblyLinearVelocity.Magnitude>=35 or floor.AssemblyAngularVelocity.Magnitude>=6) then return cframe end
+  local safeY=result.Position.Y+clearance
+  if cframe.Position.Y>=safeY-0.08 then return cframe end
+  return CFrame.new(cframe.Position.X,safeY+0.04,cframe.Position.Z)*cframe.Rotation
+ end
+
+ local function enforceSurface(character,humanoid,root,now)
+  local surface=Core.SurfaceSample
+  if not surface or now>=surface.Expires then return false end
+  local state=humanoid:GetState()
+  if state==Enum.HumanoidStateType.Jumping or (state==Enum.HumanoidStateType.Freefall and root.AssemblyLinearVelocity.Y>2) then return false end
+  local penetration=surface.RootY-root.Position.Y
+  if penetration<=0.14 then return false end
+  character:PivotTo(character:GetPivot()+Vector3.new(0,penetration+0.05,0))
+  local velocity=root.AssemblyLinearVelocity
+  root.AssemblyLinearVelocity=Vector3.new(velocity.X,math.max(0,velocity.Y),velocity.Z)
+  root.AssemblyAngularVelocity=Vector3.zero
+  Core.LastPosition=root.Position
+  Core.SurfaceCorrections+=1
+  record("SURFACE_RECOVERY",{Depth=penetration,Part=surface.Part})
+  return true
  end
 
  local function externalContainer(part)
@@ -274,7 +324,7 @@ return function(context)
   for _,part in ipairs(hostile.parts) do
    if part and part.Parent and part:IsA("BasePart") and not belongsTo(part,character) and not isSupportPart(part,now) then
     local closeEnough=root and (part.Position-root.Position).Magnitude<11
-    local shouldPhase=(part.CanCollide or closeEnough) and #hostile.phaseParts<6
+    local shouldPhase=(part.CanCollide or closeEnough) and #hostile.phaseParts<8
     if suppressPart(part,duration,false) then
      count+=1
      if shouldPhase then
@@ -471,7 +521,8 @@ return function(context)
      local relativeVelocity=externalVelocity-root.AssemblyLinearVelocity
      local closing=distance>0 and relativeVelocity:Dot(offset.Unit) or 0
      local angular=assemblyRoot.AssemblyAngularVelocity.Magnitude
-     local dangerous=(closing>18 and externalVelocity.Magnitude>24) or (distance<10 and angular>10) or externalVelocity.Magnitude>85
+     local timeToImpact=closing>0 and distance/closing or math.huge
+     local dangerous=(closing>12 and externalVelocity.Magnitude>20 and timeToImpact<0.9) or (distance<11 and angular>9) or externalVelocity.Magnitude>78
      if dangerous then isolateAssembly(part,"PROXIMITY_ANTI_RAM") end
     end
    end
@@ -550,6 +601,8 @@ return function(context)
   local humanoidState=humanoid:GetState()
   local legitimateJump=(humanoidState==Enum.HumanoidStateType.Jumping or humanoidState==Enum.HumanoidStateType.Freefall) and velocity.Y>0 and velocity.Y<70
   if math.abs(velocity.Y)>70 or (not legitimateJump and math.abs(velocity.Y)>42) then targetY=self.LastPosition.Y end
+  local surface=self.SurfaceSample
+  if surface and now<surface.Expires and not legitimateJump then targetY=math.max(targetY,surface.RootY+0.04) end
   local targetPosition=Vector3.new(self.LastPosition.X+horizontal.X,targetY,self.LastPosition.Z+horizontal.Z)
   local targetCFrame=CFrame.new(targetPosition)*root.CFrame.Rotation
   character:PivotTo(targetCFrame)
@@ -566,6 +619,7 @@ return function(context)
   if not character or not humanoid or not root or not self.SafeCFrame then return false end
   local now=os.clock()
   local returnCFrame=newestSafeBeforeImpact(now) or self.SafeCFrame
+  returnCFrame=validateReturnCFrame(character,humanoid,root,returnCFrame)
   self.SafeCFrame=returnCFrame
   character:PivotTo(returnCFrame)
   zeroCharacter(character)
@@ -585,8 +639,9 @@ return function(context)
  end
 
  function Core:Start()
-  if MobileAnchorV11Core and MobileAnchorV11Core:IsRunning() then return false,isES and "Desactiva primero Muévete Anclado v1.1." or "Disable Move While Anchored v1.1 first." end
+  if not authorized() then return false,isES and "Solo los owners pueden usar esta prueba." or "Only owners can use this test." end
   if self.Running then return true end
+  if MobileAnchorCore and MobileAnchorCore:IsRunning() then return false,isES and "Desactiva primero Muévete Anclado 1.0." or "Disable Move While Anchored 1.0 first." end
   local character,humanoid,root=rig()
   if not character or not humanoid or humanoid.Health<=0 or not root then return false,isES and "Tu personaje no está disponible." or "Your character is unavailable." end
   if AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy) then return false,isES and "Desactiva primero el Ancla automática." or "Disable Automatic Anchor first." end
@@ -612,6 +667,8 @@ return function(context)
   self.StateUntil=0
   self.LastThreatScan=0
   self.LastHostileMaintain=0
+  self.SurfaceSample=nil
+  self.SurfaceCorrections=0
   table.clear(supports)
   table.clear(hostiles)
   cleanupPhase(os.clock(),true)
@@ -653,6 +710,7 @@ return function(context)
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
     local now=os.clock()
     refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
+    enforceSurface(currentCharacter,currentHumanoid,currentRoot,now)
     spatialAntiRam(now,currentCharacter,currentRoot)
     scanPlayerThreats(now,currentCharacter)
     maintainHostiles(now)
@@ -662,7 +720,7 @@ return function(context)
 
   runtime[#runtime+1]=RunService.Heartbeat:Connect(function(dt)
    if not self.Running then return end
-   if (AnchorCore and (AnchorCore.TestEnabled or AnchorCore.AnclaEnabled)) or (AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)) then self:Stop();return end
+   if (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (AnchorCore and (AnchorCore.TestEnabled or AnchorCore.AnclaEnabled)) or (AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)) then self:Stop();return end
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if not currentCharacter or not currentHumanoid or currentHumanoid.Health<=0 or not currentRoot then return end
    local now=os.clock()
@@ -670,6 +728,7 @@ return function(context)
    restoreExpiredCollisions(now)
    cleanupPhase(now,false)
    refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
+   enforceSurface(currentCharacter,currentHumanoid,currentRoot,now)
    maintainHostiles(now)
    if now>=self.StateUntil and next(hostiles)==nil and self.State~="NORMAL" then self.State="NORMAL";record("STATE_CHANGE",{State="NORMAL",Reason="CLEAR"}) end
    local bridgeInterval=now<self.ThreatUntil and 0.08 or 0.25
@@ -709,12 +768,12 @@ return function(context)
    local stable=motionStable and now>=self.ThreatUntil
    if stable then
     if self.StableSince==0 then self.StableSince=now end
-    if now-self.StableSince>=0.18 then self.SafeCFrame=currentRoot.CFrame end
+    if now-self.StableSince>=0.18 then self.SafeCFrame=validateReturnCFrame(currentCharacter,currentHumanoid,currentRoot,currentRoot.CFrame) end
    else
     self.StableSince=0
    end
   end)
-  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
+  if UpdateMoveAnchoredV11Panel then task.defer(UpdateMoveAnchoredV11Panel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
   if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true
@@ -734,12 +793,13 @@ return function(context)
   self.StableSince=0
   self.State="NORMAL"
   self.StateUntil=0
+  self.SurfaceSample=nil
   table.clear(supports)
   table.clear(hostiles)
   cleanupPhase(os.clock(),true)
   table.clear(self.SafeHistory)
   self.LastSafeSample=0
-  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
+  if UpdateMoveAnchoredV11Panel then task.defer(UpdateMoveAnchoredV11Panel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
   if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true
@@ -763,6 +823,6 @@ return function(context)
   end
  end)
 
- MobileAnchorCore=Core
+ MobileAnchorV11Core=Core
  return true
 end

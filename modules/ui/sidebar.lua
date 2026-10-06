@@ -330,11 +330,15 @@ return function(context)
 		end)
 	end
 
+	local ownerNames={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
+	local ownerName=ownerNames[player.UserId]
+	local isMoveAnchorOwner=ownerName~=nil and string.lower(player.Name)==ownerName
 	local anchorLabels = {
 		{"anchor", isES and "Ancla" or "Anchor"},
 		{"move_anchored", isES and "Muévete Anclado" or "Move While Anchored"},
-		{"anchor_auto", isES and "Ancla automática" or "Automatic Anchor"},
 	}
+	if isMoveAnchorOwner then table.insert(anchorLabels,{"move_anchored_v11",isES and "Muévete Anclado v1.1" or "Move While Anchored v1.1"}) end
+	table.insert(anchorLabels,{"anchor_auto", isES and "Ancla automática" or "Automatic Anchor"})
 	for index, item in ipairs(anchorLabels) do
 		local btn, stroke, gradient = CreateTextButton(
 			anchorNav, item[2], item[1],

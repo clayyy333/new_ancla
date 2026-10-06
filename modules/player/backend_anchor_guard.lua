@@ -257,7 +257,7 @@ return function(context)
 				else
 					local anchored,mode,checkpoint=anchorState()
 					local customFlingUsing=customFlingPanel~=nil and customFlingPanel.Visible==true and CustomFlingUsageActive==true
-					local moveAnchoredEnabled=MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()
+					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning())
 					local anchorFeatures=Guard.AnchorGuardEnabled==true
 					if not anchorFeatures then
 						anchored,mode,checkpoint=false,"",nil

@@ -20,7 +20,7 @@ return function(context)
 		AnchorCore:SetAncla(false)
 	end
 	function Core:Start(mode)
-		if MobileAnchorCore and MobileAnchorCore:IsRunning() then return false,isES and "Desactiva primero Muévete Anclado." or "Disable Move While Anchored first." end
+		if (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()) then return false,isES and "Desactiva primero Muévete Anclado." or "Disable Move While Anchored first." end
 		if self.Busy then return false,isES and "Hay una operación en curso." or "An operation is in progress." end
 		if self.Mode then return self.Mode==mode,self.Mode==mode and nil or (isES and "Desactiva primero el otro modo." or "Disable the other mode first.") end
 		local engine=mode=="delta" and AutoSkateDelta or mode=="xeno" and AutoSkateXeno or nil
