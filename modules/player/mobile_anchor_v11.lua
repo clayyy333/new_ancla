@@ -7,7 +7,7 @@ return function(context)
   StableSince=0,RecoveryUntil=0,RecoveryMinUntil=0,ThreatUntil=0,
   LastReport=nil,History={},SafeHistory={},LastSafeSample=0,BrokenBridges=0,AntiRamBlocks=0,
   State="NORMAL",StateUntil=0,PhaseFolder=nil,LastThreatScan=0,LastHostileMaintain=0,
-  SurfaceSample=nil,SurfaceCorrections=0,
+  SurfaceSample=nil,SurfaceCorrections=0,ExtremeFrames=0,RecoveryPosition=nil,FacingRotation=nil,RecoveryRotation=nil,
  }
  local persistent,runtime={},{ }
  local collisions={} -- [BasePart]={original=boolean,expires=number,permanent=boolean}
@@ -188,7 +188,8 @@ return function(context)
  local function newestSafeBeforeImpact(now)
   for index=#Core.SafeHistory,1,-1 do
    local sample=Core.SafeHistory[index]
-   if sample and now-sample.Time>=0.08 and now-sample.Time<=2 then return sample.CFrame end
+   -- Evita regresar a un lugar por el que el jugador pasó hace varios segundos.
+   if sample and now-sample.Time>=0.05 and now-sample.Time<=0.35 then return sample.CFrame end
   end
   return Core.SafeCFrame
  end
@@ -590,26 +591,29 @@ return function(context)
  function Core:GetHistory()return self.History end
  function Core:GetState()return self.State end
 
- function Core:Deflect(dt)
+ function Core:Deflect(dt,preserveReference)
   local character,humanoid,root=rig()
   if not character or not humanoid or not root or not self.LastPosition then return false end
   local now=os.clock()
   local velocity=root.AssemblyLinearVelocity
-  local step=math.min(humanoid.WalkSpeed*math.max(dt,1/60)*1.2,2.5)
-  local horizontal=humanoid.MoveDirection.Magnitude>0.05 and humanoid.MoveDirection.Unit*step or Vector3.zero
   local targetY=root.Position.Y
   local humanoidState=humanoid:GetState()
   local legitimateJump=(humanoidState==Enum.HumanoidStateType.Jumping or humanoidState==Enum.HumanoidStateType.Freefall) and velocity.Y>0 and velocity.Y<70
   if math.abs(velocity.Y)>70 or (not legitimateJump and math.abs(velocity.Y)>42) then targetY=self.LastPosition.Y end
   local surface=self.SurfaceSample
   if surface and now<surface.Expires and not legitimateJump then targetY=math.max(targetY,surface.RootY+0.04) end
-  local targetPosition=Vector3.new(self.LastPosition.X+horizontal.X,targetY,self.LastPosition.Z+horizontal.Z)
-  local targetCFrame=CFrame.new(targetPosition)*root.CFrame.Rotation
-  character:PivotTo(targetCFrame)
-  zeroCharacter(character)
-  root.AssemblyLinearVelocity=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
+  -- Un golpe normal solo se amortigua: nunca restaura X/Z. La orientación
+  -- válida inmediatamente anterior bloquea el giro impuesto por el impacto.
+  local protectedRotation=self.FacingRotation or root.CFrame.Rotation
+  if math.abs(targetY-root.Position.Y)>0.08 or velocity.Magnitude>58 or root.AssemblyAngularVelocity.Magnitude>16 then
+   character:PivotTo(CFrame.new(root.Position.X,targetY,root.Position.Z)*protectedRotation)
+  end
+  local desired=humanoid.MoveDirection*math.min(humanoid.WalkSpeed,26)
+  local vertical=root.AssemblyLinearVelocity.Y
+  if math.abs(vertical)>42 and not legitimateJump then vertical=0 end
+  root.AssemblyLinearVelocity=Vector3.new(desired.X,vertical,desired.Z)
   root.AssemblyAngularVelocity=Vector3.zero
-  self.LastPosition=targetPosition
+  if not preserveReference then self.LastPosition=root.Position end
   self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
   setState("CONTACT",0.55,"IMPULSE_DEFLECTED")
   return true
@@ -620,7 +624,12 @@ return function(context)
   local now=os.clock()
   local returnCFrame=newestSafeBeforeImpact(now) or self.SafeCFrame
   returnCFrame=validateReturnCFrame(character,humanoid,root,returnCFrame)
+  -- Recupera la posición sin cambiar la dirección hacia la que mira el jugador.
+  local protectedRotation=self.FacingRotation or root.CFrame.Rotation
+  returnCFrame=CFrame.new(returnCFrame.Position)*protectedRotation
   self.SafeCFrame=returnCFrame
+  self.RecoveryPosition=returnCFrame.Position
+  self.RecoveryRotation=protectedRotation
   character:PivotTo(returnCFrame)
   zeroCharacter(character)
   table.clear(self.SafeHistory)
@@ -654,10 +663,14 @@ return function(context)
 
   self.Running=true
   self.SafeCFrame=root.CFrame
+  self.FacingRotation=root.CFrame.Rotation
+  self.RecoveryRotation=nil
   self.LastPosition=root.Position
   self.GraceUntil=os.clock()+0.35
   self.RecoveryUntil=0
   self.RecoveryMinUntil=0
+  self.RecoveryPosition=nil
+  self.ExtremeFrames=0
   self.ThreatUntil=0
   self.StableSince=os.clock()
   self.Corrections=0
@@ -741,19 +754,25 @@ return function(context)
    local threatened=now>self.GraceUntil and (velocity.Magnitude>58 or angular>16 or delta>allowed)
    if threatened then
     self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
-    if delta>22 or (self.SafeCFrame and currentRoot.Position.Y<self.SafeCFrame.Position.Y-30) then
+    local extreme=delta>22 or (self.SafeCFrame and currentRoot.Position.Y<self.SafeCFrame.Position.Y-30)
+    self.ExtremeFrames=extreme and (self.ExtremeFrames+1) or 0
+    -- Dos lecturas consecutivas filtran picos falsos sin retrasar la amortiguación.
+    if self.ExtremeFrames>=2 then
+     self.ExtremeFrames=0
      self:Correct()
     else
-     self:Deflect(dt)
+     self:Deflect(dt,extreme)
      record("IMPULSE_DEFLECTED",{Delta=delta,Velocity=velocity.Magnitude,AngularVelocity=angular})
     end
     return
    end
 
+   self.ExtremeFrames=0
    if now<self.RecoveryUntil then
-    currentCharacter:PivotTo(self.SafeCFrame)
+    local recoveryPosition=self.RecoveryPosition or self.SafeCFrame.Position
+    currentCharacter:PivotTo(CFrame.new(recoveryPosition)*(self.RecoveryRotation or self.FacingRotation or currentRoot.CFrame.Rotation))
     zeroCharacter(currentCharacter)
-    self.LastPosition=self.SafeCFrame.Position
+    self.LastPosition=recoveryPosition
     if now>=self.RecoveryMinUntil and velocity.Magnitude<8 and angular<4 then
      self.RecoveryUntil=0;self.RecoveryMinUntil=0
     else
@@ -762,6 +781,7 @@ return function(context)
    end
 
    self.LastPosition=currentRoot.Position
+   self.FacingRotation=currentRoot.CFrame.Rotation
    local grounded=currentHumanoid.FloorMaterial~=Enum.Material.Air
    local motionStable=grounded and math.abs(velocity.Y)<8 and velocity.Magnitude<math.max(26,currentHumanoid.WalkSpeed+8) and angular<5
    if motionStable then pushSafePosition(currentRoot,now) end
@@ -785,6 +805,10 @@ return function(context)
   disconnectRuntime()
   restoreCollisions()
   self.SafeCFrame=nil
+  self.RecoveryPosition=nil
+  self.RecoveryRotation=nil
+  self.FacingRotation=nil
+  self.ExtremeFrames=0
   self.LastPosition=nil
   self.GraceUntil=0
   self.RecoveryUntil=0
