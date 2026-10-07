@@ -47,6 +47,7 @@ return function(context)
 	versionButton.Position=UDim2.new(0,0,0,46)
 	versionButton.BackgroundColor3=currentTheme.tertiary
 	versionButton.TextColor3=currentTheme.text
+	versionButton.TextXAlignment=Enum.TextXAlignment.Left
 	versionButton.Font=Enum.Font.GothamSemibold
 	versionButton.TextSize=isMobile and 11 or 13
 	versionButton.AutoButtonColor=false
@@ -54,6 +55,87 @@ return function(context)
 	versionButton.Parent=card
 	Instance.new("UICorner",versionButton).CornerRadius=UDim.new(0,10)
 	RegisterTheme(versionButton,"TextColor3","text")
+	local versionPadding=Instance.new("UIPadding")
+	versionPadding.PaddingLeft=UDim.new(0,12)
+	versionPadding.PaddingRight=UDim.new(0,38)
+	versionPadding.Parent=versionButton
+	local versionArrow=Instance.new("TextLabel")
+	versionArrow.Size=UDim2.new(0,28,1,0)
+	versionArrow.Position=UDim2.new(1,-32,0,0)
+	versionArrow.BackgroundTransparency=1
+	versionArrow.TextColor3=currentTheme.textDim
+	versionArrow.Font=Enum.Font.GothamBold
+	versionArrow.TextSize=isMobile and 11 or 13
+	versionArrow.ZIndex=9
+	versionArrow.Parent=versionButton
+	RegisterTheme(versionArrow,"TextColor3","textDim")
+
+	local dismissOverlay=Instance.new("TextButton")
+	dismissOverlay.Name="VersionDropdownDismiss"
+	dismissOverlay.Size=UDim2.new(1,0,1,0)
+	dismissOverlay.Position=UDim2.new(0,0,0,0)
+	dismissOverlay.BackgroundTransparency=1
+	dismissOverlay.Text=""
+	dismissOverlay.AutoButtonColor=false
+	dismissOverlay.Visible=false
+	dismissOverlay.ZIndex=18
+	dismissOverlay.Parent=content
+
+	local versionDropdown=Instance.new("Frame")
+	versionDropdown.Name="VersionDropdown"
+	versionDropdown.Size=UDim2.new(1,0,0,82)
+	versionDropdown.Position=UDim2.new(0,0,0,88)
+	versionDropdown.BackgroundColor3=currentTheme.tertiary
+	versionDropdown.BorderSizePixel=0
+	versionDropdown.Visible=false
+	versionDropdown.ZIndex=20
+	versionDropdown.Parent=card
+	Instance.new("UICorner",versionDropdown).CornerRadius=UDim.new(0,10)
+	local dropdownStroke=Instance.new("UIStroke")
+	dropdownStroke.Color=currentTheme.accent
+	dropdownStroke.Thickness=1
+	dropdownStroke.Transparency=.35
+	dropdownStroke.Parent=versionDropdown
+	RegisterTheme(versionDropdown,"BackgroundColor3","tertiary")
+	RegisterTheme(dropdownStroke,"Color","accent")
+	local dropdownPadding=Instance.new("UIPadding")
+	dropdownPadding.PaddingTop=UDim.new(0,4)
+	dropdownPadding.PaddingBottom=UDim.new(0,4)
+	dropdownPadding.PaddingLeft=UDim.new(0,4)
+	dropdownPadding.PaddingRight=UDim.new(0,4)
+	dropdownPadding.Parent=versionDropdown
+	local dropdownLayout=Instance.new("UIListLayout")
+	dropdownLayout.Padding=UDim.new(0,4)
+	dropdownLayout.SortOrder=Enum.SortOrder.LayoutOrder
+	dropdownLayout.Parent=versionDropdown
+	local versionOptions={}
+	for index,version in ipairs({"1.0","1.1"}) do
+		local option=Instance.new("TextButton")
+		option.Name="Version"..version
+		option.Size=UDim2.new(1,0,0,35)
+		option.BackgroundColor3=currentTheme.secondary
+		option.TextColor3=currentTheme.text
+		option.TextXAlignment=Enum.TextXAlignment.Left
+		option.Font=Enum.Font.GothamMedium
+		option.TextSize=isMobile and 11 or 13
+		option.AutoButtonColor=false
+		option.ZIndex=21
+		option.LayoutOrder=index
+		option.Parent=versionDropdown
+		Instance.new("UICorner",option).CornerRadius=UDim.new(0,8)
+		local optionPadding=Instance.new("UIPadding")
+		optionPadding.PaddingLeft=UDim.new(0,12)
+		optionPadding.PaddingRight=UDim.new(0,12)
+		optionPadding.Parent=option
+		RegisterTheme(option,"TextColor3","text")
+		versionOptions[version]=option
+	end
+	local dropdownOpen=false
+	local function SetVersionDropdown(open)
+		dropdownOpen=open==true
+		versionDropdown.Visible=dropdownOpen
+		dismissOverlay.Visible=dropdownOpen
+	end
 
 	local toggle=Instance.new("TextButton")
 	toggle.Size=UDim2.new(1,0,0,46)
@@ -90,8 +172,15 @@ return function(context)
 			and (isES and "Versión beta 1.1 (esta versión puede tener errores)" or "Beta version 1.1 (this version may contain errors)")
 			or (isES and "Versión beta 1.0 (esta versión puede tener errores)" or "Beta version 1.0 (this version may contain errors)")
 		versionButton.Text=(isES and "Versión seleccionada: " or "Selected version: ")..selectedVersion
+		versionArrow.Text=dropdownOpen and "▲" or "▼"
 		versionButton.Active=not running
 		versionButton.BackgroundColor3=running and currentTheme.secondary or currentTheme.tertiary
+		if running and dropdownOpen then SetVersionDropdown(false) end
+		for version,option in pairs(versionOptions) do
+			local selected=version==selectedVersion
+			option.Text=(selected and "✓  " or "     ")..(isES and "Versión " or "Version ")..version
+			option.BackgroundColor3=selected and currentTheme.accent or currentTheme.secondary
+		end
 		toggle.Text=running and (isES and "Desactivar v"..activeVersion or "Disable v"..activeVersion) or (isES and "Activar" or "Enable")
 		toggle.BackgroundColor3=running and currentTheme.accent or currentTheme.tertiary
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
@@ -101,13 +190,24 @@ return function(context)
 			or (isES and "Protección detenida." or "Protection stopped."))
 	end
 
-	versionButton.MouseButton1Click:Connect(function()
+	versionButton.Activated:Connect(function()
 		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
 		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
 		if running10 or running11 then return end
-		selectedVersion=selectedVersion=="1.0" and "1.1" or "1.0"
+		SetVersionDropdown(not dropdownOpen)
 		UpdateMoveAnchoredPanel()
 	end)
+	dismissOverlay.Activated:Connect(function()
+		SetVersionDropdown(false)
+		UpdateMoveAnchoredPanel()
+	end)
+	for version,option in pairs(versionOptions) do
+		option.Activated:Connect(function()
+			selectedVersion=version
+			SetVersionDropdown(false)
+			UpdateMoveAnchoredPanel()
+		end)
+	end
 
 	toggle.MouseButton1Click:Connect(function()
 		local core10=MobileAnchorCore
