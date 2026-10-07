@@ -16,10 +16,10 @@ if brandRevealScreen and brandRevealScreen.Parent then
 	main.Size=UDim2.new(openSize.X.Scale*.965,math.floor(openSize.X.Offset*.965),openSize.Y.Scale*.965,math.floor(openSize.Y.Offset*.965))
 	main.BackgroundTransparency=1
 	mainStroke.Transparency=1
-	TweenService:Create(main,TweenInfo.new(.62,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=openSize,BackgroundTransparency=0}):Play()
-	TweenService:Create(mainStroke,TweenInfo.new(.52,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Transparency=0}):Play()
-	TweenService:Create(brandRevealScreen,TweenInfo.new(.62,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=1}):Play()
-	task.wait(.64)
+	TweenService:Create(main,TweenInfo.new(.82,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=openSize,BackgroundTransparency=0}):Play()
+	TweenService:Create(mainStroke,TweenInfo.new(.72,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{Transparency=0}):Play()
+	TweenService:Create(brandRevealScreen,TweenInfo.new(.82,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
+	task.wait(.84)
 	if brandRevealScreen and brandRevealScreen.Parent then brandRevealScreen:Destroy() end
 	brandRevealScreen=nil
 	brandRevealCard=nil
