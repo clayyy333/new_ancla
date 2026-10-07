@@ -70,16 +70,6 @@ return function(context)
 	versionArrow.Parent=versionButton
 	RegisterTheme(versionArrow,"TextColor3","textDim")
 
-	local dismissOverlay=Instance.new("TextButton")
-	dismissOverlay.Name="VersionDropdownDismiss"
-	dismissOverlay.Size=UDim2.new(1,0,1,0)
-	dismissOverlay.Position=UDim2.new(0,0,0,0)
-	dismissOverlay.BackgroundTransparency=1
-	dismissOverlay.Text=""
-	dismissOverlay.AutoButtonColor=false
-	dismissOverlay.Visible=false
-	dismissOverlay.ZIndex=18
-	dismissOverlay.Parent=content
 
 	local versionDropdown=Instance.new("Frame")
 	versionDropdown.Name="VersionDropdown"
@@ -134,7 +124,6 @@ return function(context)
 	local function SetVersionDropdown(open)
 		dropdownOpen=open==true
 		versionDropdown.Visible=dropdownOpen
-		dismissOverlay.Visible=dropdownOpen
 	end
 
 	local toggle=Instance.new("TextButton")
@@ -197,10 +186,7 @@ return function(context)
 		SetVersionDropdown(not dropdownOpen)
 		UpdateMoveAnchoredPanel()
 	end)
-	dismissOverlay.Activated:Connect(function()
-		SetVersionDropdown(false)
-		UpdateMoveAnchoredPanel()
-	end)
+
 	for version,option in pairs(versionOptions) do
 		option.Activated:Connect(function()
 			selectedVersion=version
@@ -208,6 +194,31 @@ return function(context)
 			UpdateMoveAnchoredPanel()
 		end)
 	end
+
+	local function PointInside(guiObject,position)
+		local topLeft=guiObject.AbsolutePosition
+		local size=guiObject.AbsoluteSize
+		return position.X>=topLeft.X and position.X<=topLeft.X+size.X
+			and position.Y>=topLeft.Y and position.Y<=topLeft.Y+size.Y
+	end
+	local outsideConnection=UserInputService.InputBegan:Connect(function(input)
+		if not dropdownOpen then return end
+		local inputType=input.UserInputType
+		if inputType~=Enum.UserInputType.MouseButton1 and inputType~=Enum.UserInputType.Touch then return end
+		local position=input.Position
+		if PointInside(versionButton,position) or PointInside(versionDropdown,position) then return end
+		SetVersionDropdown(false)
+		UpdateMoveAnchoredPanel()
+	end)
+	moveAnchoredPanel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not moveAnchoredPanel.Visible and dropdownOpen then
+			SetVersionDropdown(false)
+			UpdateMoveAnchoredPanel()
+		end
+	end)
+	gui.Destroying:Connect(function()
+		if outsideConnection then outsideConnection:Disconnect();outsideConnection=nil end
+	end)
 
 	toggle.MouseButton1Click:Connect(function()
 		local core10=MobileAnchorCore

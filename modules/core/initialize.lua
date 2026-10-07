@@ -7,7 +7,23 @@ return function(context)
 
 main.Rotation = 0
 openSize = GetDefaultSize()
-if languageRevealScreen and languageRevealScreen.Parent then
+if brandRevealScreen and brandRevealScreen.Parent then
+	if languageRevealScreen and languageRevealScreen.Parent then
+		languageRevealScreen:Destroy()
+		languageRevealScreen=nil
+		languageRevealLine=nil
+	end
+	main.Size=UDim2.new(openSize.X.Scale*.965,math.floor(openSize.X.Offset*.965),openSize.Y.Scale*.965,math.floor(openSize.Y.Offset*.965))
+	main.BackgroundTransparency=1
+	mainStroke.Transparency=1
+	TweenService:Create(main,TweenInfo.new(.62,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=openSize,BackgroundTransparency=0}):Play()
+	TweenService:Create(mainStroke,TweenInfo.new(.52,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Transparency=0}):Play()
+	TweenService:Create(brandRevealScreen,TweenInfo.new(.62,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=1}):Play()
+	task.wait(.64)
+	if brandRevealScreen and brandRevealScreen.Parent then brandRevealScreen:Destroy() end
+	brandRevealScreen=nil
+	brandRevealCard=nil
+elseif languageRevealScreen and languageRevealScreen.Parent then
 	main.Size = UDim2.new(openSize.X.Scale * 0.96, math.floor(openSize.X.Offset * 0.96), openSize.Y.Scale * 0.96, math.floor(openSize.Y.Offset * 0.96))
 	main.BackgroundTransparency = 1
 	mainStroke.Transparency = 1

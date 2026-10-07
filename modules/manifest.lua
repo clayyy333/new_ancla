@@ -157,6 +157,8 @@ return {
 		"currentTheme",
 		"themeElements",
 		"mainStrokeGrad",
+		"brandRevealScreen",
+		"brandRevealCard",
 		"miniIconGrad",
 		"OpenMainWindow",
 		"MinimizeMainWindow",
