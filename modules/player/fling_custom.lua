@@ -33,6 +33,7 @@ local CONFIG = {
 	SHORT_DISTANCE_SCALE = 0.10,
 	DISPLACEMENT_DISTANCE = 1000,
 	MAX_CHASE_DISTANCE = 500,
+	CHASE_FALLBACK_DISTANCE = 1000,
 }
 local LIMITS = {
 	VERTICAL_DISTANCE={min=0.1,max=1.5,decimal=true},
@@ -41,7 +42,7 @@ local LIMITS = {
 	RECOVERY_DISTANCE={min=1,max=80}, NEAR_DISTANCE={min=0.5,max=6,decimal=true},
 	CONTACT_TIME={min=0.05,max=0.30,decimal=true},
 	FRONT_FLIP_SPEED={min=1,max=60},
-	DISPLACEMENT_DISTANCE={min=1,max=2109841}, MAX_CHASE_DISTANCE={min=50,max=5000},
+	DISPLACEMENT_DISTANCE={min=1,max=2109841}, MAX_CHASE_DISTANCE={min=50,max=1000},
 }
 
 
@@ -120,6 +121,7 @@ function VR7EfficientCore.new(provider)
 	self.WaitingForTarget = false
 	self.ChaseSuspended = false
 	self.TargetStopQueued = false
+	self.TargetMissingSince = nil
 	self.DistanceFromTarget = 0
 	self.State = "IDLE" -- IDLE / NORMAL / RECOVERY
 	self.RecoveryConsecutiveNear = 0
@@ -161,7 +163,7 @@ function VR7EfficientCore:IsShortDisplacementEnabled()
 end
 
 function VR7EfficientCore:SetContactTimeEnabled(enabled)
-	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar esta opción.","Stop Custom Fling before changing this option.") end
+	-- GetContactDuration consulta este estado en cada ciclo; cambiarlo en vivo es seguro.
 	if not self:IsAuthorized() then return false,T("Disponible próximamente.","Coming soon.") end
 	self.ContactTimeEnabled = enabled and true or false
 	return true,self.ContactTimeEnabled
@@ -435,6 +437,7 @@ function VR7EfficientCore:Start()
 	self.WaitingForTarget = false
 	self.ChaseSuspended = false
 	self.TargetStopQueued = false
+	self.TargetMissingSince = nil
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = "NEAR"
 	self.NearUntil = os.clock() + self:GetContactDuration()
@@ -466,7 +469,10 @@ function VR7EfficientCore:Start()
 		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
 		if not currentTargetRoot then
+			self.TargetMissingSince=self.TargetMissingSince or os.clock()
 			if not self.AutoRetryEnabled then
+				-- Una ausencia breve puede ser streaming y no un target perdido.
+				if os.clock()-self.TargetMissingSince<2.5 then return end
 				if not self.TargetStopQueued then
 					self.TargetStopQueued=true
 					task.defer(function()
@@ -488,8 +494,12 @@ function VR7EfficientCore:Start()
 			return
 		end
 
-		local outsideChaseRange=self.MaxChaseEnabled and self.AttackerCheckpoint
-			and (currentTargetRoot.Position-self.AttackerCheckpoint.Position).Magnitude>CONFIG.MAX_CHASE_DISTANCE
+		self.TargetMissingSince=nil
+
+		local chaseDistance=self.AttackerCheckpoint and (currentTargetRoot.Position-self.AttackerCheckpoint.Position).Magnitude or 0
+		local fallbackLimit=math.min(1000,math.max(CONFIG.MAX_CHASE_DISTANCE,CONFIG.CHASE_FALLBACK_DISTANCE))
+		-- Si supera el rango principal, todavía se persigue dentro del respaldo de 1000 studs.
+		local outsideChaseRange=self.MaxChaseEnabled and self.AttackerCheckpoint and chaseDistance>fallbackLimit
 		if outsideChaseRange then
 			if not self.ChaseSuspended then
 				self.ChaseSuspended=true
@@ -574,6 +584,7 @@ function VR7EfficientCore:Stop()
 	self.Running = false
 	self.State = "IDLE"
 	self.Stopping = true
+	if UpdateCustomFlingPanel then task.defer(UpdateCustomFlingPanel) end
 
 	-- Nuevo identificador de este ciclo de estabilización.
 	self.StopCycle = self.StopCycle + 1
@@ -699,9 +710,11 @@ function VR7EfficientCore:Stop()
 	self.WaitingForTarget = false
 	self.ChaseSuspended = false
 	self.TargetStopQueued = false
+	self.TargetMissingSince = nil
 	self.DistanceFromTarget = 0
 	self.RecoveryConsecutiveNear = 0
 	self.Stopping = false
+	if UpdateCustomFlingPanel then task.defer(UpdateCustomFlingPanel) end
 
 	return wasRunning
 end

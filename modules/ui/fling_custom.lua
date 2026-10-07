@@ -26,7 +26,7 @@ return function(context)
 		FRONT_FLIP_SPEED=isES and "Controla la rapidez de la voltereta hacia adelante de nuestro personaje durante el contacto. Ejemplo: 1 produce un giro lento; 60 genera una voltereta mucho más rápida." or "Controls how quickly our character performs the forward flip during contact. Example: 1 creates a slow rotation, while 60 produces a much faster flip.",
 		DISPLACEMENT_DISTANCE=isES and "Define cuánto se aleja nuestro HRP antes de volver a la posición actual del target. Solo desplaza nuestro personaje. Ejemplo: un valor pequeño crea un recorrido corto; uno alto lo envía mucho más lejos antes del regreso." or "Sets how far our HRP travels before returning to the target's current position. It only moves our character. Example: a small value creates a short trip, while a high value sends it much farther away before returning.",
 		AUTO_RETRY=isES and "Si el objetivo muere o reinicia su personaje, el flujo se mantiene activo, limpia temporalmente las fuerzas y espera su nuevo HumanoidRootPart. Cuando reaparece, reinicia el ciclo sobre el nuevo personaje." or "If the target dies or resets, the flow stays active, temporarily clears forces, and waits for the new HumanoidRootPart. When it appears, the cycle restarts on the new character.",
-		MAX_CHASE_DISTANCE=isES and "Limita cuánto puede alejarse el objetivo desde el lugar donde activaste el fling. Si supera esta distancia, vuelves al punto inicial y la persecución queda en pausa hasta que regrese al rango." or "Limits how far the target may move from where you enabled the fling. Beyond this distance, you return to the starting point and pursuit pauses until the target returns within range.",
+		MAX_CHASE_DISTANCE=isES and "Usa 500 studs como rango principal. Si el objetivo no queda dentro de ese rango, continúa con un respaldo automático de hasta 1000 studs. Más allá de 1000, vuelves al punto inicial y la persecución queda en pausa." or "Uses 500 studs as the primary range. If the target is not within it, pursuit continues through an automatic fallback up to 1000 studs. Beyond 1000, you return to the starting point and pursuit pauses.",
 	}
 
 	local infoOverlay=Instance.new("TextButton")
@@ -131,8 +131,12 @@ return function(context)
 				row.plus.Active=not locked and optionEnabled and values[key]<limits[key].max
 			end
 			if row.toggle then
-				row.toggle.Active=not locked
-				row.toggle.Text=optionEnabled and (isES and "Activado" or "Enabled") or (isES and "Desactivado" or "Disabled")
+				row.toggle.Active=row.toggleMode=="contact" or not locked
+				if row.toggleMode=="contact" then
+					row.toggle.Text=optionEnabled and (isES and "Desactivar" or "Disable") or (isES and "Activar" or "Enable")
+				else
+					row.toggle.Text=optionEnabled and (isES and "Activado" or "Enabled") or (isES and "Desactivado" or "Disabled")
+				end
 				row.toggle.BackgroundColor3=optionEnabled and currentTheme.accent or currentTheme.tertiary
 			end
 		end
