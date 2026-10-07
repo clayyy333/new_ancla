@@ -54,7 +54,7 @@ return function(context)
 	card.Parent=overlay
 	Instance.new("UICorner",card).CornerRadius=UDim.new(0,10)
 	local scale=Instance.new("UIScale")
-	scale.Scale=.95
+	scale.Scale=.975
 	scale.Parent=card
 	local cardGradient=Instance.new("UIGradient")
 	cardGradient.Color=ColorSequence.new({
@@ -71,7 +71,7 @@ return function(context)
 
 	local title=Instance.new("TextLabel")
 	title.AnchorPoint=Vector2.new(.5,.5)
-	title.Position=UDim2.fromScale(.5,.47)
+	title.Position=UDim2.fromScale(.5,.44)
 	title.Size=UDim2.new(1,-28,0,isMobile and 40 or 46)
 	title.BackgroundTransparency=1
 	title.RichText=true
@@ -115,15 +115,15 @@ return function(context)
 	RunService.Heartbeat:Wait()
 	if not overlay.Parent then return true end
 
-	TweenService:Create(overlay,TweenInfo.new(.78,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.08}):Play()
-	TweenService:Create(shadow,TweenInfo.new(.92,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.66}):Play()
-	TweenService:Create(card,TweenInfo.new(1.04,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0}):Play()
-	TweenService:Create(stroke,TweenInfo.new(1.06,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=.12}):Play()
-	TweenService:Create(scale,TweenInfo.new(1.10,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Scale=1}):Play()
-	TweenService:Create(title,TweenInfo.new(1.02,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=0}):Play()
-	TweenService:Create(accent,TweenInfo.new(1.12,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
+	TweenService:Create(overlay,TweenInfo.new(1.40,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.08}):Play()
+	TweenService:Create(shadow,TweenInfo.new(1.55,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.66}):Play()
+	TweenService:Create(card,TweenInfo.new(1.65,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0}):Play()
+	TweenService:Create(stroke,TweenInfo.new(1.65,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=.12}):Play()
+	TweenService:Create(scale,TweenInfo.new(1.70,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Scale=1}):Play()
+	TweenService:Create(title,TweenInfo.new(1.60,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=0,Position=UDim2.fromScale(.5,.47)}):Play()
+	TweenService:Create(accent,TweenInfo.new(1.75,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
 
-	task.wait(2.69)
+	task.wait(3.32)
 	if not overlay.Parent then return true end
 	TweenService:Create(title,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=1,Position=UDim2.fromScale(.5,.44)}):Play()
 	TweenService:Create(accent,TweenInfo.new(.54,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,0,0,1),BackgroundTransparency=1}):Play()
