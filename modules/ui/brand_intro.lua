@@ -9,7 +9,7 @@ return function(context)
 	overlay.Name="PsychoBrandIntro"
 	overlay.Size=UDim2.fromScale(1,1)
 	overlay.BackgroundColor3=Color3.fromRGB(14,15,18)
-	overlay.BackgroundTransparency=1
+	overlay.BackgroundTransparency=0
 	overlay.BorderSizePixel=0
 	overlay.Active=true
 	overlay.ZIndex=5000
@@ -89,6 +89,16 @@ return function(context)
 		NumberSequenceKeypoint.new(1,1),
 	})
 	accentGradient.Parent=accent
+
+	-- Calcula toda la ventana detrás de una cubierta opaca. Esto evita que el
+	-- primer layout pesado ocurra durante el crossfade final.
+	if main and main.Parent then
+		main.Size=GetDefaultSize()
+		main.BackgroundTransparency=0
+		if mainStroke then mainStroke.Transparency=0 end
+	end
+	RunService.Heartbeat:Wait()
+	if not overlay.Parent then return true end
 
 	TweenService:Create(overlay,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.08}):Play()
 	TweenService:Create(shadow,TweenInfo.new(.64,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.66}):Play()
