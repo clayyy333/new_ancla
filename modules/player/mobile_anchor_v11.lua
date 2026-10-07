@@ -18,11 +18,6 @@ return function(context)
  local lastBridgeScan=0
  local lastSupportScan=0
 
- local OWNER_IDENTITIES={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
- local function authorized()
-  local expected=OWNER_IDENTITIES[player.UserId]
-  return expected~=nil and string.lower(player.Name)==expected
- end
 
  local function rig()
   local character=player.Character
@@ -584,7 +579,7 @@ return function(context)
   root.AssemblyAngularVelocity=Vector3.zero
  end
 
- function Core:IsAuthorized()return authorized()end
+ function Core:IsAuthorized()return true end
  function Core:IsRunning()return self.Running end
  function Core:GetLastReport()return self.LastReport end
  function Core:GetHistory()return self.History end
@@ -656,7 +651,6 @@ return function(context)
  end
 
  function Core:Start()
-  if not authorized() then return false,isES and "Solo los owners pueden usar esta prueba." or "Only owners can use this test." end
   if self.Running then return true end
   if MobileAnchorCore and MobileAnchorCore:IsRunning() then return false,isES and "Desactiva primero Muévete Anclado 1.0." or "Disable Move While Anchored 1.0 first." end
   local character,humanoid,root=rig()
@@ -804,7 +798,7 @@ return function(context)
     self.StableSince=0
    end
   end)
-  if UpdateMoveAnchoredV11Panel then task.defer(UpdateMoveAnchoredV11Panel) end
+  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
   if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true
@@ -833,7 +827,7 @@ return function(context)
   cleanupPhase(os.clock(),true)
   table.clear(self.SafeHistory)
   self.LastSafeSample=0
-  if UpdateMoveAnchoredV11Panel then task.defer(UpdateMoveAnchoredV11Panel) end
+  if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
   if UpdateAutoAnchorPanel then task.defer(UpdateAutoAnchorPanel) end
   return true

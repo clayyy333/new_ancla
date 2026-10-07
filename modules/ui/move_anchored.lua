@@ -1,6 +1,8 @@
--- Vista publica del modo Muévete Anclado.
+-- Vista publica y selector de versiones de Muévete Anclado.
 return function(context)
 	setfenv(1,context)
+	local selectedVersion="1.0"
+
 	moveAnchoredPanel=Instance.new("ScrollingFrame")
 	moveAnchoredPanel.Name="MoveAnchoredPanel"
 	moveAnchoredPanel.Size=UDim2.new(1,-16,1,-(titleH+20))
@@ -17,7 +19,7 @@ return function(context)
 	moveAnchoredPanel.Parent=content
 
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,isMobile and 154 or 166)
+	card.Size=UDim2.new(1,0,0,isMobile and 210 or 222)
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=moveAnchoredPanel
@@ -31,7 +33,6 @@ return function(context)
 	local beta=Instance.new("TextLabel")
 	beta.Size=UDim2.new(1,0,0,38)
 	beta.BackgroundTransparency=1
-	beta.Text=isES and "Versión beta 1.0 (esta versión puede tener errores)" or "Beta version 1.0 (this version may contain errors)"
 	beta.TextColor3=currentTheme.textDim
 	beta.Font=Enum.Font.GothamMedium
 	beta.TextSize=isMobile and 10 or 12
@@ -41,9 +42,22 @@ return function(context)
 	beta.Parent=card
 	RegisterTheme(beta,"TextColor3","textDim")
 
+	local versionButton=Instance.new("TextButton")
+	versionButton.Size=UDim2.new(1,0,0,38)
+	versionButton.Position=UDim2.new(0,0,0,46)
+	versionButton.BackgroundColor3=currentTheme.tertiary
+	versionButton.TextColor3=currentTheme.text
+	versionButton.Font=Enum.Font.GothamSemibold
+	versionButton.TextSize=isMobile and 11 or 13
+	versionButton.AutoButtonColor=false
+	versionButton.ZIndex=8
+	versionButton.Parent=card
+	Instance.new("UICorner",versionButton).CornerRadius=UDim.new(0,10)
+	RegisterTheme(versionButton,"TextColor3","text")
+
 	local toggle=Instance.new("TextButton")
 	toggle.Size=UDim2.new(1,0,0,46)
-	toggle.Position=UDim2.new(0,0,0,48)
+	toggle.Position=UDim2.new(0,0,0,94)
 	toggle.BackgroundColor3=currentTheme.tertiary
 	toggle.TextColor3=currentTheme.text
 	toggle.Font=Enum.Font.GothamBold
@@ -55,8 +69,8 @@ return function(context)
 	RegisterTheme(toggle,"TextColor3","text")
 
 	local status=Instance.new("TextLabel")
-	status.Size=UDim2.new(1,0,0,36)
-	status.Position=UDim2.new(0,0,0,104)
+	status.Size=UDim2.new(1,0,0,42)
+	status.Position=UDim2.new(0,0,0,150)
 	status.BackgroundTransparency=1
 	status.TextColor3=currentTheme.textDim
 	status.Font=Enum.Font.GothamMedium
@@ -68,23 +82,49 @@ return function(context)
 	RegisterTheme(status,"TextColor3","textDim")
 
 	UpdateMoveAnchoredPanel=function(message)
-		local running=MobileAnchorCore and MobileAnchorCore:IsRunning()
-		toggle.Text=running and (isES and "Desactivar" or "Disable") or (isES and "Activar" or "Enable")
+		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
+		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
+		local running=running10 or running11
+		local activeVersion=running11 and "1.1" or (running10 and "1.0" or nil)
+		beta.Text=selectedVersion=="1.1"
+			and (isES and "Versión beta 1.1 (esta versión puede tener errores)" or "Beta version 1.1 (this version may contain errors)")
+			or (isES and "Versión beta 1.0 (esta versión puede tener errores)" or "Beta version 1.0 (this version may contain errors)")
+		versionButton.Text=(isES and "Versión seleccionada: " or "Selected version: ")..selectedVersion
+		versionButton.Active=not running
+		versionButton.BackgroundColor3=running and currentTheme.secondary or currentTheme.tertiary
+		toggle.Text=running and (isES and "Desactivar v"..activeVersion or "Disable v"..activeVersion) or (isES and "Activar" or "Enable")
 		toggle.BackgroundColor3=running and currentTheme.accent or currentTheme.tertiary
-		local automaticBusy=(AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
+		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
 		toggle.Active=not automaticBusy
 		status.Text=message or (running
-			and (isES and "Protección activa. Puedes caminar con el ancla." or "Protection active. You can walk while anchored.")
+			and (isES and "Protección v"..activeVersion.." activa. Puedes caminar con el ancla." or "Protection v"..activeVersion.." active. You can walk while anchored.")
 			or (isES and "Protección detenida." or "Protection stopped."))
 	end
 
+	versionButton.MouseButton1Click:Connect(function()
+		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
+		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
+		if running10 or running11 then return end
+		selectedVersion=selectedVersion=="1.0" and "1.1" or "1.0"
+		UpdateMoveAnchoredPanel()
+	end)
+
 	toggle.MouseButton1Click:Connect(function()
-		if not MobileAnchorCore then return end
-		local ok,message=MobileAnchorCore:Toggle()
+		local core10=MobileAnchorCore
+		local core11=MobileAnchorV11Core
+		local ok,message
+		if core10 and core10:IsRunning() then
+			ok,message=core10:Stop()
+		elseif core11 and core11:IsRunning() then
+			ok,message=core11:Stop()
+		else
+			local selectedCore=selectedVersion=="1.1" and core11 or core10
+			if not selectedCore then return end
+			ok,message=selectedCore:Start()
+		end
 		UpdateMoveAnchoredPanel(ok and nil or message)
 		if UpdateAnchorPanel then UpdateAnchorPanel() end
 		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
-		if UpdateMoveAnchoredV11Panel then UpdateMoveAnchoredV11Panel() end
 	end)
 	UpdateMoveAnchoredPanel()
 	return true
