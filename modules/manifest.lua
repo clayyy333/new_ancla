@@ -11,6 +11,7 @@ return {
 		"ui/theme_application",
 		"ui/language_picker",
 		"ui/translations",
+		"ui/brand_intro",
 		"player/catalogs",
 		"player/animation_packs",
 		"core/load_state",
