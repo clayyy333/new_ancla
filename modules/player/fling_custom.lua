@@ -412,7 +412,7 @@ function VR7EfficientCore:Start()
 	local attackerHumanoid, attackerRoot = getParts(attackerCharacter)
 	local _, targetRoot = getParts(targetCharacter)
 	if not targetRoot and not (Fling2AutoController and Fling2AutoController.Running) then
-		targetRoot = TargetRootResolver:Resolve(self.SelectedTarget, 1)
+		targetRoot = TargetRootResolver:Resolve(self.SelectedTarget, 2.5)
 	end
 
 	if not attackerRoot then
@@ -460,6 +460,9 @@ function VR7EfficientCore:Start()
 
 		local currentHumanoid, currentRoot = getParts(self.Provider:GetLocalCharacter())
 		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
+		if not currentTargetRoot and TargetRootResolver then
+			currentTargetRoot=TargetRootResolver:GetRoot(self.SelectedTarget)
+		end
 		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
 		if not currentTargetRoot then

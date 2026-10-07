@@ -4,12 +4,22 @@ return function(context)
 	local Workspace=game:GetService("Workspace")
 	local Resolver={Timeout=1}
 
+	function Resolver:GetCharacter(target)
+		if not target then return nil end
+		if target:IsA("Model") then return target.Parent and target or nil end
+		if not target:IsA("Player") then return nil end
+		local character=target.Character
+		if character and character.Parent then return character end
+		local fallback=Workspace:FindFirstChild(target.Name)
+		return fallback and fallback:IsA("Model") and fallback or nil
+	end
+
 	function Resolver:GetRoot(target)
-		local character=target and target.Character
+		local character=self:GetCharacter(target)
 		if not character then return nil end
 		local humanoid=character:FindFirstChildOfClass("Humanoid")
-		local root=character:FindFirstChild("HumanoidRootPart")
-		return humanoid and humanoid.Health>0 and root or nil
+		local root=character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+		return humanoid and humanoid.Health>0 and root and root:IsA("BasePart") and root or nil
 	end
 
 	function Resolver:Resolve(target,timeout)
@@ -18,7 +28,7 @@ return function(context)
 		if not target or not target.Parent then return nil end
 		local deadline=os.clock()+(tonumber(timeout) or self.Timeout)
 		repeat
-			local character=target.Character or Workspace:FindFirstChild(target.Name)
+			local character=self:GetCharacter(target)
 			root=self:GetRoot(target)
 			if root then return root end
 			if character and character.Parent then
