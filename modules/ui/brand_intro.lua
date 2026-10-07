@@ -66,7 +66,7 @@ return function(context)
 	local stroke=Instance.new("UIStroke")
 	stroke.Color=Color3.fromRGB(31,33,39)
 	stroke.Thickness=1
-	stroke.Transparency=.12
+	stroke.Transparency=1
 	stroke.Parent=card
 
 	local title=Instance.new("TextLabel")
@@ -115,12 +115,13 @@ return function(context)
 	RunService.Heartbeat:Wait()
 	if not overlay.Parent then return true end
 
-	TweenService:Create(overlay,TweenInfo.new(.78,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.08}):Play()
-	TweenService:Create(shadow,TweenInfo.new(.92,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.66}):Play()
-	TweenService:Create(card,TweenInfo.new(1.04,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=0}):Play()
-	TweenService:Create(scale,TweenInfo.new(1.10,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Scale=1}):Play()
-	TweenService:Create(title,TweenInfo.new(1.02,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{TextTransparency=0}):Play()
-	TweenService:Create(accent,TweenInfo.new(1.12,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
+	TweenService:Create(overlay,TweenInfo.new(.78,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.08}):Play()
+	TweenService:Create(shadow,TweenInfo.new(.92,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=.66}):Play()
+	TweenService:Create(card,TweenInfo.new(1.04,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0}):Play()
+	TweenService:Create(stroke,TweenInfo.new(1.06,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=.12}):Play()
+	TweenService:Create(scale,TweenInfo.new(1.10,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Scale=1}):Play()
+	TweenService:Create(title,TweenInfo.new(1.02,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=0}):Play()
+	TweenService:Create(accent,TweenInfo.new(1.12,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
 
 	task.wait(2.69)
 	if not overlay.Parent then return true end
