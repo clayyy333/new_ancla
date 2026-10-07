@@ -202,6 +202,32 @@ local function _CleanupScript()
 	pcall(function() if _keybindInputConn then _keybindInputConn:Disconnect() end end)
 	pcall(function() StopHUDTracking() end)
 	pcall(function() VexroAcrylic.Stop() end)
+	-- Liberación final independiente del módulo que hubiera estado activo.
+	-- Evita dejar al personaje inmóvil al cerrar o volver a ejecutar el script.
+	pcall(function()
+		local character=player.Character
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local root=character and character:FindFirstChild("HumanoidRootPart")
+		if root then
+			root.Anchored=false
+			root.AssemblyAngularVelocity=Vector3.zero
+		end
+		if humanoid then
+			humanoid.Sit=false
+			humanoid.PlatformStand=false
+			humanoid.AutoRotate=true
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
+			local state=humanoid:GetState()
+			if state==Enum.HumanoidStateType.Physics
+				or state==Enum.HumanoidStateType.Ragdoll
+				or state==Enum.HumanoidStateType.FallingDown
+				or state==Enum.HumanoidStateType.Seated then
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			else
+				humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end
+		end
+	end)
 	-- Oynanan emote'u durdur
 	pcall(function() StopEmote(false) end)
 	-- Sunucuya disconnect bildir

@@ -115,14 +115,14 @@ return function(context)
 	RunService.Heartbeat:Wait()
 	if not overlay.Parent then return true end
 
-	TweenService:Create(overlay,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.08}):Play()
-	TweenService:Create(shadow,TweenInfo.new(.64,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.66}):Play()
-	TweenService:Create(card,TweenInfo.new(.72,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=0}):Play()
-	TweenService:Create(scale,TweenInfo.new(.76,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Scale=1}):Play()
-	TweenService:Create(title,TweenInfo.new(.68,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{TextTransparency=0}):Play()
-	TweenService:Create(accent,TweenInfo.new(.78,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
+	TweenService:Create(overlay,TweenInfo.new(.78,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.08}):Play()
+	TweenService:Create(shadow,TweenInfo.new(.92,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.66}):Play()
+	TweenService:Create(card,TweenInfo.new(1.04,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=0}):Play()
+	TweenService:Create(scale,TweenInfo.new(1.10,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Scale=1}):Play()
+	TweenService:Create(title,TweenInfo.new(1.02,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{TextTransparency=0}):Play()
+	TweenService:Create(accent,TweenInfo.new(1.12,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=UDim2.new(0,isMobile and 62 or 72,0,1),BackgroundTransparency=.2}):Play()
 
-	task.wait(2.35)
+	task.wait(2.69)
 	if not overlay.Parent then return true end
 	TweenService:Create(title,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=1,Position=UDim2.fromScale(.5,.44)}):Play()
 	TweenService:Create(accent,TweenInfo.new(.54,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,0,0,1),BackgroundTransparency=1}):Play()
