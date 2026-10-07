@@ -157,6 +157,7 @@ return {
 		"currentTheme",
 		"themeElements",
 		"mainStrokeGrad",
+		"brandRevealRoot",
 		"brandRevealScreen",
 		"brandRevealCard",
 		"miniIconGrad",

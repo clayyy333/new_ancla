@@ -20,7 +20,12 @@ if brandRevealScreen and brandRevealScreen.Parent then
 	mainStroke.Transparency=0
 	TweenService:Create(brandRevealScreen,TweenInfo.new(.82,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	task.wait(.84)
-	if brandRevealScreen and brandRevealScreen.Parent then brandRevealScreen:Destroy() end
+	if brandRevealRoot and brandRevealRoot.Parent then
+		brandRevealRoot:Destroy()
+	elseif brandRevealScreen and brandRevealScreen.Parent then
+		brandRevealScreen:Destroy()
+	end
+	brandRevealRoot=nil
 	brandRevealScreen=nil
 	brandRevealCard=nil
 elseif languageRevealScreen and languageRevealScreen.Parent then

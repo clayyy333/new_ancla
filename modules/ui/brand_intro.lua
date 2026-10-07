@@ -2,8 +2,16 @@
 return function(context)
 	setfenv(1,context)
 
-	local previous=gui:FindFirstChild("PsychoBrandIntro")
+	local previous=playerGui:FindFirstChild("PsychoBrandIntroGui")
 	if previous then previous:Destroy() end
+
+	local introGui=Instance.new("ScreenGui")
+	introGui.Name="PsychoBrandIntroGui"
+	introGui.ResetOnSpawn=false
+	introGui.IgnoreGuiInset=true
+	introGui.DisplayOrder=100000
+	introGui.ZIndexBehavior=Enum.ZIndexBehavior.Global
+	introGui.Parent=playerGui
 
 	local overlay=Instance.new("Frame")
 	overlay.Name="PsychoBrandIntro"
@@ -13,7 +21,7 @@ return function(context)
 	overlay.BorderSizePixel=0
 	overlay.Active=true
 	overlay.ZIndex=5000
-	overlay.Parent=gui
+	overlay.Parent=introGui
 
 	local cardSize=UDim2.new(0,isMobile and 224 or 258,0,isMobile and 78 or 88)
 	local shadow=Instance.new("Frame")
@@ -114,10 +122,13 @@ return function(context)
 	TweenService:Create(card,TweenInfo.new(.66,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	TweenService:Create(shadow,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	task.wait(.70)
+	-- Elimina por completo la tarjeta antes de revelar la interfaz principal.
+	-- Solo queda el fondo opaco del ScreenGui superior durante el crossfade.
+	if card.Parent then card:Destroy() end
+	if shadow.Parent then shadow:Destroy() end
 
-	-- La pantalla oscura permanece arriba mientras se termina de construir la
-	-- interfaz. initialize.lua enlaza su desvanecimiento con la aparición del panel.
+	brandRevealRoot=introGui
 	brandRevealScreen=overlay
-	brandRevealCard=card
+	brandRevealCard=nil
 	return true
 end
