@@ -12,14 +12,20 @@ return function(context)
 	introGui.DisplayOrder=100000
 	introGui.ZIndexBehavior=Enum.ZIndexBehavior.Global
 	introGui.Parent=playerGui
-
+	-- La presentación es únicamente visual: nunca debe capturar movimiento,
+	-- cámara ni controles táctiles. También se elimina si la GUI principal cierra.
+	local cleanupConnection
+	cleanupConnection=gui.Destroying:Connect(function()
+		if cleanupConnection then cleanupConnection:Disconnect();cleanupConnection=nil end
+		if introGui and introGui.Parent then introGui:Destroy() end
+	end)
 	local overlay=Instance.new("Frame")
 	overlay.Name="PsychoBrandIntro"
 	overlay.Size=UDim2.fromScale(1,1)
 	overlay.BackgroundColor3=Color3.fromRGB(14,15,18)
 	overlay.BackgroundTransparency=1
 	overlay.BorderSizePixel=0
-	overlay.Active=true
+	overlay.Active=false
 	overlay.ZIndex=5000
 	overlay.Parent=introGui
 
