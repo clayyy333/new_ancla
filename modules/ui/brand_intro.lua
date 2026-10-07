@@ -27,13 +27,14 @@ return function(context)
 	shadow.Parent=overlay
 	Instance.new("UICorner",shadow).CornerRadius=UDim.new(0,18)
 
-	local card=Instance.new("Frame")
+	local card=Instance.new("CanvasGroup")
 	card.Name="BrandCard"
 	card.AnchorPoint=Vector2.new(.5,.5)
 	card.Position=UDim2.fromScale(.5,.5)
 	card.Size=shadow.Size
 	card.BackgroundColor3=Color3.fromRGB(24,25,31)
-	card.BackgroundTransparency=1
+	card.BackgroundTransparency=0
+	card.GroupTransparency=1
 	card.BorderSizePixel=0
 	card.ZIndex=5002
 	card.Parent=overlay
@@ -51,7 +52,7 @@ return function(context)
 	local stroke=Instance.new("UIStroke")
 	stroke.Color=Color3.fromRGB(88,91,104)
 	stroke.Thickness=1
-	stroke.Transparency=1
+	stroke.Transparency=.48
 	stroke.Parent=card
 
 	local eyebrow=Instance.new("TextLabel")
@@ -61,7 +62,7 @@ return function(context)
 	eyebrow.BackgroundTransparency=1
 	eyebrow.Text="POWERED BY"
 	eyebrow.TextColor3=Color3.fromRGB(150,153,164)
-	eyebrow.TextTransparency=1
+	eyebrow.TextTransparency=0
 	eyebrow.Font=Enum.Font.GothamMedium
 	eyebrow.TextSize=isMobile and 9 or 10
 	eyebrow.ZIndex=5003
@@ -74,7 +75,7 @@ return function(context)
 	name.BackgroundTransparency=1
 	name.Text="psychoo"
 	name.TextColor3=Color3.fromRGB(242,243,247)
-	name.TextTransparency=1
+	name.TextTransparency=0
 	name.Font=Enum.Font.GothamSemibold
 	name.TextSize=isMobile and 17 or 20
 	name.ZIndex=5003
@@ -85,7 +86,7 @@ return function(context)
 	accent.Position=UDim2.fromScale(.5,.79)
 	accent.Size=UDim2.new(0,0,0,2)
 	accent.BackgroundColor3=Color3.fromRGB(128,136,164)
-	accent.BackgroundTransparency=1
+	accent.BackgroundTransparency=.18
 	accent.BorderSizePixel=0
 	accent.ZIndex=5003
 	accent.Parent=card
@@ -100,21 +101,15 @@ return function(context)
 
 	TweenService:Create(overlay,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.06}):Play()
 	TweenService:Create(shadow,TweenInfo.new(.64,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{BackgroundTransparency=.56}):Play()
-	TweenService:Create(card,TweenInfo.new(.72,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{BackgroundTransparency=0}):Play()
+	TweenService:Create(card,TweenInfo.new(.76,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{GroupTransparency=0}):Play()
 	TweenService:Create(scale,TweenInfo.new(.78,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Scale=1}):Play()
-	TweenService:Create(stroke,TweenInfo.new(.68,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{Transparency=.48}):Play()
-	TweenService:Create(eyebrow,TweenInfo.new(.62,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{TextTransparency=0}):Play()
-	TweenService:Create(name,TweenInfo.new(.76,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{TextTransparency=0}):Play()
-	TweenService:Create(accent,TweenInfo.new(.82,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=UDim2.new(0,isMobile and 72 or 86,0,2),BackgroundTransparency=.18}):Play()
+	TweenService:Create(accent,TweenInfo.new(.82,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size=UDim2.new(0,isMobile and 72 or 86,0,2)}):Play()
 
 	task.wait(2.35)
 	if not overlay.Parent then return true end
-	TweenService:Create(eyebrow,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=1}):Play()
-	TweenService:Create(name,TweenInfo.new(.62,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{TextTransparency=1,Position=UDim2.fromScale(.5,.54)}):Play()
-	TweenService:Create(accent,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,0,0,2),BackgroundTransparency=1}):Play()
-	TweenService:Create(stroke,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=1}):Play()
+	TweenService:Create(card,TweenInfo.new(.68,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{GroupTransparency=1}):Play()
+	TweenService:Create(accent,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Size=UDim2.new(0,0,0,2)}):Play()
 	TweenService:Create(scale,TweenInfo.new(.68,Enum.EasingStyle.Quint,Enum.EasingDirection.InOut),{Scale=.97}):Play()
-	TweenService:Create(card,TweenInfo.new(.68,Enum.EasingStyle.Quint,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	TweenService:Create(shadow,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	task.wait(.72)
 
