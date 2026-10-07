@@ -17,7 +17,7 @@ return function(context)
 	overlay.Name="PsychoBrandIntro"
 	overlay.Size=UDim2.fromScale(1,1)
 	overlay.BackgroundColor3=Color3.fromRGB(14,15,18)
-	overlay.BackgroundTransparency=0
+	overlay.BackgroundTransparency=1
 	overlay.BorderSizePixel=0
 	overlay.Active=true
 	overlay.ZIndex=5000
@@ -103,11 +103,13 @@ return function(context)
 	if main and main.Parent then
 		main.Size=GetDefaultSize()
 		main.BackgroundTransparency=0
+		main.Visible=false
 		if mainStroke then mainStroke.Transparency=0 end
 	end
 	RunService.Heartbeat:Wait()
 	if not overlay.Parent then return true end
 
+	TweenService:Create(overlay,TweenInfo.new(.52,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.08}):Play()
 	TweenService:Create(shadow,TweenInfo.new(.64,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=.66}):Play()
 	TweenService:Create(card,TweenInfo.new(.72,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{BackgroundTransparency=0}):Play()
 	TweenService:Create(scale,TweenInfo.new(.76,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Scale=1}):Play()
@@ -123,7 +125,7 @@ return function(context)
 	TweenService:Create(shadow,TweenInfo.new(.58,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	task.wait(.70)
 	-- Elimina por completo la tarjeta antes de revelar la interfaz principal.
-	-- Solo queda el fondo opaco del ScreenGui superior durante el crossfade.
+	-- Solo queda el sombreado del ScreenGui superior durante el crossfade.
 	if card.Parent then card:Destroy() end
 	if shadow.Parent then shadow:Destroy() end
 

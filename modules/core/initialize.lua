@@ -18,6 +18,7 @@ if brandRevealScreen and brandRevealScreen.Parent then
 	main.Size=openSize
 	main.BackgroundTransparency=0
 	mainStroke.Transparency=0
+	main.Visible=true
 	TweenService:Create(brandRevealScreen,TweenInfo.new(.82,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=1}):Play()
 	task.wait(.84)
 	if brandRevealRoot and brandRevealRoot.Parent then
