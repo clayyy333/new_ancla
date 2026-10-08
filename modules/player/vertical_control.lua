@@ -16,6 +16,9 @@ return function(context)
 	end
 	function Core:IsRunning()return self.Running end
 	function Core:GetOffset()return self.Offset end
+	function Core:GetDisplacedCheckpoint()
+		return self.Checkpoint and (self.Checkpoint+Vector3.new(0,self.Offset,0))
+	end
 	function Core:SetOffset(value)
 		value=finite(value)
 		if not value then return false,isES and"Escribe una ubicación vertical válida."or"Enter a valid vertical location."end
@@ -91,7 +94,7 @@ return function(context)
 		if not self.Running then return end
 		local character,humanoid,root=rig()
 		if not character or not humanoid or humanoid.Health<=0 or not root then return end
-		if self:IsAnchorHolding(root) then self:ApplyVisualOffset(character,root) end
+		-- Apply maintains physical displacement without changing body joints.
 	end
 	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
@@ -101,8 +104,13 @@ return function(context)
 		for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end;part.CanCollide=false end end
 
 		if self:IsAnchorHolding(root) then
-			-- El HRP y la burbuja permanecen arriba; solo el cuerpo visual baja.
-			self:ApplyVisualOffset(character,root)
+			-- Keep the physical HRP at the saved origin plus the world-space offset.
+			self:RestoreVisualOffset()
+			local target=self:GetDisplacedCheckpoint()
+			if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=target end
+			local positionLock=root:FindFirstChild("AnclaAlignPosition")
+			if positionLock and positionLock:IsA("AlignPosition") then positionLock.Position=target.Position end
+			root.CFrame=target
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
 			self.LastAppliedCFrame=root.CFrame
@@ -190,11 +198,13 @@ return function(context)
 		AnchorCore:SetAntiSeat(false)
 		AnchorCore:SetHeartbeat(false)
 		self.Checkpoint=root.CFrame
+		self.Generation=(self.Generation or 0)+1
 		self:SetCharacterCollisions(true)
 		self.Running=true
+		root.CFrame=self:GetDisplacedCheckpoint()
 		local anchored,anchorMessage=AnchorCore:SetAncla(true)
 		if not anchored then self.Running=false;self:SetCharacterCollisions(false);return false,anchorMessage end
-		AnchorCore.Checkpoint=self.Checkpoint
+		AnchorCore.Checkpoint=self:GetDisplacedCheckpoint()
 		AnchorCore:SetAntiSeat(true)
 		AnchorCore:SetHeartbeat(true)
 		self:LockCamera()
@@ -219,6 +229,7 @@ return function(context)
 	end
 	function Core:Stop(restore)
 		local wasRunning=self.Running
+		self.Generation=(self.Generation or 0)+1
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
 		if self.VisualConnection then self.VisualConnection:Disconnect();self.VisualConnection=nil end
@@ -259,25 +270,25 @@ return function(context)
 	end)
 	Core.CharacterAddedConnection=player.CharacterAdded:Connect(function(character)
 		if not Core.Running then return end
+		local generation=Core.Generation
 		task.spawn(function()
 			local root=character:WaitForChild("HumanoidRootPart",8)
 			local humanoid=character:WaitForChild("Humanoid",8)
-			if not Core.Running or player.Character~=character or not root or not humanoid or not Core.Checkpoint then return end
+			if not Core.Running or Core.Generation~=generation or player.Character~=character or not root or not humanoid or not Core.Checkpoint then return end
 
-			-- Primero recuperamos el punto superior del ancla; el offset guardado
-			-- se aplica al cuerpo visual únicamente cuando el nuevo rig está listo.
+			-- Reuse the original world position and offset, never the spawn position.
 			if AnchorCore then
 				if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
 				AnchorCore:SetAntiSeat(false)
 				AnchorCore:SetHeartbeat(false)
 			end
-			root.CFrame=Core.Checkpoint
+			root.CFrame=Core:GetDisplacedCheckpoint()
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
 			if AnchorCore then
 				local anchored=AnchorCore:SetAncla(true)
 				if anchored then
-					AnchorCore.Checkpoint=Core.Checkpoint
+					AnchorCore.Checkpoint=Core:GetDisplacedCheckpoint()
 					AnchorCore:SetAntiSeat(true)
 					AnchorCore:SetHeartbeat(true)
 				end
@@ -288,20 +299,20 @@ return function(context)
 			character:WaitForChild("LowerTorso",4)
 			Core.EmoteClock=0
 
-			-- El emote y el RootJoint pueden aparecer en frames distintos. Durante
-			-- esta ventana volvemos a tomar la base real y aplicamos los mismos studs.
+			-- Maintain the physical destination while the new rig and emote load.
 			for attempt=1,10 do
-				if not Core.Running or player.Character~=character then return end
-				root.CFrame=Core.Checkpoint
+				if not Core.Running or Core.Generation~=generation or player.Character~=character or not Core.Checkpoint then return end
+				root.CFrame=Core:GetDisplacedCheckpoint()
 				root.AssemblyLinearVelocity=Vector3.zero
 				root.AssemblyAngularVelocity=Vector3.zero
 				if not Core:IsInvisibleEmotePlaying()and(attempt==1 or attempt%3==0)then
 					Core:RestoreSelectedEmote()
 				end
 				Core:RestoreVisualOffset()
-				Core:ApplyVisualOffset(character,root)
+				Core:Apply(0)
 				task.wait(.12)
 			end
+			if not Core.Running or Core.Generation~=generation or player.Character~=character then return end
 			Core:Apply(0)
 			Core.Status=isES and"Desplazamiento vertical restaurado."or"Vertical displacement restored."
 			if UpdateVerticalControlPanel then UpdateVerticalControlPanel(Core.Status) end
