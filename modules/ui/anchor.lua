@@ -10,8 +10,12 @@ return function(context)
 	anchorPanel.ZIndex=6
 	anchorPanel.Parent=content
 
+	local experimentalOwners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
+	local expectedOwnerName=experimentalOwners[player.UserId]
+	local canUseExperimentalAnchor=expectedOwnerName~=nil and string.lower(player.Name)==expectedOwnerName
+
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,isMobile and 266 or 282)
+	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 318 or 334) or (isMobile and 266 or 282))
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -68,23 +72,31 @@ return function(context)
 	local antiSeatButton=makeButton(90)
 	local heartbeatButton=makeButton(142)
 	local testButton=makeButton(194)
+	local combinedButton=makeButton(246)
+	combinedButton.Visible=canUseExperimentalAnchor
 
 	UpdateAnchorPanel=function(message)
 		anchorButton.Text=AnchorCore.AnclaEnabled and (isES and "Desactivar Ancla" or "Disable Anchor") or (isES and "Activar Ancla" or "Enable Anchor")
 		antiSeatButton.Text=AnchorCore.AntiSeatEnabled and (isES and "Desactivar AntiSeat" or "Disable AntiSeat") or (isES and "Activar AntiSeat" or "Enable AntiSeat")
 		heartbeatButton.Text=AnchorCore.HeartbeatEnabled and (isES and "Desactivar Heartbeat" or "Disable Heartbeat") or (isES and "Activar Heartbeat" or "Enable Heartbeat")
 		testButton.Text=AnchorCore.TestEnabled and (isES and "Desactivar Ancla test" or "Disable Test Anchor") or (isES and "Activar Ancla test" or "Enable Test Anchor")
+		combinedButton.Text=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
+			and (isES and "Desactivar Ancla atravesable" or "Disable Pass-through Anchor")
+			or (isES and "Ancla + AntiSeat + Heartbeat" or "Anchor + AntiSeat + Heartbeat")
 		anchorButton.BackgroundColor3=AnchorCore.AnclaEnabled and currentTheme.accent or currentTheme.tertiary
 		antiSeatButton.BackgroundColor3=AnchorCore.AntiSeatEnabled and currentTheme.accent or currentTheme.tertiary
 		heartbeatButton.BackgroundColor3=AnchorCore.HeartbeatEnabled and currentTheme.accent or currentTheme.tertiary
 		testButton.BackgroundColor3=AnchorCore.TestEnabled and currentTheme.accent or currentTheme.tertiary
+		combinedButton.BackgroundColor3=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning() and currentTheme.accent or currentTheme.tertiary
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
 		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
-		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy
+		local combinedBusy=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
+		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy and not combinedBusy
 		anchorButton.Active=manualEnabled
 		antiSeatButton.Active=manualEnabled
 		heartbeatButton.Active=manualEnabled
-		testButton.Active=not automaticBusy and not mobileBusy
+		testButton.Active=not automaticBusy and not mobileBusy and not combinedBusy
+		combinedButton.Active=canUseExperimentalAnchor and not automaticBusy and not mobileBusy
 		description.Text=message or (AnchorCore.TestEnabled
 			and (isES and "Ancla activa" or "Anchor active")
 			or (AnchorCore.HeartbeatEnabled and not AnchorCore.AnclaEnabled
@@ -109,6 +121,11 @@ return function(context)
 	testButton.MouseButton1Click:Connect(function()
 		local ok,err=AnchorCore:ToggleTest()
 		UpdateAnchorPanel(ok and nil or err)
+	end)
+	combinedButton.MouseButton1Click:Connect(function()
+		if not canUseExperimentalAnchor or not StaticPassThroughAnchorCore then return end
+		local _,message=StaticPassThroughAnchorCore:Toggle()
+		UpdateAnchorPanel(message)
 	end)
 	forceReturnButton.MouseButton1Click:Connect(function()
 		if not AnchorForceReturn or AnchorForceReturn.Busy then return end

@@ -157,6 +157,7 @@ local function _CleanupScript()
 	pcall(function() if MobileTypographyController then MobileTypographyController:Destroy() end end)
 	pcall(function() if AutoAnchorCore then AutoAnchorCore:Destroy() end end)
 	pcall(function() if AnchorCore then AnchorCore:Destroy() end end)
+	pcall(function() if StaticPassThroughAnchorCore then StaticPassThroughAnchorCore:Destroy() end end)
 	pcall(function() if MobileAnchorCore then MobileAnchorCore:Destroy() end end)
 	pcall(function() if MobileAnchorV11Core then MobileAnchorV11Core:Destroy() end end)
 	pcall(function() if Fling2Core then Fling2Core:Stop() end end)
@@ -254,6 +255,9 @@ local function _ReleaseAnchorBeforeClose()
 		pcall(function() AnchorCore:SetHeartbeat(false) end)
 		pcall(function() AnchorCore:SetAntiSeat(false) end)
 		pcall(function() AnchorCore:SetAncla(false) end)
+	end
+	if StaticPassThroughAnchorCore then
+		pcall(function() StaticPassThroughAnchorCore:Stop() end)
 	end
 end
 
