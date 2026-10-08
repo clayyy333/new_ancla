@@ -15,7 +15,7 @@ return function(context)
 	local canUseExperimentalAnchor=expectedOwnerName~=nil and string.lower(player.Name)==expectedOwnerName
 
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 318 or 334) or (isMobile and 266 or 282))
+	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 474 or 490) or (isMobile and 266 or 282))
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -73,16 +73,51 @@ return function(context)
 	local heartbeatButton=makeButton(142)
 	local testButton=makeButton(194)
 	local combinedButton=makeButton(246)
+
 	combinedButton.Visible=canUseExperimentalAnchor
+	combinedButton.Size=UDim2.new(0.5,-4,0,44)
+	local phaseButton=makeButton(246)
+	phaseButton.Size=UDim2.new(0.5,-4,0,44)
+	phaseButton.Position=UDim2.new(0.5,4,0,246)
+	phaseButton.Visible=canUseExperimentalAnchor
+	phaseButton.Activated:Connect(function()
+		if canUseExperimentalAnchor and StaticPassThroughAnchorCore then
+			StaticPassThroughAnchorCore:SetPhase(not StaticPassThroughAnchorCore.PhaseEnabled)
+		end
+	end)
+	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"}}) do
+		local y=298+(index-1)*48
+		local label=Instance.new("TextLabel")
+		label.Size=UDim2.new(0.4,0,0,40);label.Position=UDim2.new(0,0,0,y)
+		label.BackgroundTransparency=1;label.Text=entry[2];label.TextColor3=currentTheme.text
+		label.Font=Enum.Font.GothamMedium;label.TextSize=13;label.ZIndex=8;label.Parent=card
+		label.Visible=canUseExperimentalAnchor
+		RegisterTheme(label,"TextColor3","text")
+		local minus=makeButton(y);minus.Size=UDim2.new(0.15,-4,0,40);minus.Position=UDim2.new(0.4,0,0,y);minus.Text="-"
+		local value=makeButton(y);value.Size=UDim2.new(0.3,-4,0,40);value.Position=UDim2.new(0.55,0,0,y);value.Text="4 studs"
+		local plus=makeButton(y);plus.Size=UDim2.new(0.15,0,0,40);plus.Position=UDim2.new(0.85,0,0,y);plus.Text="+"
+		minus.Visible=canUseExperimentalAnchor;value.Visible=canUseExperimentalAnchor;plus.Visible=canUseExperimentalAnchor
+		local function change(delta)
+			if not canUseExperimentalAnchor or not StaticPassThroughAnchorCore then return end
+			local core=StaticPassThroughAnchorCore
+			core:SetDistance(entry[1],core.Distances[entry[1]]+delta)
+			value.Text=tostring(core.Distances[entry[1]]).." studs"
+		end
+		minus.Activated:Connect(function() change(-1) end)
+		plus.Activated:Connect(function() change(1) end)
+	end
 
 	UpdateAnchorPanel=function(message)
+		phaseButton.Text=StaticPassThroughAnchorCore.PhaseEnabled and (isES and "Desactivar Desfase" or "Disable Shift") or (isES and "Desfase" or "Shift")
+		phaseButton.Active=canUseExperimentalAnchor and StaticPassThroughAnchorCore:IsRunning()
+		phaseButton.BackgroundColor3=StaticPassThroughAnchorCore.PhaseEnabled and currentTheme.accent or currentTheme.tertiary
 		anchorButton.Text=AnchorCore.AnclaEnabled and (isES and "Desactivar Ancla" or "Disable Anchor") or (isES and "Activar Ancla" or "Enable Anchor")
 		antiSeatButton.Text=AnchorCore.AntiSeatEnabled and (isES and "Desactivar AntiSeat" or "Disable AntiSeat") or (isES and "Activar AntiSeat" or "Enable AntiSeat")
 		heartbeatButton.Text=AnchorCore.HeartbeatEnabled and (isES and "Desactivar Heartbeat" or "Disable Heartbeat") or (isES and "Activar Heartbeat" or "Enable Heartbeat")
 		testButton.Text=AnchorCore.TestEnabled and (isES and "Desactivar Ancla test" or "Disable Test Anchor") or (isES and "Activar Ancla test" or "Enable Test Anchor")
 		combinedButton.Text=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
-			and (isES and "Desactivar Ancla atravesable" or "Disable Pass-through Anchor")
-			or (isES and "Ancla + AntiSeat + Heartbeat" or "Anchor + AntiSeat + Heartbeat")
+			and (isES and "Desactivar Ancla" or "Disable Anchor")
+			or (isES and "Activar Ancla" or "Enable Anchor")
 		anchorButton.BackgroundColor3=AnchorCore.AnclaEnabled and currentTheme.accent or currentTheme.tertiary
 		antiSeatButton.BackgroundColor3=AnchorCore.AntiSeatEnabled and currentTheme.accent or currentTheme.tertiary
 		heartbeatButton.BackgroundColor3=AnchorCore.HeartbeatEnabled and currentTheme.accent or currentTheme.tertiary
