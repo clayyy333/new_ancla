@@ -448,6 +448,13 @@ return function(context)
 
 	local owners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
 	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=4,Right=4,Up=4}
+	Core.ShiftInterval=0.25
+	local destinationProbe
+	local function phaseStatus(message)
+		if Core.PhaseStatus==message then return end
+		Core.PhaseStatus=message
+		if UpdateAnchorPanel then UpdateAnchorPanel() end
+	end
 	local random=Random.new()
 	local nextShift,lastScan,bridgeUntil,index=0,0,0,1
 	local pairsByPart={}
@@ -550,6 +557,13 @@ return function(context)
 		return c+(i==2 and -right*Core.Distances.Left or i==3 and right*Core.Distances.Right or i==4 and Vector3.new(0,Core.Distances.Up,0) or Vector3.zero)
 	end
 	function Core:IsRunning()return self.Running end
+	function Core:SetInterval(value)
+		value=tonumber(value)
+		if not allowed() or not value or value~=value or math.abs(value)==math.huge then return false end
+		self.ShiftInterval=math.clamp(math.floor(value*20+0.5)/20,0.1,1)
+		nextShift=os.clock()+self.ShiftInterval
+		refresh();return true
+	end
 	function Core:SetDistance(axis,value)
 		value=tonumber(value)
 		if not allowed() or self.Distances[axis]==nil or not value or value~=value or math.abs(value)==math.huge then return false end
@@ -558,6 +572,7 @@ return function(context)
 	function Core:SetPhase(enabled)
 		if not allowed() then return false end
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()
+		phaseStatus(nil)
 		if not self.PhaseEnabled and self.Running then index=1;commit(self.Center) end
 		refresh();return true
 	end
@@ -575,6 +590,8 @@ return function(context)
 	end
 	function Core:Stop()
 		self.Running=false;self.PhaseEnabled=false
+		phaseStatus(nil)
+		if destinationProbe then destinationProbe:Destroy();destinationProbe=nil end
 		self:SetHeartbeat(false);self:SetAntiSeat(false);self:SetAncla(false);clean(true)
 		if humanoid and humanoid.Parent and seatState~=nil then humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,seatState) end
 		character=nil;humanoid=nil;seatState=nil;self.Center=nil;self.Checkpoint=nil
@@ -597,20 +614,56 @@ return function(context)
 		if not Core.Running then return end
 		if conflict() or player.Character~=character or humanoid.Health<=0 then Core:Stop();return end
 		local now=os.clock()
-		if now-lastScan>=0.1 then lastScan=now;clean(false);scan()end
+		if now-lastScan>=0.1 then
+			lastScan=now
+			local ok,err=pcall(function() clean(false);scan() end)
+			Core.LastProtectionError=not ok and tostring(err) or nil
+		end
 		local root=getRoot();if not root then return end
 		local assembly=root.AssemblyRootPart
-		if Core.PhaseEnabled and now>=nextShift and now>=bridgeUntil and assembly and assembly:IsDescendantOf(character) then
-			local i=random:NextInteger(1,3);if i>=index then i=i+1 end
-			local target=destination(i)
-			local params=OverlapParams.new()
-			params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={character};params.MaxParts=32
-			local blocked=false
-			for _,part in ipairs(Workspace:GetPartBoundsInBox(target,root.Size,params))do
-				if part.CanCollide then blocked=true;break end
+		if Core.PhaseEnabled and now>=nextShift then
+			nextShift=now+Core.ShiftInterval
+			if now<bridgeUntil or (assembly and not assembly:IsDescendantOf(character)) then
+				phaseStatus(isES and "Desfase en espera: union externa." or "Shift waiting: external connection.")
+				return
 			end
-			if not blocked then index=i;commit(target)end
-			nextShift=now+random:NextNumber(0.18,0.32)
+			if not destinationProbe then
+				destinationProbe=Instance.new("Part")
+				destinationProbe.Name="StaticShiftDestinationProbe"
+				destinationProbe.Anchored=true;destinationProbe.Transparency=1
+				destinationProbe.CanCollide=false;destinationProbe.CanTouch=false;destinationProbe.CanQuery=false
+				destinationProbe.Parent=Workspace
+			end
+			destinationProbe.Size=root.Size*0.9
+			local params=OverlapParams.new()
+			params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={character,destinationProbe};params.MaxParts=0
+			params.RespectCanCollide=true
+			local candidates={}
+			for candidate=1,4 do
+				if candidate~=index and (destination(candidate).Position-Core.Checkpoint.Position).Magnitude>0.01 then candidates[#candidates+1]=candidate end
+			end
+			while #candidates>0 do
+				local pick=random:NextInteger(1,#candidates)
+				local i=table.remove(candidates,pick)
+				local target=destination(i)
+				destinationProbe.CFrame=target
+				-- Exact geometry instead of bounding boxes of large mesh objects.
+				local ok,hits=pcall(function() return Workspace:GetPartsInPart(destinationProbe,params) end)
+				if not ok then
+					phaseStatus(isES and "No se pudo comprobar el destino." or "Could not check destination.")
+					return
+				end
+				local blocked=false
+				for _,part in ipairs(hits) do
+					if part.CanCollide and not pairsByPart[part] then blocked=true;break end
+				end
+				if not blocked then
+					index=i;commit(target)
+					phaseStatus(isES and "Desfase activo." or "Shift active.")
+					return
+				end
+			end
+			phaseStatus(isES and "Sin destinos libres: revisa las distancias." or "No clear destinations: check distances.")
 		end
 	end)
 	StaticPassThroughAnchorCore=Core

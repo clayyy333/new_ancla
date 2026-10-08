@@ -15,7 +15,7 @@ return function(context)
 	local canUseExperimentalAnchor=expectedOwnerName~=nil and string.lower(player.Name)==expectedOwnerName
 
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 474 or 490) or (isMobile and 266 or 282))
+	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 522 or 538) or (isMobile and 266 or 282))
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -85,7 +85,7 @@ return function(context)
 			StaticPassThroughAnchorCore:SetPhase(not StaticPassThroughAnchorCore.PhaseEnabled)
 		end
 	end)
-	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"}}) do
+	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"},{"Interval",isES and "Intervalo (menos = rapido)" or "Interval (less = faster)"}}) do
 		local y=298+(index-1)*48
 		local label=Instance.new("TextLabel")
 		label.Size=UDim2.new(0.4,0,0,40);label.Position=UDim2.new(0,0,0,y)
@@ -97,11 +97,17 @@ return function(context)
 		local value=makeButton(y);value.Size=UDim2.new(0.3,-4,0,40);value.Position=UDim2.new(0.55,0,0,y);value.Text="4 studs"
 		local plus=makeButton(y);plus.Size=UDim2.new(0.15,0,0,40);plus.Position=UDim2.new(0.85,0,0,y);plus.Text="+"
 		minus.Visible=canUseExperimentalAnchor;value.Visible=canUseExperimentalAnchor;plus.Visible=canUseExperimentalAnchor
+		if entry[1]=="Interval" then value.Text="0.25 s";label.TextSize=11;label.TextWrapped=true end
 		local function change(delta)
 			if not canUseExperimentalAnchor or not StaticPassThroughAnchorCore then return end
 			local core=StaticPassThroughAnchorCore
-			core:SetDistance(entry[1],core.Distances[entry[1]]+delta)
-			value.Text=tostring(core.Distances[entry[1]]).." studs"
+			if entry[1]=="Interval" then
+				core:SetInterval(core.ShiftInterval+delta*0.05)
+				value.Text=string.format("%.2f s",core.ShiftInterval)
+			else
+				core:SetDistance(entry[1],core.Distances[entry[1]]+delta)
+				value.Text=tostring(core.Distances[entry[1]]).." studs"
+			end
 		end
 		minus.Activated:Connect(function() change(-1) end)
 		plus.Activated:Connect(function() change(1) end)
@@ -132,7 +138,7 @@ return function(context)
 		heartbeatButton.Active=manualEnabled
 		testButton.Active=not automaticBusy and not mobileBusy and not combinedBusy
 		combinedButton.Active=canUseExperimentalAnchor and not automaticBusy and not mobileBusy
-		description.Text=message or (AnchorCore.TestEnabled
+		description.Text=message or (combinedBusy and StaticPassThroughAnchorCore.PhaseStatus) or (AnchorCore.TestEnabled
 			and (isES and "Ancla activa" or "Anchor active")
 			or (AnchorCore.HeartbeatEnabled and not AnchorCore.AnclaEnabled
 			and (isES and "Heartbeat está preparado; se aplicará al activar Ancla." or "Heartbeat is ready; it applies when Anchor is enabled.")
