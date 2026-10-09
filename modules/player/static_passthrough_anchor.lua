@@ -456,7 +456,7 @@ return function(context)
 		if UpdateAnchorPanel then UpdateAnchorPanel() end
 	end
 	local random=Random.new()
-	local nextShift,lastScan,bridgeUntil,index=0,0,0,1
+	local nextShift,lastScan,index=0,0,1
 	local pairsByPart={}
 	local character,humanoid,seatState
 	local function allowed() return owners[player.UserId] and string.lower(player.Name)==owners[player.UserId] end
@@ -492,7 +492,7 @@ return function(context)
 	end
 	-- Structural bridge classification copied/adapted from v1.0 inspectBridge.
 	local function inspect(link)
-		if not Core.Running or not link.Parent or link:IsA("Motor6D") or link.Name=="AccessoryWeld" or link:IsA("NoCollisionConstraint") then return end
+		if not Core.Running or not character or not link.Parent or link:IsA("Motor6D") or link.Name=="AccessoryWeld" or link:IsA("NoCollisionConstraint") then return end
 		local a,b
 		if link:IsA("JointInstance") or link:IsA("WeldConstraint") then a,b=link.Part0,link.Part1
 		elseif link:IsA("Constraint") then
@@ -506,7 +506,6 @@ return function(context)
 		if insideA==insideB then return end
 		phase(insideA and b or a)
 		pcall(function() link:Destroy() end)
-		bridgeUntil=os.clock()+0.5
 	end
 	local function threat(part)
 		if part.Anchored then return false end
@@ -555,6 +554,32 @@ return function(context)
 		local right=Vector3.new(c.RightVector.X,0,c.RightVector.Z)
 		right=right.Magnitude>0.001 and right.Unit or Vector3.new(1,0,0)
 		return c+(i==2 and -right*Core.Distances.Left or i==3 and right*Core.Distances.Right or i==4 and Vector3.new(0,Core.Distances.Up,0) or Vector3.zero)
+	end
+	-- Release only the old rig. Desired state and the original center survive respawn.
+	local function releaseRig()
+		Core.AnclaEnabled=false;Core.GuardianEnabled=false
+		Core.AntiSeatEnabled=false;Core.HeartbeatEnabled=false
+		destroyAlignPosition();clean(true)
+		if humanoid and humanoid.Parent and seatState~=nil then
+			pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,seatState) end)
+		end
+		character=nil;humanoid=nil;seatState=nil
+	end
+	local function bindRig()
+		local rig=player.Character
+		local root=rig and rig:FindFirstChild("HumanoidRootPart")
+		local human=rig and rig:FindFirstChildOfClass("Humanoid")
+		if not root or not human or human.Health<=0 then return false end
+		character=rig;humanoid=human
+		seatState=human:GetStateEnabled(Enum.HumanoidStateType.Seated)
+		human:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+		createAlignPosition(root)
+		Core.AnclaEnabled=true;Core.GuardianEnabled=true
+		Core.AntiSeatEnabled=true;Core.HeartbeatEnabled=true
+		commit(Core.PhaseEnabled and destination(index) or Core.Center)
+		nextShift=os.clock()
+		phaseStatus(nil)
+		return true
 	end
 	function Core:IsRunning()return self.Running end
 	function Core:SetInterval(value)
@@ -609,24 +634,20 @@ return function(context)
 		local captured=character
 		task.defer(function()if Core.Running and character==captured then inspect(link)end end)
 	end)
-	connections[#connections+1]=player.CharacterRemoving:Connect(function()if Core.Running then Core:Stop()end end)
+	connections[#connections+1]=player.CharacterRemoving:Connect(function(rig)
+		if Core.Running and rig==character then
+			releaseRig()
+			phaseStatus(isES and "Esperando a reaparecer; ancla conservada." or "Waiting for respawn; anchor preserved.")
+		end
+	end)
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()
 		if not Core.Running then return end
-		if conflict() or player.Character~=character or humanoid.Health<=0 then Core:Stop();return end
+		if character and (player.Character~=character or not humanoid.Parent or humanoid.Health<=0) then releaseRig() end
+		if not character and not bindRig() then return end
 		local now=os.clock()
-		if now-lastScan>=0.1 then
-			lastScan=now
-			local ok,err=pcall(function() clean(false);scan() end)
-			Core.LastProtectionError=not ok and tostring(err) or nil
-		end
 		local root=getRoot();if not root then return end
-		local assembly=root.AssemblyRootPart
 		if Core.PhaseEnabled and now>=nextShift then
 			nextShift=now+Core.ShiftInterval
-			if now<bridgeUntil or (assembly and not assembly:IsDescendantOf(character)) then
-				phaseStatus(isES and "Desfase en espera: union externa." or "Shift waiting: external connection.")
-				return
-			end
 			if not destinationProbe then
 				destinationProbe=Instance.new("Part")
 				destinationProbe.Name="StaticShiftDestinationProbe"
@@ -655,7 +676,10 @@ return function(context)
 				end
 				local blocked=false
 				for _,part in ipairs(hits) do
-					if part.CanCollide and not pairsByPart[part] then blocked=true;break end
+					if part.CanCollide and not pairsByPart[part] then
+						if threat(part) then phase(part) end
+						if not pairsByPart[part] then blocked=true;break end
+					end
 				end
 				if not blocked then
 					index=i;commit(target)
@@ -665,6 +689,15 @@ return function(context)
 			end
 			phaseStatus(isES and "Sin destinos libres: revisa las distancias." or "No clear destinations: check distances.")
 		end
+	end)
+	-- Protection scans never gate the shift scheduler and never scan the whole map.
+	connections[#connections+1]=RunService.Heartbeat:Connect(function()
+		if not Core.Running or not character or not humanoid or humanoid.Health<=0 then return end
+		local now=os.clock()
+		if now-lastScan<0.1 then return end
+		lastScan=now
+		local ok,err=pcall(function() clean(false);scan() end)
+		Core.LastProtectionError=not ok and tostring(err) or nil
 	end)
 	StaticPassThroughAnchorCore=Core
 	return true
