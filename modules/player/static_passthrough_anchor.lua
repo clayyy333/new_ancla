@@ -446,7 +446,7 @@ return function(context)
 	end)
 
 
-	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10}
+	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10,Down=10}
 	Core.ShiftInterval=0.10
 	local destinationProbe
 	local function phaseStatus(message)
@@ -551,7 +551,7 @@ return function(context)
 		local c=Core.Center
 		local right=Vector3.new(c.RightVector.X,0,c.RightVector.Z)
 		right=right.Magnitude>0.001 and right.Unit or Vector3.new(1,0,0)
-		return c+(i==2 and -right*Core.Distances.Left or i==3 and right*Core.Distances.Right or i==4 and Vector3.new(0,Core.Distances.Up,0) or Vector3.zero)
+		return c+(i==2 and -right*Core.Distances.Left or i==3 and right*Core.Distances.Right or i==4 and Vector3.new(0,Core.Distances.Up,0) or i==5 and Vector3.new(0,-Core.Distances.Down,0) or Vector3.zero)
 	end
 	-- Release only the old rig. Desired state and the original center survive respawn.
 	local function releaseRig()
@@ -656,7 +656,7 @@ return function(context)
 			params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={character,destinationProbe};params.MaxParts=0
 			params.RespectCanCollide=true
 			local candidates={}
-			for candidate=1,4 do
+			for candidate=1,5 do
 				if candidate~=index and (destination(candidate).Position-Core.Checkpoint.Position).Magnitude>0.01 then candidates[#candidates+1]=candidate end
 			end
 			while #candidates>0 do

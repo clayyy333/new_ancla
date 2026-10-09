@@ -13,7 +13,7 @@ return function(context)
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
 
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 522 or 538) or (isMobile and 266 or 282))
+	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 570 or 586) or (isMobile and 266 or 282))
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -83,7 +83,7 @@ return function(context)
 			StaticPassThroughAnchorCore:SetPhase(not StaticPassThroughAnchorCore.PhaseEnabled)
 		end
 	end)
-	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"},{"Interval",isES and "Intervalo (menos = rapido)" or "Interval (less = faster)"}}) do
+	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"},{"Down",isES and "Abajo" or "Down"},{"Interval",isES and "Intervalo (menos = rapido)" or "Interval (less = faster)"}}) do
 		local y=298+(index-1)*48
 		local label=Instance.new("TextLabel")
 		label.Size=UDim2.new(0.4,0,0,40);label.Position=UDim2.new(0,0,0,y)
