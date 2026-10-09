@@ -663,6 +663,12 @@ return function(context)
 				local pick=random:NextInteger(1,#candidates)
 				local i=table.remove(candidates,pick)
 				local target=destination(i)
+				-- Down deliberately permits an underground destination; other points remain checked.
+				if i==5 then
+					index=i;commit(target)
+					phaseStatus(isES and "Desfase activo." or "Shift active.")
+					return
+				end
 				destinationProbe.CFrame=target
 				-- Exact geometry instead of bounding boxes of large mesh objects.
 				local ok,hits=pcall(function() return Workspace:GetPartsInPart(destinationProbe,params) end)
