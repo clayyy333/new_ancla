@@ -446,9 +446,8 @@ return function(context)
 	end)
 
 
-	local owners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
 	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=4,Right=4,Up=4}
-	Core.ShiftInterval=0.25
+	Core.ShiftInterval=0.10
 	local destinationProbe
 	local function phaseStatus(message)
 		if Core.PhaseStatus==message then return end
@@ -459,7 +458,6 @@ return function(context)
 	local nextShift,lastScan,index=0,0,1
 	local pairsByPart={}
 	local character,humanoid,seatState
-	local function allowed() return owners[player.UserId] and string.lower(player.Name)==owners[player.UserId] end
 	local function conflict()
 		return (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.AntiSeatEnabled or AnchorCore.HeartbeatEnabled or AnchorCore.TestEnabled))
 			or (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
@@ -584,25 +582,23 @@ return function(context)
 	function Core:IsRunning()return self.Running end
 	function Core:SetInterval(value)
 		value=tonumber(value)
-		if not allowed() or not value or value~=value or math.abs(value)==math.huge then return false end
+		if not value or value~=value or math.abs(value)==math.huge then return false end
 		self.ShiftInterval=math.clamp(math.floor(value*20+0.5)/20,0.1,1)
 		nextShift=os.clock()+self.ShiftInterval
 		refresh();return true
 	end
 	function Core:SetDistance(axis,value)
 		value=tonumber(value)
-		if not allowed() or self.Distances[axis]==nil or not value or value~=value or math.abs(value)==math.huge then return false end
+		if self.Distances[axis]==nil or not value or value~=value or math.abs(value)==math.huge then return false end
 		self.Distances[axis]=math.clamp(value,0,10);refresh();return true
 	end
 	function Core:SetPhase(enabled)
-		if not allowed() then return false end
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()
 		phaseStatus(nil)
 		if not self.PhaseEnabled and self.Running then index=1;commit(self.Center) end
 		refresh();return true
 	end
 	function Core:Start()
-		if not allowed() then return false,isES and "Solo owners." or "Owners only." end
 		if self.Running then return true end
 		if conflict() then return false,isES and "Desactiva las otras anclas primero." or "Disable other anchors first." end
 		character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid")

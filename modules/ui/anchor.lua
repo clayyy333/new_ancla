@@ -10,9 +10,7 @@ return function(context)
 	anchorPanel.ZIndex=6
 	anchorPanel.Parent=content
 
-	local experimentalOwners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo"}
-	local expectedOwnerName=experimentalOwners[player.UserId]
-	local canUseExperimentalAnchor=expectedOwnerName~=nil and string.lower(player.Name)==expectedOwnerName
+	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
 
 	local card=Instance.new("Frame")
 	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 522 or 538) or (isMobile and 266 or 282))
@@ -97,7 +95,7 @@ return function(context)
 		local value=makeButton(y);value.Size=UDim2.new(0.3,-4,0,40);value.Position=UDim2.new(0.55,0,0,y);value.Text="4 studs"
 		local plus=makeButton(y);plus.Size=UDim2.new(0.15,0,0,40);plus.Position=UDim2.new(0.85,0,0,y);plus.Text="+"
 		minus.Visible=canUseExperimentalAnchor;value.Visible=canUseExperimentalAnchor;plus.Visible=canUseExperimentalAnchor
-		if entry[1]=="Interval" then value.Text="0.25 s";label.TextSize=11;label.TextWrapped=true end
+		if entry[1]=="Interval" then value.Text="0.10 s";label.TextSize=11;label.TextWrapped=true end
 		local function change(delta)
 			if not canUseExperimentalAnchor or not StaticPassThroughAnchorCore then return end
 			local core=StaticPassThroughAnchorCore
