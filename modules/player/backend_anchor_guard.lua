@@ -59,6 +59,11 @@ return function(context)
 	end
 
 	local function anchorState()
+		local combined=StaticPassThroughAnchorCore
+		if combined and combined:IsRunning() and combined.Center then
+			-- Report a stable center, not every hop; this is activity, not cooperative recovery.
+			return true,combined.PhaseEnabled and "Desfase" or "Combinada",combined.Center.Position
+		end
 		if not AnchorCore then return false,"",nil end
 		if AnchorCore.TestEnabled and AnchorCore.TestCheckpoint then
 			return true,"test",AnchorCore.TestCheckpoint.Position

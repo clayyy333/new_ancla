@@ -446,7 +446,7 @@ return function(context)
 	end)
 
 
-	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=4,Right=4,Up=4}
+	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10}
 	Core.ShiftInterval=0.10
 	local destinationProbe
 	local function phaseStatus(message)
@@ -590,7 +590,7 @@ return function(context)
 	function Core:SetDistance(axis,value)
 		value=tonumber(value)
 		if self.Distances[axis]==nil or not value or value~=value or math.abs(value)==math.huge then return false end
-		self.Distances[axis]=math.clamp(value,0,10);refresh();return true
+		self.Distances[axis]=math.clamp(value,0,20);refresh();return true
 	end
 	function Core:SetPhase(enabled)
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()

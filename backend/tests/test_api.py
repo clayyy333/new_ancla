@@ -116,6 +116,37 @@ def test_session_dashboard_and_anchor_recovery():
         assert target_session["move_anchored_enabled"] == 1
 
 
+def test_combined_anchor_modes_are_visible_without_recovery_targets():
+    with TestClient(main.app) as client:
+        target = start_session(client, 901, "combined-anchor-user")
+        observer = start_session(client, 902, "combined-anchor-observer")
+        admin_headers = {"Authorization": "Bearer admin-test-token"}
+        for mode in ("Combinada", "Desfase"):
+            response = client.post(
+                "/api/v1/sessions/heartbeat",
+                headers=client_headers(target["session_token"]),
+                json={"anchored": True, "anchor_mode": mode,
+                      "checkpoint_x": 1, "checkpoint_y": 2, "checkpoint_z": 3},
+            )
+            assert response.status_code == 200
+            sessions = client.get("/api/v1/admin/sessions", headers=admin_headers)
+            row = next(x for x in sessions.json()["sessions"] if x["user_id"] == 901)
+            assert row["anchored"] == 1
+            assert row["anchor_mode"] == mode
+            targets = client.get("/api/v1/anchor/targets",
+                                 headers=client_headers(observer["session_token"]))
+            assert targets.status_code == 200
+            assert all(x["user_id"] != 901 for x in targets.json()["targets"])
+        response = client.post("/api/v1/sessions/heartbeat",
+                               headers=client_headers(target["session_token"]),
+                               json={"anchored": False})
+        assert response.status_code == 200
+        sessions = client.get("/api/v1/admin/sessions", headers=admin_headers)
+        row = next(x for x in sessions.json()["sessions"] if x["user_id"] == 901)
+        assert row["anchored"] == 0
+        assert row["anchor_mode"] == ""
+
+
 def test_network_profile_requires_consent_and_is_admin_only():
     payload = {
         "user_id": 3,

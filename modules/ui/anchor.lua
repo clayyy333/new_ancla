@@ -92,7 +92,7 @@ return function(context)
 		label.Visible=canUseExperimentalAnchor
 		RegisterTheme(label,"TextColor3","text")
 		local minus=makeButton(y);minus.Size=UDim2.new(0.15,-4,0,40);minus.Position=UDim2.new(0.4,0,0,y);minus.Text="-"
-		local value=makeButton(y);value.Size=UDim2.new(0.3,-4,0,40);value.Position=UDim2.new(0.55,0,0,y);value.Text="4 studs"
+		local value=makeButton(y);value.Size=UDim2.new(0.3,-4,0,40);value.Position=UDim2.new(0.55,0,0,y);value.Text=tostring(StaticPassThroughAnchorCore.Distances[entry[1]] or 10).." studs"
 		local plus=makeButton(y);plus.Size=UDim2.new(0.15,0,0,40);plus.Position=UDim2.new(0.85,0,0,y);plus.Text="+"
 		minus.Visible=canUseExperimentalAnchor;value.Visible=canUseExperimentalAnchor;plus.Visible=canUseExperimentalAnchor
 		if entry[1]=="Interval" then value.Text="0.10 s";label.TextSize=11;label.TextWrapped=true end

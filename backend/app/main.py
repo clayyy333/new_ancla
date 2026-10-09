@@ -426,6 +426,7 @@ def anchor_targets(observer=Depends(require_anchor_guard_session)):
                FROM sessions s JOIN users u ON u.user_id=s.user_id
                WHERE s.game_id=? AND s.place_id=? AND s.job_id=?
                  AND s.id<>? AND s.anchored=1 AND s.ended_at IS NULL
+                 AND s.anchor_mode NOT IN ('Desfase', 'Combinada')
                  AND s.last_seen>=?
                ORDER BY s.last_seen DESC""",
             (
