@@ -503,7 +503,7 @@ return function(context)
 		local insideA,insideB=a:IsDescendantOf(character),b:IsDescendantOf(character)
 		if insideA==insideB then return end
 		phase(insideA and b or a)
-		pcall(function() link:Destroy() end)
+		-- Keep the external bridge intact for this test; collision protection remains active.
 	end
 	local function threat(part)
 		if part.Anchored then return false end
