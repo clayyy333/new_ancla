@@ -589,7 +589,7 @@ return function(context)
 	function Core:SetDistance(axis,value)
 		value=tonumber(value)
 		if self.Distances[axis]==nil or not value or value~=value or math.abs(value)==math.huge then return false end
-		self.Distances[axis]=math.clamp(value,0,20);refresh();return true
+		self.Distances[axis]=math.clamp(value,0,100);refresh();return true
 	end
 	function Core:SetPhase(enabled)
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()

@@ -83,7 +83,7 @@ function VR7EfficientCore.new(provider)
 	self.Direction = 1
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
-	self.ShortContactTime = 0.30
+	self.ShortContactTime = 0.05
 	self.ShortHomeInterval = 0.05
 	self.HomeUntil = 0
 	self.ShortTravelTime = 0

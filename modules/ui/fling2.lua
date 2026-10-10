@@ -94,7 +94,7 @@ return function(context)
 	contactLabel.TextXAlignment=Enum.TextXAlignment.Left;contactLabel.ZIndex=8;contactLabel.Parent=panelCard
 	RegisterTheme(contactLabel,"TextColor3","text")
 	local contactMinus=MakeButton(228,"-");contactMinus.Size=UDim2.new(0.12,-4,0,44);contactMinus.Position=UDim2.new(0.5,0,0,228)
-	local contactValue=MakeButton(228,"0.30 s");contactValue.Size=UDim2.new(0.26,-4,0,44);contactValue.Position=UDim2.new(0.62,0,0,228);contactValue.Active=false
+	local contactValue=MakeButton(228,string.format("%.2f s",Fling2EfficientCore.ShortContactTime));contactValue.Size=UDim2.new(0.26,-4,0,44);contactValue.Position=UDim2.new(0.62,0,0,228);contactValue.Active=false
 	local contactPlus=MakeButton(228,"+");contactPlus.Size=UDim2.new(0.12,0,0,44);contactPlus.Position=UDim2.new(0.88,0,0,228)
 	local function changeContact(delta)
 		Fling2EfficientCore:SetShortContactTime(Fling2EfficientCore.ShortContactTime+delta*0.05)
