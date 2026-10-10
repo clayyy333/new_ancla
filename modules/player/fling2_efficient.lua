@@ -89,6 +89,8 @@ function VR7EfficientCore.new(provider)
 	self.ShortTravelTime = 0
 	self.ShortTravel = nil
 	self.WaitingForTarget = false
+	self.WaitingForLocalCharacter = false
+	self.CurrentAttackerRoot = nil
 	self.CurrentTargetRoot = nil
 
 	-- Front Flip
@@ -192,6 +194,15 @@ function VR7EfficientCore:AdvanceShortTravel(root, targetRoot)
 	self.EfficientPhase = "NEAR"
 	self.NearUntil = os.clock() + self:GetContactDuration()
 	return true
+end
+
+function VR7EfficientCore:WaitForShortRespawn()
+	if self.WaitingForLocalCharacter then return end
+	self.WaitingForLocalCharacter = true
+	self.CurrentAttackerRoot = nil
+	self.ShortTravel = nil
+	self:DestroyFlinger()
+	self:DestroyFrontFlip()
 end
 
 function VR7EfficientCore:HoldShortHome(root)
@@ -373,6 +384,8 @@ function VR7EfficientCore:Start()
 	self:Disconnect()
 
 	self.AttackerCheckpoint = attackerRoot.CFrame
+	self.CurrentAttackerRoot = attackerRoot
+	self.WaitingForLocalCharacter = false
 	self.LastReturnCheckpoint = self.AttackerCheckpoint
 	self.Direction = 1
 	self.Running = true
@@ -404,7 +417,22 @@ function VR7EfficientCore:Start()
 		if not self.Running then return end
 		local currentHumanoid, currentRoot = getParts(self.Provider:GetLocalCharacter())
 		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
-		if not currentHumanoid or not currentRoot then self:Stop(); return end
+		if not currentHumanoid or not currentRoot then
+			if self.ShortDisplacementEnabled then self:WaitForShortRespawn() else self:Stop() end
+			return
+		end
+		if self.ShortDisplacementEnabled and (self.WaitingForLocalCharacter or self.CurrentAttackerRoot ~= currentRoot) then
+			self.WaitingForLocalCharacter = false
+			self.CurrentAttackerRoot = currentRoot
+			self.ShortTravel = nil
+			self.EfficientPhase = "HOME"
+			self.HomeUntil = os.clock() + self.ShortHomeInterval
+			self.Direction = 1
+			self.ReturnSide = 1
+			currentHumanoid.PlatformStand = false
+			currentHumanoid.AutoRotate = true
+			self:HoldShortHome(currentRoot)
+		end
 
 		-- Short mode keeps the selected Player across death/respawn, not the old HRP.
 		if self.ShortDisplacementEnabled then
@@ -512,6 +540,8 @@ function VR7EfficientCore:Stop()
 
 	self.Running = false
 	self.WaitingForTarget = false
+	self.WaitingForLocalCharacter = false
+	self.CurrentAttackerRoot = nil
 	self.ShortTravel = nil
 	self.CurrentTargetRoot = nil
 	self.State = "IDLE"
@@ -687,6 +717,12 @@ end
 	end)
 
 	_fling2EfficientCharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
+		if Fling2EfficientCore.Running and Fling2EfficientCore:IsShortDisplacementEnabled()
+			and not (Fling2AutoController and Fling2AutoController.Running) then
+			Fling2EfficientCore:WaitForShortRespawn()
+			if UpdateFling2Panel then UpdateFling2Panel() end
+			return
+		end
 		if Fling2AutoController and Fling2AutoController.Running then
 			Fling2AutoController:Stop()
 		elseif Fling2EfficientCore.Running then

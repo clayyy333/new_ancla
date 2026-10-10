@@ -147,6 +147,33 @@ def test_combined_anchor_modes_are_visible_without_recovery_targets():
         assert row["anchor_mode"] == ""
 
 
+def test_short_fling_activity_transitions_and_session_end():
+    with TestClient(main.app) as client:
+        target = start_session(client, 903, "short-fling-user")
+        admin_headers = {"Authorization": "Bearer admin-test-token"}
+
+        def session_row():
+            response = client.get("/api/v1/admin/sessions", headers=admin_headers)
+            assert response.status_code == 200
+            return next(x for x in response.json()["sessions"] if x["user_id"] == 903)
+
+        assert session_row()["short_fling_enabled"] == 0
+        for enabled in (True, False, True):
+            response = client.post(
+                "/api/v1/sessions/heartbeat",
+                headers=client_headers(target["session_token"]),
+                json={"short_fling_enabled": enabled},
+            )
+            assert response.status_code == 200
+            row = session_row()
+            assert row["short_fling_enabled"] == int(enabled)
+            assert row["custom_fling_using"] == 0
+        response = client.post("/api/v1/sessions/end",
+                               headers=client_headers(target["session_token"]))
+        assert response.status_code == 200
+        assert session_row()["short_fling_enabled"] == 0
+
+
 def test_network_profile_requires_consent_and_is_admin_only():
     payload = {
         "user_id": 3,

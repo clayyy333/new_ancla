@@ -138,6 +138,7 @@ class Heartbeat(BaseModel):
     anchored: bool = False
     custom_fling_using: bool = False
     move_anchored_enabled: bool = False
+    short_fling_enabled: bool = False
     anchor_mode: str = Field(default="", max_length=40)
     checkpoint_x: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
     checkpoint_y: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
@@ -387,7 +388,7 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         anchored = payload.anchored and anchor_guard_allowed(session)
         db.execute(
             """UPDATE sessions SET last_seen=?,credited_seconds=credited_seconds+?,
-               anchored=?,anchor_mode=?,custom_fling_using=?,move_anchored_enabled=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
+               anchored=?,anchor_mode=?,custom_fling_using=?,move_anchored_enabled=?,short_fling_enabled=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
             (
                 timestamp,
                 elapsed,
@@ -395,6 +396,7 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
                 payload.anchor_mode if anchored else "",
                 int(payload.custom_fling_using),
                 int(payload.move_anchored_enabled),
+                int(payload.short_fling_enabled),
                 payload.checkpoint_x if anchored else None,
                 payload.checkpoint_y if anchored else None,
                 payload.checkpoint_z if anchored else None,
@@ -412,7 +414,7 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
 def end_session(session=Depends(require_session)):
     timestamp = now()
     with connection() as db:
-        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,custom_fling_using=0,move_anchored_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
+        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,custom_fling_using=0,move_anchored_enabled=0,short_fling_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}
 
@@ -753,7 +755,7 @@ def admin_sessions(
                 SELECT s.id,s.user_id,u.username,u.display_name,u.country_code,
                     s.place_id,s.job_id,s.game_name,s.executor,s.script_version,
                     s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,
-                    s.anchor_mode,s.custom_fling_using,s.move_anchored_enabled,
+                    s.anchor_mode,s.custom_fling_using,s.move_anchored_enabled,s.short_fling_enabled,
                     ROW_NUMBER() OVER (
                         PARTITION BY s.user_id,s.place_id,s.job_id
                         ORDER BY s.last_seen DESC,s.started_at DESC
@@ -763,7 +765,7 @@ def admin_sessions(
             )
             SELECT id,user_id,username,display_name,country_code,place_id,job_id,
                 game_name,executor,script_version,started_at,last_seen,ended_at,
-                credited_seconds,anchored,anchor_mode,custom_fling_using,move_anchored_enabled
+                credited_seconds,anchored,anchor_mode,custom_fling_using,move_anchored_enabled,short_fling_enabled
             FROM ranked WHERE row_number=1
             ORDER BY last_seen DESC LIMIT ?""",
             values,
