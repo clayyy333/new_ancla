@@ -448,7 +448,6 @@ return function(context)
 
 	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10,Down=10}
 	Core.ShiftInterval=0.10
-	local destinationProbe
 	local function phaseStatus(message)
 		if Core.PhaseStatus==message then return end
 		Core.PhaseStatus=message
@@ -612,7 +611,6 @@ return function(context)
 	function Core:Stop()
 		self.Running=false;self.PhaseEnabled=false
 		phaseStatus(nil)
-		if destinationProbe then destinationProbe:Destroy();destinationProbe=nil end
 		self:SetHeartbeat(false);self:SetAntiSeat(false);self:SetAncla(false);clean(true)
 		if humanoid and humanoid.Parent and seatState~=nil then humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,seatState) end
 		character=nil;humanoid=nil;seatState=nil;self.Center=nil;self.Checkpoint=nil
@@ -644,52 +642,20 @@ return function(context)
 		local root=getRoot();if not root then return end
 		if Core.PhaseEnabled and now>=nextShift then
 			nextShift=now+Core.ShiftInterval
-			if not destinationProbe then
-				destinationProbe=Instance.new("Part")
-				destinationProbe.Name="StaticShiftDestinationProbe"
-				destinationProbe.Anchored=true;destinationProbe.Transparency=1
-				destinationProbe.CanCollide=false;destinationProbe.CanTouch=false;destinationProbe.CanQuery=false
-				destinationProbe.Parent=Workspace
-			end
-			destinationProbe.Size=root.Size*0.9
-			local params=OverlapParams.new()
-			params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={character,destinationProbe};params.MaxParts=0
-			params.RespectCanCollide=true
 			local candidates={}
 			for candidate=1,5 do
 				if candidate~=index and (destination(candidate).Position-Core.Checkpoint.Position).Magnitude>0.01 then candidates[#candidates+1]=candidate end
 			end
-			while #candidates>0 do
+			if #candidates>0 then
 				local pick=random:NextInteger(1,#candidates)
-				local i=table.remove(candidates,pick)
+				local i=candidates[pick]
 				local target=destination(i)
-				-- Down deliberately permits an underground destination; other points remain checked.
-				if i==5 then
-					index=i;commit(target)
-					phaseStatus(isES and "Desfase activo." or "Shift active.")
-					return
-				end
-				destinationProbe.CFrame=target
-				-- Exact geometry instead of bounding boxes of large mesh objects.
-				local ok,hits=pcall(function() return Workspace:GetPartsInPart(destinationProbe,params) end)
-				if not ok then
-					phaseStatus(isES and "No se pudo comprobar el destino." or "Could not check destination.")
-					return
-				end
-				local blocked=false
-				for _,part in ipairs(hits) do
-					if part.CanCollide and not pairsByPart[part] then
-						if threat(part) then phase(part) end
-						if not pairsByPart[part] then blocked=true;break end
-					end
-				end
-				if not blocked then
-					index=i;commit(target)
-					phaseStatus(isES and "Desfase activo." or "Shift active.")
-					return
-				end
+				-- All configured destinations are intentional, including occupied/underground points.
+				index=i;commit(target)
+				phaseStatus(isES and "Desfase activo." or "Shift active.")
+				return
 			end
-			phaseStatus(isES and "Sin destinos libres: revisa las distancias." or "No clear destinations: check distances.")
+			phaseStatus(isES and "Sin destinos distintos: revisa las distancias." or "No distinct destinations: check distances.")
 		end
 	end)
 	-- Protection scans never gate the shift scheduler and never scan the whole map.

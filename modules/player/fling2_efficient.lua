@@ -84,6 +84,8 @@ function VR7EfficientCore.new(provider)
 	self.Direction = 1
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
+	self.WaitingForTarget = false
+	self.CurrentTargetRoot = nil
 
 	-- Front Flip
 	self.FrontFlipEnabled = false
@@ -304,6 +306,8 @@ function VR7EfficientCore:Start()
 	self.State = "NORMAL"
 	self.RecoveryConsecutiveNear = 0
 	self.LastTargetCFrame = targetRoot.CFrame
+	self.CurrentTargetRoot = targetRoot
+	self.WaitingForTarget = false
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = "NEAR"
 	self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
@@ -327,13 +331,37 @@ function VR7EfficientCore:Start()
 		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
 		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
-		-- Esperar si el objetivo reaparece; nunca regresar a una posición antigua.
-		if not currentTargetRoot then return end
+		-- Short mode keeps the selected Player across death/respawn, not the old HRP.
+		if self.ShortDisplacementEnabled then
+			if not currentTargetRoot then
+				if not self.WaitingForTarget then
+					self.WaitingForTarget = true
+					self.CurrentTargetRoot = nil
+					self:DestroyFlinger()
+					self:DestroyFrontFlip()
+				end
+				if self.AttackerCheckpoint then currentRoot.CFrame = self.AttackerCheckpoint end
+				currentRoot.AssemblyLinearVelocity = Vector3.zero
+				currentRoot.AssemblyAngularVelocity = Vector3.zero
+				return
+			end
+			if self.WaitingForTarget or self.CurrentTargetRoot ~= currentTargetRoot then
+				self.WaitingForTarget = false
+				self.CurrentTargetRoot = currentTargetRoot
+				self.EfficientPhase = "NEAR"
+				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
+				self.Direction = 1
+				self.ReturnSide = 1
+			end
+		elseif not currentTargetRoot then
+			return
+		end
 		self:UpdateLastTarget(currentTargetRoot)
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
 		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
 		self.Flinger.MaxForce = CONFIG.MAX_FORCE
 		self.Flinger.P = CONFIG.P
+		if self.ShortDisplacementEnabled then self:EnsureFrontFlip(currentRoot) end
 
 		local function placeNear()
 			self.Direction = -self.Direction
@@ -389,6 +417,8 @@ function VR7EfficientCore:Stop()
 	end
 
 	self.Running = false
+	self.WaitingForTarget = false
+	self.CurrentTargetRoot = nil
 	self.State = "IDLE"
 	self.Stopping = true
 
