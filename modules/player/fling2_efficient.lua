@@ -86,6 +86,8 @@ function VR7EfficientCore.new(provider)
 	self.ShortContactTime = 0.30
 	self.ShortHomeInterval = 0.05
 	self.HomeUntil = 0
+	self.ShortTravelTime = 0
+	self.ShortTravel = nil
 	self.WaitingForTarget = false
 	self.CurrentTargetRoot = nil
 
@@ -151,6 +153,44 @@ function VR7EfficientCore:SetShortHomeInterval(value)
 	if self.Running and self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
 		self.HomeUntil = os.clock() + self.ShortHomeInterval
 	end
+	return true
+end
+
+function VR7EfficientCore:SetShortTravelTime(value)
+	value = tonumber(value)
+	if not value or value ~= value or math.abs(value) == math.huge then return false end
+	self.ShortTravelTime = math.clamp(math.floor(value * 20 + 0.5) / 20, 0, 2)
+	return true
+end
+
+function VR7EfficientCore:BeginShortTravel(phase, root)
+	self:DestroyFlinger()
+	self:DestroyFrontFlip()
+	self.EfficientPhase = phase
+	self.ShortTravel = {From=root.CFrame,Started=os.clock(),Duration=self.ShortTravelTime}
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+end
+
+function VR7EfficientCore:AdvanceShortTravel(root, targetRoot)
+	local travel = self.ShortTravel
+	if not travel then return false end
+	local returning = self.EfficientPhase == "TO_HOME"
+	local goal = returning and self.AttackerCheckpoint or
+		(CFrame.new((targetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)).Position) * travel.From.Rotation)
+	local alpha = travel.Duration == 0 and 1 or math.clamp((os.clock()-travel.Started)/travel.Duration,0,1)
+	root.CFrame = travel.From:Lerp(goal,alpha)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	if alpha < 1 then return false end
+	self.ShortTravel = nil
+	if returning then
+		self.EfficientPhase = "HOME"
+		self.HomeUntil = os.clock() + self.ShortHomeInterval
+		return false
+	end
+	self.EfficientPhase = "NEAR"
+	self.NearUntil = os.clock() + self:GetContactDuration()
 	return true
 end
 
@@ -343,6 +383,7 @@ function VR7EfficientCore:Start()
 	self.WaitingForTarget = false
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = self.ShortDisplacementEnabled and "HOME" or "NEAR"
+	self.ShortTravel = nil
 	self.HomeUntil = os.clock() + self.ShortHomeInterval
 	self.NearUntil = os.clock() + self:GetContactDuration(true)
 	self.ReturnSide = 1
@@ -370,6 +411,7 @@ function VR7EfficientCore:Start()
 			if not currentTargetRoot then
 				if not self.WaitingForTarget then
 					self.WaitingForTarget = true
+					self.ShortTravel = nil
 					self.CurrentTargetRoot = nil
 					self:DestroyFlinger()
 					self:DestroyFrontFlip()
@@ -383,6 +425,7 @@ function VR7EfficientCore:Start()
 				self.WaitingForTarget = false
 				self.CurrentTargetRoot = currentTargetRoot
 				self.EfficientPhase = "HOME"
+				self.ShortTravel = nil
 				self.HomeUntil = os.clock() + self.ShortHomeInterval
 				self.NearUntil = os.clock() + self:GetContactDuration(true)
 				self.Direction = 1
@@ -395,8 +438,10 @@ function VR7EfficientCore:Start()
 		if self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
 			self:HoldShortHome(currentRoot)
 			if os.clock() < self.HomeUntil then return end
-			self.EfficientPhase = "NEAR"
-			self.NearUntil = os.clock() + self:GetContactDuration()
+			self:BeginShortTravel("TO_TARGET",currentRoot)
+		end
+		if self.ShortDisplacementEnabled and self.ShortTravel then
+			if not self:AdvanceShortTravel(currentRoot,currentTargetRoot) then return end
 		end
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
 		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
@@ -415,9 +460,8 @@ function VR7EfficientCore:Start()
 		if self.ShortDisplacementEnabled then
 			-- Short loop: home -> live target -> contact -> original home, never FAR.
 			if os.clock() >= self.NearUntil then
-				self.EfficientPhase = "HOME"
-				self.HomeUntil = os.clock() + self.ShortHomeInterval
-				self:HoldShortHome(currentRoot)
+				self:BeginShortTravel("TO_HOME",currentRoot)
+				self:AdvanceShortTravel(currentRoot,currentTargetRoot)
 			else
 				placeNear()
 			end
@@ -468,6 +512,7 @@ function VR7EfficientCore:Stop()
 
 	self.Running = false
 	self.WaitingForTarget = false
+	self.ShortTravel = nil
 	self.CurrentTargetRoot = nil
 	self.State = "IDLE"
 	self.Stopping = true

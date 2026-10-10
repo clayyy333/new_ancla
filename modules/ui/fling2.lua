@@ -12,7 +12,7 @@ return function(context)
 	fling2Panel.Parent = content
 
 	local panelCard = Instance.new("Frame")
-	panelCard.Size = UDim2.new(1, 0, 0, 506)
+	panelCard.Size = UDim2.new(1, 0, 0, 558)
 	panelCard.BackgroundColor3 = currentTheme.secondary
 	panelCard.ZIndex = 7
 	panelCard.Parent = fling2Panel
@@ -114,11 +114,23 @@ return function(context)
 	end
 	intervalMinus.Activated:Connect(function()changeInterval(-1)end)
 	intervalPlus.Activated:Connect(function()changeInterval(1)end)
-	local flingButton = MakeButton(332, isES and "Activar Fling 2" or "Enable Fling 2")
+	local travelLabel=contactLabel:Clone();travelLabel.Position=UDim2.new(0,0,0,332)
+	travelLabel.Text=isES and "Tiempo de traslado (0 = instantáneo)" or "Travel time (0 = instant)";travelLabel.Parent=panelCard
+	RegisterTheme(travelLabel,"TextColor3","text")
+	local travelMinus=MakeButton(332,"-");travelMinus.Size=contactMinus.Size;travelMinus.Position=UDim2.new(0.5,0,0,332)
+	local travelValue=MakeButton(332,"0.00 s");travelValue.Size=contactValue.Size;travelValue.Position=UDim2.new(0.62,0,0,332);travelValue.Active=false
+	local travelPlus=MakeButton(332,"+");travelPlus.Size=contactPlus.Size;travelPlus.Position=UDim2.new(0.88,0,0,332)
+	local function changeTravel(delta)
+		Fling2EfficientCore:SetShortTravelTime(Fling2EfficientCore.ShortTravelTime+delta*0.05)
+		travelValue.Text=string.format("%.2f s",Fling2EfficientCore.ShortTravelTime)
+	end
+	travelMinus.Activated:Connect(function()changeTravel(-1)end)
+	travelPlus.Activated:Connect(function()changeTravel(1)end)
+	local flingButton = MakeButton(384, isES and "Activar Fling 2" or "Enable Fling 2")
 
 	local restartWarning = Instance.new("TextLabel")
 	restartWarning.Size = UDim2.new(1, 0, 0, 18)
-	restartWarning.Position = UDim2.new(0, 0, 0, 378)
+	restartWarning.Position = UDim2.new(0, 0, 0, 430)
 	restartWarning.BackgroundTransparency = 1
 	restartWarning.Text = isES and "Este Fling te reinicia, usa el eficiente" or "This Fling resets you; use the efficient one"
 	restartWarning.TextColor3 = currentTheme.textDim
@@ -129,12 +141,12 @@ return function(context)
 	restartWarning.Parent = panelCard
 	RegisterTheme(restartWarning, "TextColor3", "textDim")
 
-	local forceReturnButton = MakeButton(402, isES and "Forzar regreso" or "Force return")
+	local forceReturnButton = MakeButton(454, isES and "Forzar regreso" or "Force return")
 	local lastStartedCore = Fling2Core
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, 0, 0, 42)
-	statusLabel.Position = UDim2.new(0, 0, 0, 452)
+	statusLabel.Position = UDim2.new(0, 0, 0, 504)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = currentTheme.textDim
 	statusLabel.Font = Enum.Font.GothamMedium
@@ -166,7 +178,7 @@ return function(context)
 	autoStatusLabel.Parent = panelCard
 	RegisterTheme(autoStatusLabel, "TextColor3", "textDim")
 
-	local manualObjects={targetLabel,targetButton,targetList,efficientButton,shortDisplacementButton,contactLabel,contactMinus,contactValue,contactPlus,intervalLabel,intervalMinus,intervalValue,intervalPlus,flingButton,restartWarning,forceReturnButton,statusLabel}
+	local manualObjects={targetLabel,targetButton,targetList,efficientButton,shortDisplacementButton,contactLabel,contactMinus,contactValue,contactPlus,intervalLabel,intervalMinus,intervalValue,intervalPlus,travelLabel,travelMinus,travelValue,travelPlus,flingButton,restartWarning,forceReturnButton,statusLabel}
 	local autoObjects={autoDescription,autoToggleButton,autoForceReturnButton,autoStatusLabel}
 	local mode="manual"
 
