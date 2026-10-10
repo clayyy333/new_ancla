@@ -88,6 +88,11 @@ function VR7EfficientCore.new(provider)
 	self.HomeUntil = 0
 	self.ShortTravelTime = 0
 	self.ShortTravel = nil
+	self.ShortApproachAngle = 0
+	self.ShortAngleCos = 1
+	self.ShortAngleSin = 0
+	self.ShortOrbitDistance = 0
+	self.ShortOrbitDirection = Vector3.new(1,0,0)
 	self.WaitingForTarget = false
 	self.WaitingForLocalCharacter = false
 	self.CurrentAttackerRoot = nil
@@ -165,6 +170,23 @@ function VR7EfficientCore:SetShortTravelTime(value)
 	return true
 end
 
+function VR7EfficientCore:SetShortApproachAngle(value)
+	value = tonumber(value)
+	if not value or value ~= value or math.abs(value) == math.huge then return false end
+	self.ShortApproachAngle = math.clamp(math.floor(value+0.5),0,90)
+	local radians = math.rad(self.ShortApproachAngle)
+	self.ShortAngleCos = self.ShortApproachAngle == 90 and 0 or math.cos(radians)
+	self.ShortAngleSin = math.sin(radians)
+	return true
+end
+
+function VR7EfficientCore:GetShortHome(targetRoot)
+	if not targetRoot then return self.AttackerCheckpoint end
+	local offset = self.ShortOrbitDirection * (self.ShortOrbitDistance*self.ShortAngleCos)
+		+ Vector3.new(0,self.ShortOrbitDistance*self.ShortAngleSin,0)
+	return CFrame.new(targetRoot.Position+offset) * self.AttackerCheckpoint.Rotation
+end
+
 function VR7EfficientCore:BeginShortTravel(phase, root)
 	self:DestroyFlinger()
 	self:DestroyFrontFlip()
@@ -178,7 +200,7 @@ function VR7EfficientCore:AdvanceShortTravel(root, targetRoot)
 	local travel = self.ShortTravel
 	if not travel then return false end
 	local returning = self.EfficientPhase == "TO_HOME"
-	local goal = returning and self.AttackerCheckpoint or
+	local goal = returning and self:GetShortHome(targetRoot) or
 		(CFrame.new((targetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)).Position) * travel.From.Rotation)
 	local alpha = travel.Duration == 0 and 1 or math.clamp((os.clock()-travel.Started)/travel.Duration,0,1)
 	root.CFrame = travel.From:Lerp(goal,alpha)
@@ -205,10 +227,10 @@ function VR7EfficientCore:WaitForShortRespawn()
 	self:DestroyFrontFlip()
 end
 
-function VR7EfficientCore:HoldShortHome(root)
+function VR7EfficientCore:HoldShortHome(root, targetRoot)
 	if self.Flinger then self:DestroyFlinger() end
 	if self.FrontFlipAngular or self.FrontFlipAttachment then self:DestroyFrontFlip() end
-	if self.AttackerCheckpoint then root.CFrame = self.AttackerCheckpoint end
+	if self.AttackerCheckpoint then root.CFrame = self:GetShortHome(targetRoot) end
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
 end
@@ -384,6 +406,16 @@ function VR7EfficientCore:Start()
 	self:Disconnect()
 
 	self.AttackerCheckpoint = attackerRoot.CFrame
+	if self.ShortDisplacementEnabled then
+		local offset = attackerRoot.Position-targetRoot.Position
+		self.ShortOrbitDistance = offset.Magnitude
+		local horizontal = Vector3.new(offset.X,0,offset.Z)
+		if horizontal.Magnitude<0.001 then
+			local look = targetRoot.CFrame.LookVector
+			horizontal = Vector3.new(-look.X,0,-look.Z)
+		end
+		self.ShortOrbitDirection = horizontal.Magnitude>0.001 and horizontal.Unit or Vector3.new(1,0,0)
+	end
 	self.CurrentAttackerRoot = attackerRoot
 	self.WaitingForLocalCharacter = false
 	self.LastReturnCheckpoint = self.AttackerCheckpoint
@@ -431,7 +463,7 @@ function VR7EfficientCore:Start()
 			self.ReturnSide = 1
 			currentHumanoid.PlatformStand = false
 			currentHumanoid.AutoRotate = true
-			self:HoldShortHome(currentRoot)
+			self:HoldShortHome(currentRoot,currentTargetRoot)
 		end
 
 		-- Short mode keeps the selected Player across death/respawn, not the old HRP.
@@ -464,7 +496,7 @@ function VR7EfficientCore:Start()
 		end
 		self:UpdateLastTarget(currentTargetRoot)
 		if self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
-			self:HoldShortHome(currentRoot)
+			self:HoldShortHome(currentRoot,currentTargetRoot)
 			if os.clock() < self.HomeUntil then return end
 			self:BeginShortTravel("TO_TARGET",currentRoot)
 		end
