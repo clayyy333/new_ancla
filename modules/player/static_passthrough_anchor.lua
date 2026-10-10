@@ -446,7 +446,7 @@ return function(context)
 	end)
 
 
-	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10,Down=10}
+	Core.Running=false;Core.PhaseEnabled=false;Core.Distances={Left=10,Right=10,Up=10,Down=0}
 	Core.ShiftInterval=0.10
 	local function phaseStatus(message)
 		if Core.PhaseStatus==message then return end
@@ -609,6 +609,7 @@ return function(context)
 		self:SetAntiSeat(true);self:SetHeartbeat(true);refresh();return true
 	end
 	function Core:Stop()
+		if self.Running and self.Center then index=1;commit(self.Center) end
 		self.Running=false;self.PhaseEnabled=false
 		phaseStatus(nil)
 		self:SetHeartbeat(false);self:SetAntiSeat(false);self:SetAncla(false);clean(true)
@@ -643,7 +644,9 @@ return function(context)
 		if Core.PhaseEnabled and now>=nextShift then
 			nextShift=now+Core.ShiftInterval
 			local candidates={}
-			for candidate=1,5 do
+			local lateralOnly=Core.Distances.Left>0 and Core.Distances.Right>0 and Core.Distances.Up==0 and Core.Distances.Down==0
+			-- With only left/right configured, zero-distance vertical points are not center hops.
+			for candidate=lateralOnly and 2 or 1,lateralOnly and 3 or 5 do
 				if candidate~=index and (destination(candidate).Position-Core.Checkpoint.Position).Magnitude>0.01 then candidates[#candidates+1]=candidate end
 			end
 			if #candidates>0 then
