@@ -84,6 +84,7 @@ function VR7EfficientCore.new(provider)
 	self.Direction = 1
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
+	self.ShortContactTime = 0.30
 	self.WaitingForTarget = false
 	self.CurrentTargetRoot = nil
 
@@ -127,6 +128,19 @@ end
 
 function VR7EfficientCore:IsShortDisplacementEnabled()
 	return self.ShortDisplacementEnabled
+end
+
+function VR7EfficientCore:SetShortContactTime(value)
+	value = tonumber(value)
+	if not value or value ~= value or math.abs(value) == math.huge then return false end
+	self.ShortContactTime = math.clamp(math.floor(value * 20 + 0.5) / 20, 0.05, 0.30)
+	return true
+end
+
+function VR7EfficientCore:GetContactDuration(initial)
+	if self.ShortDisplacementEnabled then return self.ShortContactTime end
+	if initial then return CONFIG.NEAR_MIN_TIME end
+	return CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
 end
 
 --------------------------------------------------
@@ -310,7 +324,7 @@ function VR7EfficientCore:Start()
 	self.WaitingForTarget = false
 	self.DistanceFromTarget = 0
 	self.EfficientPhase = "NEAR"
-	self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
+	self.NearUntil = os.clock() + self:GetContactDuration(true)
 	self.ReturnSide = 1
 
 	attackerHumanoid.PlatformStand = false
@@ -349,7 +363,7 @@ function VR7EfficientCore:Start()
 				self.WaitingForTarget = false
 				self.CurrentTargetRoot = currentTargetRoot
 				self.EfficientPhase = "NEAR"
-				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME
+				self.NearUntil = os.clock() + self:GetContactDuration(true)
 				self.Direction = 1
 				self.ReturnSide = 1
 			end
@@ -390,7 +404,7 @@ function VR7EfficientCore:Start()
 		elseif self.EfficientPhase == "VERIFY_RETURN" then
 			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.DIRECT_RETURN_TOLERANCE then
 				self.EfficientPhase = "NEAR"
-				self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+				self.NearUntil = os.clock() + self:GetContactDuration()
 			else
 				self.ReturnSide = -self.ReturnSide
 				self.EfficientPhase = "RETURN_16"
@@ -401,7 +415,7 @@ function VR7EfficientCore:Start()
 		else
 			placeNear()
 			self.EfficientPhase = "NEAR"
-			self.NearUntil = os.clock() + CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+			self.NearUntil = os.clock() + self:GetContactDuration()
 		end
 	end)
 
