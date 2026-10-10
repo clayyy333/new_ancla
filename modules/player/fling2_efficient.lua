@@ -23,7 +23,6 @@ local CONFIG = {
 	NEAR_MAX_TIME = 0.085,
 	DIRECT_RETURN_TOLERANCE = 4,
 	FAR_DISTANCES = {4487425, 7554477, 9193601, 11000000, 12572022, 15000000, 17003482, 21098414},
-	SHORT_DISTANCE_SCALE = 0.01,
 }
 
 --------------------------------------------------
@@ -385,14 +384,21 @@ function VR7EfficientCore:Start()
 			currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
 		end
 
+		if self.ShortDisplacementEnabled then
+			-- Direct short mode: follow the live target, never enter FAR/return phases.
+			placeNear()
+			self.EfficientPhase = "NEAR"
+			if os.clock() >= self.NearUntil then
+				self.NearUntil = os.clock() + self:GetContactDuration()
+			end
+			return
+		end
+
 		if self.EfficientPhase == "NEAR" then
 			placeNear()
 			if os.clock() >= self.NearUntil then self.EfficientPhase = "FAR" end
 		elseif self.EfficientPhase == "FAR" then
 			local far = CONFIG.FAR_DISTANCES[math.random(1, #CONFIG.FAR_DISTANCES)]
-			if self.ShortDisplacementEnabled then
-				far = far * CONFIG.SHORT_DISTANCE_SCALE
-			end
 			local sx = math.random(0, 1) == 0 and -1 or 1
 			local sz = math.random(0, 1) == 0 and -1 or 1
 			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz))
