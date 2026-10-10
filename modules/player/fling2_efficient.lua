@@ -84,6 +84,8 @@ function VR7EfficientCore.new(provider)
 	self.SelectedTarget = nil
 	self.ShortDisplacementEnabled = false
 	self.ShortContactTime = 0.30
+	self.ShortHomeInterval = 0.05
+	self.HomeUntil = 0
 	self.WaitingForTarget = false
 	self.CurrentTargetRoot = nil
 
@@ -140,6 +142,24 @@ function VR7EfficientCore:GetContactDuration(initial)
 	if self.ShortDisplacementEnabled then return self.ShortContactTime end
 	if initial then return CONFIG.NEAR_MIN_TIME end
 	return CONFIG.NEAR_MIN_TIME + math.random() * (CONFIG.NEAR_MAX_TIME - CONFIG.NEAR_MIN_TIME)
+end
+
+function VR7EfficientCore:SetShortHomeInterval(value)
+	value = tonumber(value)
+	if not value or value ~= value or math.abs(value) == math.huge then return false end
+	self.ShortHomeInterval = math.clamp(math.floor(value * 20 + 0.5) / 20, 0.05, 1)
+	if self.Running and self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
+		self.HomeUntil = os.clock() + self.ShortHomeInterval
+	end
+	return true
+end
+
+function VR7EfficientCore:HoldShortHome(root)
+	if self.Flinger then self:DestroyFlinger() end
+	if self.FrontFlipAngular or self.FrontFlipAttachment then self:DestroyFrontFlip() end
+	if self.AttackerCheckpoint then root.CFrame = self.AttackerCheckpoint end
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
 end
 
 --------------------------------------------------
@@ -322,7 +342,8 @@ function VR7EfficientCore:Start()
 	self.CurrentTargetRoot = targetRoot
 	self.WaitingForTarget = false
 	self.DistanceFromTarget = 0
-	self.EfficientPhase = "NEAR"
+	self.EfficientPhase = self.ShortDisplacementEnabled and "HOME" or "NEAR"
+	self.HomeUntil = os.clock() + self.ShortHomeInterval
 	self.NearUntil = os.clock() + self:GetContactDuration(true)
 	self.ReturnSide = 1
 
@@ -361,7 +382,8 @@ function VR7EfficientCore:Start()
 			if self.WaitingForTarget or self.CurrentTargetRoot ~= currentTargetRoot then
 				self.WaitingForTarget = false
 				self.CurrentTargetRoot = currentTargetRoot
-				self.EfficientPhase = "NEAR"
+				self.EfficientPhase = "HOME"
+				self.HomeUntil = os.clock() + self.ShortHomeInterval
 				self.NearUntil = os.clock() + self:GetContactDuration(true)
 				self.Direction = 1
 				self.ReturnSide = 1
@@ -370,6 +392,12 @@ function VR7EfficientCore:Start()
 			return
 		end
 		self:UpdateLastTarget(currentTargetRoot)
+		if self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
+			self:HoldShortHome(currentRoot)
+			if os.clock() < self.HomeUntil then return end
+			self.EfficientPhase = "NEAR"
+			self.NearUntil = os.clock() + self:GetContactDuration()
+		end
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
 		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
 		self.Flinger.MaxForce = CONFIG.MAX_FORCE
@@ -385,11 +413,13 @@ function VR7EfficientCore:Start()
 		end
 
 		if self.ShortDisplacementEnabled then
-			-- Direct short mode: follow the live target, never enter FAR/return phases.
-			placeNear()
-			self.EfficientPhase = "NEAR"
+			-- Short loop: home -> live target -> contact -> original home, never FAR.
 			if os.clock() >= self.NearUntil then
-				self.NearUntil = os.clock() + self:GetContactDuration()
+				self.EfficientPhase = "HOME"
+				self.HomeUntil = os.clock() + self.ShortHomeInterval
+				self:HoldShortHome(currentRoot)
+			else
+				placeNear()
 			end
 			return
 		end
