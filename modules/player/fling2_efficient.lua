@@ -4,6 +4,7 @@ return function(context)
 
 	local LocalPlayer = player
 local CONFIG = {
+	SHORT_STABILITY_TEST = true, -- Set false to restore short-mode lateral thrust and rotation.
 	VERTICAL_DISTANCE = 1.5,
 	LINEAR_SPEED = 900000000,
 	ANGULAR_SPEED = 900000000,
@@ -140,6 +141,18 @@ function VR7EfficientCore:IsShortDisplacementEnabled()
 	return self.ShortDisplacementEnabled
 end
 
+function VR7EfficientCore:IsStableShortMode()
+	return CONFIG.SHORT_STABILITY_TEST and self.ShortDisplacementEnabled
+end
+
+function VR7EfficientCore:GetFlingerVelocity()
+	return self:IsStableShortMode() and Vector3.new(0, CONFIG.FLINGER_VELOCITY.Y, 0) or CONFIG.FLINGER_VELOCITY
+end
+
+function VR7EfficientCore:GetFlingerMaxForce()
+	return self:IsStableShortMode() and Vector3.new(0, CONFIG.MAX_FORCE.Y, 0) or CONFIG.MAX_FORCE
+end
+
 function VR7EfficientCore:SetShortContactTime(value)
 	value = tonumber(value)
 	if not value or value ~= value or math.abs(value) == math.huge then return false end
@@ -252,6 +265,7 @@ end
 
 function VR7EfficientCore:ActivateFrontFlip(root)
 	self:DestroyFrontFlip()
+	if self:IsStableShortMode() then return end
 	if not root then return end
 
 	local attachment = Instance.new("Attachment")
@@ -287,6 +301,7 @@ function VR7EfficientCore:SetFrontFlipEnabled(enabled)
 end
 
 function VR7EfficientCore:EnsureFrontFlip(root)
+	if self:IsStableShortMode() then self:DestroyFrontFlip(); return end
 	if not self.FrontFlipEnabled or not root then
 		return
 	end
@@ -323,8 +338,8 @@ function VR7EfficientCore:CreateFlinger(root)
 	local bodyVelocity = Instance.new("BodyVelocity")
 	bodyVelocity.Name = "VR7VerticalFlinger"
 	bodyVelocity.P = CONFIG.P
-	bodyVelocity.MaxForce = CONFIG.MAX_FORCE
-	bodyVelocity.Velocity = CONFIG.FLINGER_VELOCITY
+	bodyVelocity.MaxForce = self:GetFlingerMaxForce()
+	bodyVelocity.Velocity = self:GetFlingerVelocity()
 	bodyVelocity.Parent = root
 	self.Flinger = bodyVelocity
 end
@@ -504,8 +519,8 @@ function VR7EfficientCore:Start()
 			if not self:AdvanceShortTravel(currentRoot,currentTargetRoot) then return end
 		end
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
-		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
-		self.Flinger.MaxForce = CONFIG.MAX_FORCE
+		self.Flinger.Velocity = self:GetFlingerVelocity()
+		self.Flinger.MaxForce = self:GetFlingerMaxForce()
 		self.Flinger.P = CONFIG.P
 		if self.ShortDisplacementEnabled then self:EnsureFrontFlip(currentRoot) end
 
@@ -514,7 +529,7 @@ function VR7EfficientCore:Start()
 			local desired = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)
 			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
 			currentRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
-			currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
+			currentRoot.AssemblyAngularVelocity = self:IsStableShortMode() and Vector3.zero or Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
 		end
 
 		if self.ShortDisplacementEnabled then
