@@ -12,7 +12,7 @@ return function(context)
 	fling2Panel.Parent = content
 
 	local panelCard = Instance.new("Frame")
-	panelCard.Size = UDim2.new(1, 0, 0, 610)
+	panelCard.Size = UDim2.new(1, 0, 0, 662)
 	panelCard.BackgroundColor3 = currentTheme.secondary
 	panelCard.ZIndex = 7
 	panelCard.Parent = fling2Panel
@@ -138,11 +138,24 @@ return function(context)
 	end
 	angleMinus.Activated:Connect(function()changeAngle(-1)end)
 	anglePlus.Activated:Connect(function()changeAngle(1)end)
-	local flingButton = MakeButton(436, isES and "Activar Fling 2" or "Enable Fling 2")
+	local heightLabel=contactLabel:Clone();heightLabel.Position=UDim2.new(0,0,0,436)
+	heightLabel.Text=isES and "Altura del contacto (corto)" or "Contact height (short)";heightLabel.Parent=panelCard
+	RegisterTheme(heightLabel,"TextColor3","text")
+	local heightMinus=MakeButton(436,"-");heightMinus.Size=contactMinus.Size;heightMinus.Position=UDim2.new(0.5,0,0,436)
+	local heightValue=MakeButton(436,string.format("%.1f studs",Fling2EfficientCore.ShortContactHeight));heightValue.Size=contactValue.Size;heightValue.Position=UDim2.new(0.62,0,0,436);heightValue.Active=false
+	heightValue.TextSize=isMobile and 10 or 12
+	local heightPlus=MakeButton(436,"+");heightPlus.Size=contactPlus.Size;heightPlus.Position=UDim2.new(0.88,0,0,436)
+	local function changeHeight(delta)
+		Fling2EfficientCore:SetShortContactHeight(Fling2EfficientCore.ShortContactHeight+delta*0.1)
+		heightValue.Text=string.format("%.1f studs",Fling2EfficientCore.ShortContactHeight)
+	end
+	heightMinus.Activated:Connect(function()changeHeight(-1)end)
+	heightPlus.Activated:Connect(function()changeHeight(1)end)
+	local flingButton = MakeButton(488, isES and "Activar Fling 2" or "Enable Fling 2")
 
 	local restartWarning = Instance.new("TextLabel")
 	restartWarning.Size = UDim2.new(1, 0, 0, 18)
-	restartWarning.Position = UDim2.new(0, 0, 0, 482)
+	restartWarning.Position = UDim2.new(0, 0, 0, 534)
 	restartWarning.BackgroundTransparency = 1
 	restartWarning.Text = isES and "Este Fling te reinicia, usa el eficiente" or "This Fling resets you; use the efficient one"
 	restartWarning.TextColor3 = currentTheme.textDim
@@ -153,12 +166,12 @@ return function(context)
 	restartWarning.Parent = panelCard
 	RegisterTheme(restartWarning, "TextColor3", "textDim")
 
-	local forceReturnButton = MakeButton(506, isES and "Forzar regreso" or "Force return")
+	local forceReturnButton = MakeButton(558, isES and "Forzar regreso" or "Force return")
 	local lastStartedCore = Fling2Core
 
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, 0, 0, 42)
-	statusLabel.Position = UDim2.new(0, 0, 0, 556)
+	statusLabel.Position = UDim2.new(0, 0, 0, 608)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = currentTheme.textDim
 	statusLabel.Font = Enum.Font.GothamMedium
@@ -190,7 +203,7 @@ return function(context)
 	autoStatusLabel.Parent = panelCard
 	RegisterTheme(autoStatusLabel, "TextColor3", "textDim")
 
-	local manualObjects={targetLabel,targetButton,targetList,efficientButton,shortDisplacementButton,contactLabel,contactMinus,contactValue,contactPlus,intervalLabel,intervalMinus,intervalValue,intervalPlus,travelLabel,travelMinus,travelValue,travelPlus,angleLabel,angleMinus,angleValue,anglePlus,flingButton,restartWarning,forceReturnButton,statusLabel}
+	local manualObjects={targetLabel,targetButton,targetList,efficientButton,shortDisplacementButton,contactLabel,contactMinus,contactValue,contactPlus,intervalLabel,intervalMinus,intervalValue,intervalPlus,travelLabel,travelMinus,travelValue,travelPlus,angleLabel,angleMinus,angleValue,anglePlus,heightLabel,heightMinus,heightValue,heightPlus,flingButton,restartWarning,forceReturnButton,statusLabel}
 	local autoObjects={autoDescription,autoToggleButton,autoForceReturnButton,autoStatusLabel}
 	local mode="manual"
 

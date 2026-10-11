@@ -90,6 +90,7 @@ function VR7EfficientCore.new(provider)
 	self.ShortTravelTime = 0
 	self.ShortTravel = nil
 	self.ShortApproachAngle = 0
+	self.ShortContactHeight = 1.5
 	self.ShortAngleCos = 1
 	self.ShortAngleSin = 0
 	self.ShortOrbitDistance = 0
@@ -183,6 +184,17 @@ function VR7EfficientCore:SetShortTravelTime(value)
 	return true
 end
 
+function VR7EfficientCore:SetShortContactHeight(value)
+	value = tonumber(value)
+	if not value or value ~= value or math.abs(value) == math.huge then return false end
+	self.ShortContactHeight = math.clamp(math.floor(value*10+0.5)/10,0,1.5)
+	return true
+end
+
+function VR7EfficientCore:GetContactHeight()
+	return self.ShortDisplacementEnabled and self.ShortContactHeight or CONFIG.VERTICAL_DISTANCE
+end
+
 function VR7EfficientCore:SetShortApproachAngle(value)
 	value = tonumber(value)
 	if not value or value ~= value or math.abs(value) == math.huge then return false end
@@ -214,7 +226,7 @@ function VR7EfficientCore:AdvanceShortTravel(root, targetRoot)
 	if not travel then return false end
 	local returning = self.EfficientPhase == "TO_HOME"
 	local goal = returning and self:GetShortHome(targetRoot) or
-		(CFrame.new((targetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)).Position) * travel.From.Rotation)
+		(CFrame.new((targetRoot.CFrame * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)).Position) * travel.From.Rotation)
 	local alpha = travel.Duration == 0 and 1 or math.clamp((os.clock()-travel.Started)/travel.Duration,0,1)
 	root.CFrame = travel.From:Lerp(goal,alpha)
 	root.AssemblyLinearVelocity = Vector3.zero
@@ -526,7 +538,7 @@ function VR7EfficientCore:Start()
 
 		local function placeNear()
 			self.Direction = -self.Direction
-			local desired = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)
+			local desired = currentTargetRoot.CFrame * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)
 			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
 			currentRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
 			currentRoot.AssemblyAngularVelocity = self:IsStableShortMode() and Vector3.zero or Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
