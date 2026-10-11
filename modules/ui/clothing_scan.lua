@@ -76,7 +76,6 @@ return function(context)
 		for _,r in ipairs(rows) do r:Destroy() end; rows={}
 		task.spawn(function()
 			local ok,err=pcall(function()
-				local description=humanoid:GetAppliedDescription()
 				local items,seen={},{}
 				local function add(id,kind,texture)
 					id=tonumber(id); if not id or id<=0 then return end
@@ -84,16 +83,37 @@ return function(context)
 					if seen[key] then return end; seen[key]=true
 					items[#items+1]={id=id,kind=kind,texture=texture}
 				end
-				for _,entry in ipairs({{"Shirt","Shirt",tr("Camisa","Shirt"),"ShirtTemplate"},{"Pants","Pants",tr("Pantalón","Pants"),"PantsTemplate"},{"GraphicTShirt","ShirtGraphic",tr("Camiseta","T-shirt"),"Graphic"}}) do
-					local actual=character:FindFirstChildOfClass(entry[2])
-					if actual then
-						if description[entry[1]]>0 then add(description[entry[1]],entry[3]..tr(" (descripción aplicada)"," (applied description)"),false) end
-						local texture=tostring(actual[entry[4]]):match("%d+")
-						add(texture,entry[3]..tr(" · textura actual (no catálogo)"," · current texture (not catalog)"),true)
+				local classic={
+					Shirt={"Shirt",tr("Camisa clásica","Classic shirt"),"ShirtTemplate"},
+					Pants={"Pants",tr("Pantalón clásico","Classic pants"),"PantsTemplate"},
+					ShirtGraphic={"GraphicTShirt",tr("Camiseta clásica","Classic T-shirt"),"Graphic"}
+				}
+				local worn={}
+				-- Inspect actual instances first, independently of the description.
+				-- Ignore stored clothing inside equipped Tools or nested NPC rigs.
+				for _,actual in ipairs(character:GetDescendants()) do
+					local entry=classic[actual.ClassName]
+					if entry and not actual:FindFirstAncestorOfClass("Tool") and actual:FindFirstAncestorOfClass("Model")==character then
+						worn[entry[1]]=entry[2]
+						local read,value=pcall(function() return actual[entry[3]] end)
+						if read then
+							local texture=tostring(value):match("[?&]id=(%d+)") or tostring(value):match("rbxassetid://(%d+)") or tostring(value):match("(%d+)$")
+							add(texture,entry[2]..tr(" · textura actual (no catálogo)"," · current texture (not catalog)"),true)
+						end
 					end
 				end
-				for _,a in ipairs(description:GetAccessories(true)) do add(a.AssetId,tostring(a.AccessoryType):gsub("Enum.AccessoryType%.","")..tr(" (descripción aplicada)"," (applied description)"),false) end
-				description:Destroy()
+				local hasDescription,description=pcall(function() return humanoid:GetAppliedDescription() end)
+				if hasDescription and description then
+					for property,kind in pairs(worn) do
+						local read,id=pcall(function() return description[property] end)
+						if read then add(id,kind..tr(" (descripción aplicada)"," (applied description)"),false) end
+					end
+					local gotAccessories,accessories=pcall(function() return description:GetAccessories(true) end)
+					if gotAccessories then
+						for _,a in ipairs(accessories) do add(a.AssetId,tostring(a.AccessoryType):gsub("Enum.AccessoryType%.","")..tr(" (descripción aplicada)"," (applied description)"),false) end
+					end
+					description:Destroy()
+				end
 				for i,item in ipairs(items) do
 					if not panel.Parent or token~=serial then return end
 					local name=tr("Nombre no disponible","Name unavailable")
