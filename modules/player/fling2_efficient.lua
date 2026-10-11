@@ -4,7 +4,7 @@ return function(context)
 
 	local LocalPlayer = player
 local CONFIG = {
-	SHORT_STABILITY_TEST = true, -- Set false to restore short-mode lateral thrust and rotation.
+	SHORT_STABILITY_TEST = false, -- Original lateral thrust and rotation restored.
 	VERTICAL_DISTANCE = 1.5,
 	LINEAR_SPEED = 900000000,
 	ANGULAR_SPEED = 900000000,
