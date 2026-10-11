@@ -36,7 +36,7 @@ UpdateTabStyles = function()
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
+	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
 	anchorNav.Visible = isAnchor
@@ -50,6 +50,7 @@ UpdateTabStyles = function()
 	SetButtonStyle(anchorNavButtonStyle, isAnchor)
 	SetButtonStyle(controlNavButtonStyle, isControl)
 	SetButtonStyle(graphicsNavButtonStyle, isGraphics)
+	SetButtonStyle(clothingNavButtonStyle, currentTab == "clothing_scan")
 	SetButtonStyle(couplesNavButtonStyle, isCouples)
 	for name, data in pairs(couplesTabBtns) do SetButtonStyle(data, currentTab == name) end
 	for name, data in pairs(controlTabBtns) do SetButtonStyle(data, currentTab == name) end
@@ -457,7 +458,7 @@ UpdateTabData = function()
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
-	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples
+	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
 	keybindsPanel.Visible  = isKeybinds
@@ -480,6 +481,7 @@ UpdateTabData = function()
 	movementControlPanel.Visible = isMovementControl
 	verticalControlPanel.Visible = isVerticalControl
 	graphicsPanel.Visible = isFPSBooster
+	clothingScanPanel.Visible = currentTab == "clothing_scan"
 	shaderPanel.Visible = currentTab == "shaders"
 	couplesPanel.Visible = currentTab == "couples"
 	coupleMovementPanel.Visible = currentTab == "couple_movement"
@@ -620,6 +622,8 @@ UpdateTabData = function()
 	elseif currentTab == "vertical_control" then
 		title.Text = isES and "Desplazamiento vertical" or "Vertical Displacement"
 		if UpdateVerticalControlPanel then UpdateVerticalControlPanel() end
+	elseif currentTab == "clothing_scan" then
+		title.Text = isES and "Escanear ropa" or "Scan clothing"
 	elseif currentTab == "fps_booster" then
 		title.Text = "FPS Booster"
 		if UpdateFPSBoosterPanel then UpdateFPSBoosterPanel() end
@@ -654,6 +658,7 @@ mainNavBtns["fling2"].MouseButton1Click:Connect(function() if os.clock() < mainN
 mainNavBtns["anchor"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "anchor"; UpdateTabData() end)
 mainNavBtns["control"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "camera_control"; UpdateTabData() end)
 mainNavBtns["graphics"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fps_booster"; UpdateTabData() end)
+mainNavBtns.clothing_scan.Activated:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "clothing_scan"; UpdateTabData() end)
 mainNavBtns["couples"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "preset_poses"; UpdateTabData() end)
 couplesTabBtns["couples"].btn.MouseButton1Click:Connect(function() currentTab="couples";UpdateTabData() end)
 couplesTabBtns["couple_movement"].btn.MouseButton1Click:Connect(function() currentTab="couple_movement";UpdateTabData() end)

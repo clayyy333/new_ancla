@@ -22,7 +22,7 @@ return function(context)
 	mainNav.Active = true
 	mainNav.ScrollingDirection = Enum.ScrollingDirection.X
 	mainNav.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
-	mainNav.CanvasSize = UDim2.new(0, isMobile and 580 or 715, 0, 0)
+	mainNav.CanvasSize = UDim2.new(0, isMobile and 722 or 877, 0, 0)
 	mainNav.ZIndex = 21
 	mainNav.Parent = topNav
 
@@ -212,11 +212,14 @@ return function(context)
 	graphicsBtn.TextSize = isMobile and 14 or 16
 	mainNavBtns.graphics = graphicsBtn
 	graphicsNavButtonStyle = {btn = graphicsBtn, stroke = graphicsStroke, gradient = graphicsGradient}
+	local clothingBtn, clothingStroke, clothingGradient = CreateTextButton(mainNav, isES and "Escanear ropa" or "Scan clothing", "clothing_scan", UDim2.new(0, isMobile and 134 or 154, 1, 0), UDim2.new(0, isMobile and 494 or 610, 0, 0))
+	mainNavBtns.clothing_scan = clothingBtn
+	clothingNavButtonStyle = {btn=clothingBtn, stroke=clothingStroke, gradient=clothingGradient}
 
 	local couplesBtn, couplesStroke, couplesGradient = CreateTextButton(
 		mainNav, isES and "Parejas" or "Couples", "couples",
 		UDim2.new(0, isMobile and 86 or 105, 1, 0),
-		UDim2.new(0, isMobile and 494 or 610, 0, 0)
+		UDim2.new(0, isMobile and 636 or 772, 0, 0)
 	)
 	couplesBtn.Font = Enum.Font.GothamBold
 	couplesBtn.TextSize = isMobile and 14 or 16

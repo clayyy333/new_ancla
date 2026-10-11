@@ -82,6 +82,7 @@ return {
 		"ui/fling_car2",
 		"ui/fling_object",
 		"ui/graphics",
+		"ui/clothing_scan",
 		"ui/shaders",
 		"ui/camera_control",
 		"ui/cinematic_camera",
