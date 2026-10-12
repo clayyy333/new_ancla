@@ -6,6 +6,7 @@ return function(context)
 	local CUSTOM_FLING_OWNERS = {
 		[11739864999] = "psychoo778",
 		[11743514302] = "ksablanca0",
+		[11797966007] = "psychoop77",
 	}
 	local function T(es,en) return isES and es or en end
 local CONFIG = {
