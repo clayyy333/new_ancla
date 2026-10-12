@@ -120,6 +120,7 @@ return function(context)
 			return false
 		end
 		Guard.SessionToken=response.session_token
+		Guard.SessionId=response.session_id
 		Guard.AnchorGuardEnabled=response.anchor_guard_enabled==true and isMetroLife()
 		Guard.Connected=true
 		return true
@@ -241,6 +242,10 @@ return function(context)
 		end
 	end
 
+	function Guard:RemoteCall(method,path,body)
+		if not self.Running or not self.Connected or not self.SessionToken then return nil end
+		return call(method,path,body,self.SessionToken)
+	end
 	function Guard:Start()
 		if self.Running or Config.Enabled~=true then return false end
 		if type(Config.ClientKey)~="string" or Config.ClientKey=="" then return false end

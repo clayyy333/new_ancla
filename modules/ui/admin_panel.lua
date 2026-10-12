@@ -169,7 +169,9 @@ return function(context)
     local layout = Instance.new("UIListLayout", list)
     layout.Padding = UDim.new(0, 5)
 
-    local function render(players)
+    local serverScope=true
+    local loadServer
+    local function render(players,remoteCommands)
         for _, child in ipairs(list:GetChildren()) do
             if child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
         end
@@ -188,7 +190,7 @@ return function(context)
         end
         for _, info in ipairs(players) do
             local item = Instance.new("TextLabel")
-            item.Size = UDim2.new(1, -4, 0, 46)
+            item.Size = UDim2.new(1, -4, 0, (serverScope and info.id) and 150 or 46)
             item.BackgroundColor3 = currentTheme.secondary
             item.Text = string.format(
                 "  %s   |   %.2f h   |   %s   |   %s   |   %s",
@@ -209,7 +211,97 @@ return function(context)
             Instance.new("UICorner", item).CornerRadius = UDim.new(0, 9)
             RegisterTheme(item, "BackgroundColor3", "secondary")
             RegisterTheme(item, "TextColor3", "text")
+            if serverScope and info.id then
+                item.TextYAlignment=Enum.TextYAlignment.Top
+                local selected=tonumber(info.enabled)==1 and info.controller_session_id==(BackendAnchorGuard and BackendAnchorGuard.SessionId)
+                local function control(text,x,y,width)
+                    local button=makeModeButton(text,0);button.Parent=item;button.Size=UDim2.new(width,-6,0,32);button.Position=UDim2.new(x,3,0,y);button.ZIndex=1504;return button
+                end
+                local permission=tonumber(info.consent)==1
+                local choose=control(permission and (selected and (isES and "Quitar control" or "Disable control") or (isES and "Habilitar control" or "Enable control")) or (isES and "Sin permiso" or "No consent"),0,32,1)
+                local anchor=control(isES and "Activar ancla + desfase" or "Enable anchor + phase",0,108,.5)
+                local fling=control(isES and "Activar Fling corto" or "Enable short Fling",.5,108,.5)
+                local target=control(isES and "Elegir objetivo" or "Choose target",0,70,1)
+                local targetId,index=nil,0
+                local candidates={};for _,p in ipairs(players) do if tonumber(p.consent)==1 and p.user_id~=info.user_id then candidates[#candidates+1]=p end end
+                target.Activated:Connect(function() if #candidates==0 then return end;index=index%#candidates+1;targetId=candidates[index].user_id;target.Text=(isES and "Objetivo: " or "Target: ")..candidates[index].username end)
+                local latest={}
+                for _,c in ipairs(remoteCommands or {}) do
+                    if c.target_session_id==info.id and not latest[c.action] then latest[c.action]=c end
+                end
+                local anchorOn=tonumber(info.anchored)==1 and info.anchor_mode=="Desfase"
+                local flingOn=tonumber(info.short_fling_enabled)==1
+                anchor.Text=anchorOn and (isES and "Desactivar ancla + desfase" or "Disable anchor + phase") or anchor.Text
+                fling.Text=flingOn and (isES and "Desactivar Fling corto" or "Disable short Fling") or fling.Text
+                for _,c in ipairs(remoteCommands or {}) do
+                    if c.target_session_id==info.id then
+                        if c.status=="pending" then choose.Text=isES and "Orden pendiente" or "Command pending"
+                        elseif c.status=="applied" then choose.Text=isES and "Aplicado · quitar control" or "Applied · disable control"
+                        elseif c.status=="failed" or c.status=="rejected" or c.status=="expired" then choose.Text=isES and "Error · actualizar" or "Error · refresh" end
+                        break
+                    end
+                end
+                local pending=false
+                choose.Activated:Connect(function()
+                    if pending or not permission then return end;pending=true
+                    AdminPanelBridge:Remote("PUT","/sessions/"..info.id,{enabled=not selected},function(response,err)
+                        pending=false;if not item.Parent then return end
+                        if response then loadServer() else choose.Text=tostring(err or "Error") end
+                    end)
+                end)
+                local function send(action,button)
+                    if pending or not selected then return end
+                    if action=="short_fling_on" and not targetId then target.Text=isES and "Elige un objetivo primero" or "Choose a target first";return end
+                    pending=true;button.Text=isES and "Enviando…" or "Sending…"
+                    AdminPanelBridge:Remote("POST","/commands",{session_ids={info.id},action=action,target_user_id=targetId},function(response,err)
+                        pending=false;if not item.Parent then return end
+                        button.Text=response and (isES and "Pendiente · actualizar" or "Pending · refresh") or tostring(err or "Error")
+                        if response and response.command_ids and response.command_ids[1] then
+                            local cid=response.command_ids[1]
+                            task.spawn(function()
+                                for attempt=1,8 do
+                                    task.wait(2)
+                                    if not item.Parent or not modal.Visible or not serverScope then return end
+                                    local finished,received=false,false
+                                    AdminPanelBridge:Remote("GET","",nil,function(state)
+                                        received=true
+                                        if not state or not item.Parent then return end
+                                        for _,c in ipairs(state.commands or {}) do
+                                            if c.id==cid and c.status~="pending" then
+                                                finished=true
+                                                if c.status=="applied" then
+                                                    if action=="anchor_phase_on" or action=="anchor_phase_off" then anchorOn=action=="anchor_phase_on" end
+                                                    if action=="short_fling_on" or action=="short_fling_off" then flingOn=action=="short_fling_on" end
+                                                    button.Text=isES and "Aplicado" or "Applied"
+                                                    anchor.Text=anchorOn and (isES and "Desactivar ancla + desfase" or "Disable anchor + phase") or (isES and "Activar ancla + desfase" or "Enable anchor + phase")
+                                                    fling.Text=flingOn and (isES and "Desactivar Fling corto" or "Disable short Fling") or (isES and "Activar Fling corto" or "Enable short Fling")
+                                                    choose.Text=isES and "Aplicado · quitar control" or "Applied · disable control"
+                                                else button.Text=(isES and "Error: " or "Error: ")..c.status end
+                                                break
+                                            end
+                                        end
+                                    end)
+                                    local deadline=os.clock()+9
+                                    repeat task.wait(.1) until received or os.clock()>=deadline or not item.Parent
+                                    if finished then return end
+                                end
+                            end)
+                        end
+                    end)
+                end
+                anchor.Activated:Connect(function() send(anchorOn and "anchor_phase_off" or "anchor_phase_on",anchor) end)
+                fling.Activated:Connect(function() send(flingOn and "short_fling_off" or "short_fling_on",fling) end)
+            end
         end
+    end
+
+    loadServer=function()
+        serverScope=true
+        AdminPanelBridge:Remote("GET","",nil,function(response,err)
+            if not serverScope or not modal.Visible then return end
+            if response then render(response.sessions,response.commands)
+            else status.Text=tostring(err or "Error");AdminPanelBridge:LoadPlayers("server",render) end
+        end)
     end
 
     local function renderCustomProfiles(remoteProfiles)
@@ -246,22 +338,24 @@ return function(context)
             if ok then
                 loginFrame.Visible = false
                 keyBox.Text = ""
-                AdminPanelBridge:LoadPlayers("server", render)
+                loadServer()
                 dataFrame.Visible = true
             end
         end)
     end)
     serverButton.Activated:Connect(function()
         if AdminPanelBridge and AdminPanelBridge.LoadPlayers then
-            AdminPanelBridge:LoadPlayers("server", render)
+            loadServer()
         end
     end)
     gameButton.Activated:Connect(function()
+        serverScope=false
         if AdminPanelBridge and AdminPanelBridge.LoadPlayers then
             AdminPanelBridge:LoadPlayers("game", render)
         end
     end)
     customButton.Activated:Connect(function()
+        serverScope=false
         local cached={};for _,profile in pairs(Settings.ownerCustomFlingProfiles or {}) do table.insert(cached,profile) end
         renderCustomProfiles(cached)
         if AdminPanelBridge and AdminPanelBridge.LoadCustomFlingProfiles then AdminPanelBridge:LoadCustomFlingProfiles(function(profiles) if profiles then renderCustomProfiles(profiles) end end) end

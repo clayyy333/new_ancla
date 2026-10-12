@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .database import connection, init_database
+from .remote_control import clear_remote_selection, expire_remote_selections
 
 
 def env_int(name: str, default: int) -> int:
@@ -379,6 +380,7 @@ def start_session(payload: SessionStart, request: Request):
 def heartbeat(payload: Heartbeat, session=Depends(require_session)):
     timestamp = now()
     with connection() as db:
+        expire_remote_selections(db, timestamp - SESSION_TIMEOUT, timestamp)
         current = db.execute(
             "SELECT last_seen FROM sessions WHERE id=? AND ended_at IS NULL", (session["id"],)
         ).fetchone()
@@ -414,6 +416,7 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
 def end_session(session=Depends(require_session)):
     timestamp = now()
     with connection() as db:
+        clear_remote_selection(db, session["id"], timestamp)
         db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,custom_fling_using=0,move_anchored_enabled=0,short_fling_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}
@@ -826,3 +829,8 @@ def admin_recoveries(limit: int = Query(default=200, ge=1, le=1000)):
             (limit,),
         ).fetchall()
     return {"recoveries": [row_dict(row) for row in rows]}
+
+
+from .remote_control import create_router
+
+app.include_router(create_router(require_admin, require_session, now, active_cutoff, OWNER_IDENTITIES, audit, require_owner_panel))

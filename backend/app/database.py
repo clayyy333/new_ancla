@@ -114,6 +114,27 @@ def init_database() -> None:
                 created_at REAL NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS remote_controls (
+                session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+                consent INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                controller_session_id TEXT REFERENCES sessions(id)
+            );
+            CREATE TABLE IF NOT EXISTS remote_commands (
+                id TEXT PRIMARY KEY,
+                target_session_id TEXT NOT NULL REFERENCES sessions(id),
+                controller_session_id TEXT NOT NULL REFERENCES sessions(id),
+                action TEXT NOT NULL,
+                target_user_id INTEGER,
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                delivered_at REAL,
+                acknowledged_at REAL,
+                result TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_remote_pending
+                ON remote_commands(target_session_id, expires_at);
+
             CREATE TABLE IF NOT EXISTS network_profiles (
                 session_id TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,

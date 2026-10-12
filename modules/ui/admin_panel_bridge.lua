@@ -129,6 +129,20 @@ return function(context)
 		end)
 	end
 
+	function Bridge:Remote(method,path,body,callback)
+		local guard=BackendAnchorGuard
+		if not self.Token or not guard or not guard.SessionId then callback(nil,"session_unavailable");return end
+		local sid=guard.SessionId
+		body=body or nil
+		if body then body.controller_session_id=sid end
+		if method=="GET" then path=path.."?controller_session_id="..HttpService:UrlEncode(sid) end
+		local token=self.Token
+		task.spawn(function()
+			local response,err=call(method,"/api/v1/owner/remote"..path,body,token)
+			if self.Token~=token or guard.SessionId~=sid then return end
+			callback(response,err)
+		end)
+	end
 	function Bridge:Destroy()
 		self.Generation+=1
 		local token=self.Token

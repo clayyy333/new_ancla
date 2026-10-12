@@ -70,6 +70,7 @@ return {
 		"ui/settings",
 		"ui/admin_panel_bridge",
 		"ui/admin_panel",
+		"ui/remote_control",
 		"ui/anchor",
 		"ui/move_anchored",
 		"ui/anchor_auto",
