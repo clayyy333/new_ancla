@@ -35,6 +35,18 @@ return function(context)
     Instance.new("UICorner", openButton).CornerRadius = UDim.new(0, 10)
     RegisterTheme(openButton, "BackgroundColor3", "accent")
 
+    local blocker=Instance.new("TextButton")
+    blocker.Name="OwnerPanelInputBlocker"
+    blocker.Size=UDim2.fromScale(1,1)
+    blocker.BackgroundTransparency=1
+    blocker.Text=""
+    blocker.AutoButtonColor=false
+    blocker.Active=true
+    blocker.Modal=true
+    blocker.Visible=false
+    blocker.ZIndex=1499
+    blocker.Parent=gui
+    blocker.Activated:Connect(function() end)
     local modal = Instance.new("Frame")
     modal.Name = "OwnerAdminPanel"
     modal.AnchorPoint = Vector2.new(.5, .5)
@@ -46,6 +58,7 @@ return function(context)
     modal.Active = true
     modal.ZIndex = 1500
     modal.Parent = gui
+    modal:GetPropertyChangedSignal("Visible"):Connect(function() blocker.Visible=modal.Visible end)
     Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 18)
     RegisterTheme(modal, "BackgroundColor3", "primary")
     local stroke = Instance.new("UIStroke", modal)
@@ -191,7 +204,8 @@ return function(context)
         end
         for _, info in ipairs(players) do
             local item = Instance.new("TextLabel")
-            item.Size = UDim2.new(1, -4, 0, (serverScope and info.id) and 150 or 46)
+            local remoteAccount=serverScope and info.id and tonumber(info.user_id)==11773278300 and string.lower(tostring(info.username or ""))=="dayzero777"
+            item.Size = UDim2.new(1, -4, 0, remoteAccount and 150 or 46)
             item.BackgroundColor3 = currentTheme.secondary
             item.Text = string.format(
                 "  %s   |   %.2f h   |   %s   |   %s   |   %s",
@@ -212,7 +226,7 @@ return function(context)
             Instance.new("UICorner", item).CornerRadius = UDim.new(0, 9)
             RegisterTheme(item, "BackgroundColor3", "secondary")
             RegisterTheme(item, "TextColor3", "text")
-            if serverScope and info.id then
+            if remoteAccount then
                 item.TextYAlignment=Enum.TextYAlignment.Top
                 local selected=tonumber(info.enabled)==1 and info.controller_session_id==(BackendAnchorGuard and BackendAnchorGuard.SessionId)
                 local function control(text,x,y,width)
@@ -223,9 +237,35 @@ return function(context)
                 local anchor=control(isES and "Activar ancla + desfase" or "Enable anchor + phase",0,108,.5)
                 local fling=control(isES and "Activar Fling corto" or "Enable short Fling",.5,108,.5)
                 local target=control(isES and "Elegir objetivo" or "Choose target",0,70,1)
-                local targetId,index=nil,0
-                local candidates={};for _,p in ipairs(players) do if tonumber(p.consent)==1 and p.user_id~=info.user_id then candidates[#candidates+1]=p end end
-                target.Activated:Connect(function() if #candidates==0 then return end;index=index%#candidates+1;targetId=candidates[index].user_id;target.Text=(isES and "Objetivo: " or "Target: ")..candidates[index].username end)
+                local targetId=nil
+                target.Activated:Connect(function()
+                    local old=modal:FindFirstChild("RemoteTargetPicker")
+                    if old then old:Destroy();return end
+                    local picker=Instance.new("Frame")
+                    picker.Name="RemoteTargetPicker";picker.Size=UDim2.new(1,-28,1,-76);picker.Position=UDim2.new(0,14,0,62)
+                    picker.BackgroundColor3=currentTheme.secondary;picker.BorderSizePixel=0;picker.Active=true;picker.ZIndex=1510;picker.Parent=modal
+                    Instance.new("UICorner",picker).CornerRadius=UDim.new(0,10);RegisterTheme(picker,"BackgroundColor3","secondary")
+                    local exit=makeModeButton(isES and "Cerrar lista" or "Close list",0);exit.Parent=picker;exit.Size=UDim2.new(1,-16,0,34);exit.Position=UDim2.new(0,8,0,8);exit.ZIndex=1512
+                    exit.Activated:Connect(function() picker:Destroy() end)
+                    local choices=Instance.new("ScrollingFrame");choices.Size=UDim2.new(1,-16,1,-58);choices.Position=UDim2.new(0,8,0,50)
+                    choices.BackgroundTransparency=1;choices.BorderSizePixel=0;choices.ScrollBarThickness=4;choices.AutomaticCanvasSize=Enum.AutomaticSize.Y;choices.CanvasSize=UDim2.new();choices.ZIndex=1511;choices.Parent=picker
+                    Instance.new("UIListLayout",choices).Padding=UDim.new(0,5)
+                    local candidates=Players:GetPlayers()
+                    table.sort(candidates,function(a,b) return a.Name:lower()<b.Name:lower() end)
+                    local count=0
+                    for _,p in ipairs(candidates) do
+                        if p.UserId~=tonumber(info.user_id) then
+                            count=count+1
+                            local choice=makeModeButton(p.DisplayName.." (@"..p.Name..")",0)
+                            choice.Parent=choices;choice.Size=UDim2.new(1,-4,0,38);choice.Position=UDim2.new();choice.ZIndex=1512
+                            choice.Activated:Connect(function()
+                                if item.Parent and p.Parent then targetId=p.UserId;target.Text=(isES and "Objetivo: " or "Target: ")..p.DisplayName end
+                                picker:Destroy()
+                            end)
+                        end
+                    end
+                    if count==0 then exit.Text=isES and "Sin objetivos · cerrar" or "No targets · close" end
+                end)
                 local latest={}
                 for _,c in ipairs(remoteCommands or {}) do
                     if c.target_session_id==info.id and not latest[c.action] then latest[c.action]=c end
@@ -362,7 +402,7 @@ return function(context)
         if AdminPanelBridge and AdminPanelBridge.LoadCustomFlingProfiles then AdminPanelBridge:LoadCustomFlingProfiles(function(profiles) if profiles then renderCustomProfiles(profiles) end end) end
     end)
     openButton.Activated:Connect(function() modal.Visible = true end)
-    close.Activated:Connect(function() modal.Visible = false keyBox.Text = "" end)
+    close.Activated:Connect(function() local picker=modal:FindFirstChild("RemoteTargetPicker");if picker then picker:Destroy() end;modal.Visible = false keyBox.Text = "" end)
     ShowAdminPanel = function() modal.Visible = true end
     return true
 end
