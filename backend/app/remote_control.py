@@ -14,13 +14,24 @@ def personal_remote_account(session):
     return (session['user_id'], session.get('username', '').lower()) == PERSONAL_REMOTE_ACCOUNT
 
 
+def features_blocked(db, session, cutoff):
+    return db.execute('''SELECT 1 FROM feature_blocks b JOIN sessions c ON c.id=b.controller_session_id
+        WHERE b.user_id=? AND b.game_id=? AND b.place_id=? AND b.job_id=?
+        AND c.ended_at IS NULL AND c.last_seen>=? AND c.game_id=b.game_id
+        AND c.place_id=b.place_id AND c.job_id=b.job_id LIMIT 1''',
+        (session['user_id'],session['game_id'],session['place_id'],session['job_id'],cutoff)).fetchone() is not None
+
+
 def clear_remote_selection(db, session_id, timestamp):
     """Close both this recipient's grant and grants controlled by this session."""
     db.execute("UPDATE remote_commands SET acknowledged_at=?,result='cancelled' WHERE acknowledged_at IS NULL AND (target_session_id=? OR controller_session_id=?)", (timestamp, session_id, session_id))
     db.execute('UPDATE remote_controls SET enabled=0,controller_session_id=NULL WHERE session_id=? OR controller_session_id=?', (session_id, session_id))
+    db.execute('DELETE FROM feature_blocks WHERE controller_session_id=?',(session_id,))
 
 
 def expire_remote_selections(db, cutoff, timestamp):
+    db.execute('''DELETE FROM feature_blocks WHERE controller_session_id IN
+        (SELECT id FROM sessions WHERE ended_at IS NOT NULL OR last_seen<?)''',(cutoff,))
     # Cleanup before heartbeats refresh last_seen, so an expired grant cannot revive.
     stale = db.execute('''SELECT r.session_id FROM remote_controls r
         LEFT JOIN sessions t ON t.id=r.session_id
@@ -41,6 +52,11 @@ class Consent(BaseModel):
 class Enable(BaseModel):
     controller_session_id: str = Field(min_length=1, max_length=128)
     enabled: bool
+
+
+class FeatureBlock(BaseModel):
+    controller_session_id: str = Field(min_length=1,max_length=128)
+    blocked: bool
 
 
 class Order(BaseModel):
@@ -226,7 +242,27 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
                     WHERE s.game_id=? AND s.place_id=? AND s.job_id=? AND s.ended_at IS NULL AND s.last_seen>=?
                     ORDER BY s.last_seen DESC''', (owner['game_id'], owner['place_id'], owner['job_id'], active_cutoff())).fetchall()
                 commands = db.execute('SELECT * FROM remote_commands WHERE controller_session_id=? ORDER BY created_at DESC LIMIT 100', (owner['id'],)).fetchall()
-            return {'sessions': [dict(s) for s in rows], 'commands': [dict(c) | {'status': c['result'] or ('expired' if c['expires_at']<=now() else 'pending')} for c in commands]}
+                sessions=[]
+                for s in rows:
+                    identity=dict(s) | {k:owner[k] for k in ('game_id','place_id','job_id')}
+                    sessions.append(dict(s) | {'features_blocked':features_blocked(db,identity,active_cutoff())})
+            return {'sessions': sessions, 'commands': [dict(c) | {'status': c['result'] or ('expired' if c['expires_at']<=now() else 'pending')} for c in commands]}
+
+        @router.put('/owner/remote/features/{session_id}')
+        def feature_block(session_id: str, payload: FeatureBlock, panel=Depends(require_owner_panel)):
+            owner=bound_owner(payload.controller_session_id,panel)
+            with connection() as db:
+                target=live(db,session_id)
+                if not same_server(target,owner):
+                    raise HTTPException(409,'Different server')
+                values=(owner['id'],target['user_id'],owner['game_id'],owner['place_id'],owner['job_id'])
+                if payload.blocked:
+                    db.execute('INSERT OR IGNORE INTO feature_blocks(controller_session_id,user_id,game_id,place_id,job_id) VALUES(?,?,?,?,?)',values)
+                    cancel(db,target['id'])
+                else:
+                    db.execute('DELETE FROM feature_blocks WHERE controller_session_id=? AND user_id=? AND game_id=? AND place_id=? AND job_id=?',values)
+                audit(db,'feature_block',target['id'],target['user_id'],{'blocked':payload.blocked,'controller':owner['id']})
+            return {'ok':True,'blocked':payload.blocked}
 
         @router.put('/owner/remote/sessions/{session_id}')
         def owner_enable(session_id: str, payload: Enable, panel=Depends(require_owner_panel)):

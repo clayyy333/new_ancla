@@ -141,6 +141,10 @@ return function(context)
 			Guard.Connected=false
 			Guard.SessionToken=nil
 		end
+		if response then
+			Guard.FeaturesBlocked=response.features_blocked==true
+			if ApplyFeatureBlock then ApplyFeatureBlock(Guard.FeaturesBlocked) end
+		end
 		return response~=nil
 	end
 

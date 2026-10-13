@@ -205,7 +205,7 @@ return function(context)
         for _, info in ipairs(players) do
             local item = Instance.new("TextLabel")
             local remoteAccount=serverScope and info.id and tonumber(info.user_id)==11773278300 and string.lower(tostring(info.username or ""))=="dayzero777"
-            item.Size = UDim2.new(1, -4, 0, remoteAccount and 150 or 46)
+            item.Size = UDim2.new(1, -4, 0, remoteAccount and 190 or ((serverScope and info.id) and 86 or 46))
             item.BackgroundColor3 = currentTheme.secondary
             item.Text = string.format(
                 "  %s   |   %.2f h   |   %s   |   %s   |   %s",
@@ -226,6 +226,20 @@ return function(context)
             Instance.new("UICorner", item).CornerRadius = UDim.new(0, 9)
             RegisterTheme(item, "BackgroundColor3", "secondary")
             RegisterTheme(item, "TextColor3", "text")
+            if serverScope and info.id then
+                item.TextYAlignment=Enum.TextYAlignment.Top
+                local block=makeModeButton(info.features_blocked and (isES and "Desbloquear botones" or "Unlock buttons") or (isES and "Bloquear botones" or "Lock buttons"),0)
+                block.Parent=item;block.Size=UDim2.new(1,-12,0,32);block.Position=UDim2.new(0,6,0,remoteAccount and 150 or 44);block.ZIndex=1504
+                local busy=false
+                block.Activated:Connect(function()
+                    if busy then return end;busy=true
+                    AdminPanelBridge:Remote("PUT","/features/"..info.id,{blocked=not info.features_blocked},function(response,err)
+                        busy=false;if not item.Parent then return end
+                        if response then info.features_blocked=response.blocked;block.Text=response.blocked and (isES and "Desbloquear botones" or "Unlock buttons") or (isES and "Bloquear botones" or "Lock buttons")
+                        else block.Text=tostring(err or "Error") end
+                    end)
+                end)
+            end
             if remoteAccount then
                 item.TextYAlignment=Enum.TextYAlignment.Top
                 local selected=tonumber(info.enabled)==1 and info.controller_session_id==(BackendAnchorGuard and BackendAnchorGuard.SessionId)

@@ -100,6 +100,7 @@ return {
 		"ui/keybinds",
 		"ui/cards",
 		"ui/tabs",
+		"ui/feature_permissions",
 		"ui/window_controls",
 		"ui/user_shortcut",
 		"ui/emergency_anchor_alert",

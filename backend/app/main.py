@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .database import connection, init_database
-from .remote_control import clear_remote_selection, expire_remote_selections
+from .remote_control import clear_remote_selection, expire_remote_selections, features_blocked
 
 
 def env_int(name: str, default: int) -> int:
@@ -410,7 +410,8 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
             "UPDATE users SET last_seen=?,total_seconds=total_seconds+? WHERE user_id=?",
             (timestamp, elapsed, session["user_id"]),
         )
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp}
+        blocked=features_blocked(db,session,active_cutoff())
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked}
 
 
 @app.post("/api/v1/sessions/end")
