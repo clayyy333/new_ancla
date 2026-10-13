@@ -206,6 +206,7 @@ function VR7EfficientCore:SetShortApproachAngle(value)
 end
 
 function VR7EfficientCore:GetShortHome(targetRoot)
+	if Fling2AutoController and Fling2AutoController.Running then return self.AttackerCheckpoint end
 	if not targetRoot then return self.AttackerCheckpoint end
 	local offset = self.ShortOrbitDirection * (self.ShortOrbitDistance*self.ShortAngleCos)
 		+ Vector3.new(0,self.ShortOrbitDistance*self.ShortAngleSin,0)
@@ -236,6 +237,7 @@ function VR7EfficientCore:AdvanceShortTravel(root, targetRoot)
 	if returning then
 		self.EfficientPhase = "HOME"
 		self.HomeUntil = os.clock() + self.ShortHomeInterval
+		if Fling2AutoController and Fling2AutoController.Running then Fling2AutoController:OnReturned() end
 		return false
 	end
 	self.EfficientPhase = "NEAR"
@@ -433,7 +435,7 @@ function VR7EfficientCore:Start()
 	self:Disconnect()
 
 	self.AttackerCheckpoint = attackerRoot.CFrame
-	if self.ShortDisplacementEnabled then
+	if self.ShortDisplacementEnabled and targetRoot then
 		local offset = attackerRoot.Position-targetRoot.Position
 		self.ShortOrbitDistance = offset.Magnitude
 		local horizontal = Vector3.new(offset.X,0,offset.Z)
@@ -475,6 +477,7 @@ function VR7EfficientCore:Start()
 	self.Connection = RunService.Heartbeat:Connect(function()
 		if not self.Running then return end
 		local currentHumanoid, currentRoot = getParts(self.Provider:GetLocalCharacter())
+		if currentHumanoid and currentRoot and Fling2AutoController and Fling2AutoController.Running then Fling2AutoController:CheckTarget() end
 		local _, currentTargetRoot = getParts(self.Provider:GetCharacterFromTarget(self.SelectedTarget))
 		if not currentHumanoid or not currentRoot then
 			if self.ShortDisplacementEnabled then self:WaitForShortRespawn() else self:Stop() end
@@ -776,8 +779,7 @@ end
 	end)
 
 	_fling2EfficientCharacterAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-		if Fling2EfficientCore.Running and Fling2EfficientCore:IsShortDisplacementEnabled()
-			and not (Fling2AutoController and Fling2AutoController.Running) then
+		if Fling2EfficientCore.Running and Fling2EfficientCore:IsShortDisplacementEnabled() then
 			Fling2EfficientCore:WaitForShortRespawn()
 			if UpdateFling2Panel then UpdateFling2Panel() end
 			return

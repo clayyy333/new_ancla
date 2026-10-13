@@ -15,16 +15,22 @@ return function(context)
 	local function options()
 		local result={}
 		for _,target in ipairs(Fling2EfficientCore.Provider:GetTargetOptions()) do
-			if validTarget(target) then result[#result+1]=target end
+			if target~=player then result[#result+1]=target end
 		end
+		table.sort(result,function(a,b) return a.UserId<b.UserId end)
 		return result
 	end
 
 	local function nextTarget(self)
 		local available=options()
 		if #available==0 then return nil end
-		self.Cursor=(self.Cursor%#available)+1
-		return available[self.Cursor]
+		for _,target in ipairs(available) do
+			if target.UserId>self.Cursor and validTarget(target) then self.Cursor=target.UserId;return target end
+		end
+		for _,target in ipairs(available) do
+			if validTarget(target) then self.Cursor=target.UserId;return target end
+		end
+		return nil
 	end
 
 	local function show(message)
@@ -33,6 +39,7 @@ return function(context)
 
 	function controller:Start()
 		if self.Running then return true end
+		self.Cursor=0
 		local target=nextTarget(self)
 		if not target then return false,isES and "No hay jugadores disponibles." or "No players are available." end
 		if Fling2Core and Fling2Core.Running then Fling2Core:Stop() end
@@ -40,9 +47,9 @@ return function(context)
 
 		self.Running=true
 		self.Cycle=self.Cycle+1
-		local cycle=self.Cycle
 		self.CurrentTarget=target
 		Fling2EfficientCore:SetTarget(target)
+		Fling2EfficientCore:SetShortDisplacementEnabled(true)
 		local ok,err=Fling2EfficientCore:Start()
 		if not ok then
 			self.Running=false
@@ -51,35 +58,25 @@ return function(context)
 		end
 		show((isES and "Objetivo automático: " or "Automatic target: ")..target.DisplayName)
 
-		task.spawn(function()
-			while self.Running and self.Cycle==cycle do
-				local started=os.clock()
-				while self.Running and self.Cycle==cycle and os.clock()-started<1 do
-					if not validTarget(self.CurrentTarget) then break end
-					task.wait(0.1)
-				end
-				if not self.Running or self.Cycle~=cycle then break end
-
-				local following=nextTarget(self)
-				if following then
-					self.CurrentTarget=following
-					Fling2EfficientCore:SetTarget(following)
-					if not Fling2EfficientCore.Running then
-						local restarted,restartErr=Fling2EfficientCore:Start()
-						if not restarted then
-							self.Running=false
-							show(restartErr)
-							break
-						end
-					end
-					show((isES and "Objetivo automático: " or "Automatic target: ")..following.DisplayName)
-				else
-					-- No esperar un segundo si no hay un objetivo válido.
-					task.wait(0.1)
-				end
-			end
-		end)
 		return true
+	end
+
+	function controller:OnReturned()
+		if not self.Running then return end
+		self.CurrentTarget=nextTarget(self)
+		Fling2EfficientCore:SetTarget(self.CurrentTarget)
+		self.RetryAt=os.clock()+.2
+		show(self.CurrentTarget and ((isES and "Objetivo automático: " or "Automatic target: ")..self.CurrentTarget.DisplayName) or (isES and "Esperando jugadores…" or "Waiting for players…"))
+	end
+	function controller:CheckTarget()
+		if not self.Running or validTarget(self.CurrentTarget) then return end
+		if not self.CurrentTarget and os.clock()<(self.RetryAt or 0) then return end
+		local core=Fling2EfficientCore
+		core:DestroyFlinger();core:DestroyFrontFlip();core.ShortTravel=nil
+		local c=player.Character;local root=c and c:FindFirstChild("HumanoidRootPart")
+		if root then core:HoldShortHome(root,nil) end
+		core.EfficientPhase="HOME";core.HomeUntil=os.clock()+core.ShortHomeInterval
+		self:OnReturned()
 	end
 
 	function controller:Stop()
@@ -105,6 +102,7 @@ return function(context)
 	function controller:SkipMissing(target)
 		if self.Running and self.CurrentTarget==target then
 			self.CurrentTarget=nil
+			self.RetryAt=0
 			Fling2EfficientCore:SetTarget(nil)
 		end
 	end

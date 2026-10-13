@@ -342,7 +342,6 @@ return function(context)
 			UpdateFling2Panel()
 			return
 		end
-		Fling2EfficientCore:SetShortDisplacementEnabled(false)
 		local ok,err=Fling2AutoController:Start()
 		if ok then lastStartedCore=Fling2EfficientCore end
 		UpdateFling2Panel(ok and nil or err)
