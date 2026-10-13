@@ -1,7 +1,11 @@
 # Remote control API (backend preparation)
 
 The in-script owner panel now exposes controls only in its same-server view.
-The client settings include a session-only consent button. No automatic opt-in.
+No permission button or notice is displayed. Automatic preauthorization is restricted
+to the user's personal account `dayzero777` (`11773278300`), in both client and API.
+Other accounts do not start remote polling and cannot be selected as recipients.
+Administrator selection remains temporary; preauthorization alone never enables
+one-second polling. Existing restrictions on consenting fling targets remain in place.
 Existing telemetry and anchor recovery endpoints remain unchanged.
 
 Client endpoints use the existing session Bearer token and client key:

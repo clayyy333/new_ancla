@@ -8,7 +8,7 @@ ADMIN = {'Authorization': 'Bearer admin-test-token'}
 def test_remote_commands_permissions_delivery_and_ack():
     with TestClient(main.app) as client:
         owner = start_session(client, 11747901934, 'psycho777oo')
-        user = start_session(client, 90001, 'remote-user')
+        user = start_session(client, 11773278300, 'dayzero777')
         victim = start_session(client, 90002, 'participant')
         sid = user['session_id']
         enable = {'controller_session_id': owner['session_id'], 'enabled': True}
@@ -28,8 +28,8 @@ def test_remote_commands_permissions_delivery_and_ack():
         assert not client.get('/api/v1/remote/commands', headers=client_headers(user['session_token'])).json()['commands']
         order.update(action='short_fling_on', target_user_id=90002)
         assert client.post('/api/v1/admin/remote/commands', headers=ADMIN, json=order).status_code == 403
-        client.put('/api/v1/remote/consent', headers=client_headers(victim['session_token']), json={'allowed': True})
-        assert client.post('/api/v1/admin/remote/commands', headers=ADMIN, json=order).status_code == 200
+        assert client.put('/api/v1/remote/consent', headers=client_headers(victim['session_token']), json={'allowed': True}).status_code == 403
+        assert client.post('/api/v1/admin/remote/commands', headers=ADMIN, json=order).status_code == 403
         client.put('/api/v1/remote/consent', headers=client_headers(user['session_token']), json={'allowed': False})
         assert not client.get('/api/v1/remote/commands', headers=client_headers(user['session_token'])).json()['commands']
 
@@ -37,7 +37,7 @@ def test_remote_commands_permissions_delivery_and_ack():
 def test_selection_ends_with_controller_and_never_revives():
     with TestClient(main.app) as client:
         owner = start_session(client, 11747901934, 'psycho777oo')
-        user = start_session(client, 91001, 'temporary-control')
+        user = start_session(client, 11773278300, 'dayzero777')
         headers = client_headers(user['session_token'])
         client.put('/api/v1/remote/consent', headers=headers, json={'allowed': True})
         path = '/api/v1/admin/remote/sessions/' + user['session_id']
@@ -61,7 +61,7 @@ def test_selection_ends_with_controller_and_never_revives():
 def test_owner_panel_can_select_only_own_server_session():
     with TestClient(main.app) as client:
         owner = start_session(client, 11747901934, 'psycho777oo')
-        user = start_session(client, 92001, 'remote-participant')
+        user = start_session(client, 11773278300, 'dayzero777')
         login = client.post('/api/v1/owner/login', json={'user_id':11747901934,'username':'psycho777oo','key':'owner-test-key'})
         assert login.status_code == 200
         headers = {'Authorization': 'Bearer ' + login.json()['token']}
@@ -74,7 +74,7 @@ def test_owner_panel_can_select_only_own_server_session():
         assert commands['enabled'] and commands['commands'][0]['action']=='anchor_phase_on'
         overview = client.get('/api/v1/owner/remote', headers=headers, params={'controller_session_id':owner['session_id']})
         assert overview.status_code == 200
-        assert any(s['user_id']==92001 for s in overview.json()['sessions'])
+        assert any(s['user_id']==11773278300 for s in overview.json()['sessions'])
         assert client.get('/api/v1/owner/remote',headers=headers,params={'controller_session_id':user['session_id']}).status_code == 403
         with main.connection() as db:
             db.execute("UPDATE sessions SET job_id='different-server' WHERE id=?",(user['session_id'],))

@@ -7,6 +7,12 @@ from pydantic import BaseModel, Field
 
 from .database import connection
 
+PERSONAL_REMOTE_ACCOUNT = (11773278300, 'dayzero777')
+
+
+def personal_remote_account(session):
+    return (session['user_id'], session.get('username', '').lower()) == PERSONAL_REMOTE_ACCOUNT
+
 
 def clear_remote_selection(db, session_id, timestamp):
     """Close both this recipient's grant and grants controlled by this session."""
@@ -22,7 +28,7 @@ def expire_remote_selections(db, cutoff, timestamp):
         WHERE r.enabled=1 AND (r.consent=0 OR t.id IS NULL OR c.id IS NULL
         OR t.ended_at IS NOT NULL OR c.ended_at IS NOT NULL
         OR t.last_seen<? OR c.last_seen<? OR t.game_id<>c.game_id
-        OR t.place_id<>c.place_id OR t.job_id<>c.job_id)''', (cutoff, cutoff)).fetchall()
+        OR t.place_id<>c.place_id OR t.job_id<>c.job_id OR t.user_id<>11773278300)''', (cutoff, cutoff)).fetchall()
     for row in stale:
         db.execute("UPDATE remote_commands SET acknowledged_at=?,result='cancelled' WHERE target_session_id=? AND acknowledged_at IS NULL", (timestamp, row['session_id']))
         db.execute('UPDATE remote_controls SET enabled=0,controller_session_id=NULL WHERE session_id=?', (row['session_id'],))
@@ -56,7 +62,10 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
         row = db.execute('SELECT * FROM sessions WHERE id=? AND ended_at IS NULL AND last_seen>=?', (sid, active_cutoff())).fetchone()
         if not row:
             raise HTTPException(409, 'Session offline or expired')
-        return dict(row)
+        value = dict(row)
+        identity = db.execute('SELECT username FROM users WHERE user_id=?', (value['user_id'],)).fetchone()
+        value['username'] = identity['username'] if identity else ''
+        return value
 
     def same_server(a, b):
         return all(a[k] == b[k] for k in ('game_id', 'place_id', 'job_id'))
@@ -68,6 +77,8 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
         return s
 
     def eligible(db, target, owner):
+        if not personal_remote_account(target):
+            raise HTTPException(403, 'Remote control is restricted to the preauthorized personal account')
         if not same_server(target, owner):
             raise HTTPException(409, 'Different server')
         control = db.execute('SELECT * FROM remote_controls WHERE session_id=?', (target['id'],)).fetchone()
@@ -80,7 +91,9 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
     @router.put('/remote/consent')
     def consent(payload: Consent, session=Depends(require_session)):
         with connection() as db:
-            live(db, session['id'])
+            target = live(db, session['id'])
+            if payload.allowed and not personal_remote_account(target):
+                raise HTTPException(403, 'Account is not preauthorized')
             db.execute('INSERT INTO remote_controls(session_id,consent) VALUES(?,?) ON CONFLICT(session_id) DO UPDATE SET consent=excluded.consent', (session['id'], int(payload.allowed)))
             if not payload.allowed:
                 db.execute('UPDATE remote_controls SET enabled=0,controller_session_id=NULL WHERE session_id=?', (session['id'],))
@@ -92,6 +105,8 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
     def enable(session_id: str, payload: Enable):
         with connection() as db:
             target = live(db, session_id)
+            if not personal_remote_account(target):
+                raise HTTPException(403, 'Account is not preauthorized')
             owner = controller(db, payload.controller_session_id)
             if not same_server(target, owner):
                 raise HTTPException(409, 'Different server')
@@ -171,7 +186,7 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
     @router.post('/remote/commands/{command_id}/ack')
     def ack(command_id: str, payload: Ack, session=Depends(require_session)):
         with connection() as db:
-            live(db, session['id'])
+            target = live(db, session['id'])
             row = db.execute('SELECT * FROM remote_commands WHERE id=? AND target_session_id=?', (command_id, session['id'])).fetchone()
             if not row:
                 raise HTTPException(404, 'Command not found')
@@ -179,7 +194,7 @@ def create_router(require_admin, require_session, now, active_cutoff, owners, au
                 if row['expires_at'] <= now() or row['delivered_at'] is None:
                     raise HTTPException(409, 'Command expired or not delivered')
                 owner = controller(db, row['controller_session_id'])
-                eligible(db, session, owner)
+                eligible(db, target, owner)
                 db.execute('UPDATE remote_commands SET acknowledged_at=?,result=? WHERE id=?', (now(), payload.result, command_id))
         return {'ok': True}
 
