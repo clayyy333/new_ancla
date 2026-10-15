@@ -167,21 +167,26 @@ class CustomFlingProfile(BaseModel):
     @classmethod
     def validate_parameters(cls, value):
         limits = {
-            "VERTICAL_DISTANCE": (0.1, 1.5), "LINEAR_SPEED": (1, 900000000),
+            "VERTICAL_DISTANCE": (0, 1.5), "LINEAR_SPEED": (1, 900000000),
             "ANGULAR_SPEED": (1, 900000000), "FLINGER_SPEED": (1, 900000000),
             "P": (1, 1250), "RECOVERY_DISTANCE": (1, 80),
             "NEAR_DISTANCE": (0.5, 6), "CONTACT_TIME": (0.05, 0.30),
             "FRONT_FLIP_SPEED": (1, 60), "DISPLACEMENT_DISTANCE": (1, 2109841),
             "MAX_CHASE_DISTANCE": (50, 5000),
+            "SHORT_ROUTE":(0,1), "APPROACH_ANGLE":(0,90), "TRAVEL_TIME":(0,2),
+            "HOME_INTERVAL":(0.05,1), "SPIN_ENABLED":(0,1), "LATERAL_ENABLED":(0,1),
         }
-        legacy = set(limits) - {"MAX_CHASE_DISTANCE"}
+        defaults={"MAX_CHASE_DISTANCE":500,"SHORT_ROUTE":0,"APPROACH_ANGLE":0,"TRAVEL_TIME":0,"HOME_INTERVAL":0.05,"SPIN_ENABLED":1,"LATERAL_ENABLED":1}
+        legacy = set(limits) - set(defaults)
         if not legacy.issubset(value) or not set(value).issubset(limits):
             raise ValueError("Custom fling parameters are incomplete or unknown")
         clean = {}
         for name, bounds in limits.items():
-            number = float(value.get(name, 500))
+            number = float(value.get(name, defaults.get(name,500)))
             if not math.isfinite(number) or number < bounds[0] or number > bounds[1]:
                 raise ValueError(f"{name} is outside the allowed range")
+            if name in {"SHORT_ROUTE","SPIN_ENABLED","LATERAL_ENABLED"} and number not in (0,1):
+                raise ValueError(f"{name} must be 0 or 1")
             clean[name] = number
         return clean
 

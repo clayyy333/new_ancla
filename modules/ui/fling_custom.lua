@@ -15,6 +15,12 @@ return function(context)
 		local b=Instance.new("TextButton");b.Size=size;b.Position=pos;b.BackgroundColor3=currentTheme.tertiary;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 11;b.AutoButtonColor=false;b.ZIndex=8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,8);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
 	local infoDescriptions={
+		SHORT_ROUTE=isES and "Activa el recorrido corto: punto de aproximación → objetivo → regreso. Evita el alejamiento aleatorio. Ejemplo: a 90 grados el regreso queda encima del objetivo." or "Enables the short route: approach point → target → return, without random travel away. Example: at 90 degrees the return point is above the target.",
+		APPROACH_ANGLE=isES and "Cambia la dirección del recorrido corto conservando la distancia medida al activar. Ejemplo: 0 grados es lateral y 90 grados es desde arriba. Requiere recorrido corto." or "Changes short-route direction while preserving the distance measured at activation. Example: 0 degrees is sideways; 90 degrees is from above. Requires short route.",
+		TRAVEL_TIME=isES and "Duración de cada viaje de ida o vuelta en el recorrido corto. Ejemplo: 0 es instantáneo y 0.5 tarda medio segundo por tramo. No modifica el tiempo de contacto." or "Duration of each outbound or return leg in short route. Example: 0 is instant; 0.5 takes half a second per leg. Does not change contact duration.",
+		HOME_INTERVAL=isES and "Espera en el punto de aproximación antes de volver al objetivo. Ejemplo: 0.05 espera 50 milisegundos. Requiere recorrido corto." or "Wait at the approach point before revisiting the target. Example: 0.05 waits 50 milliseconds. Requires short route.",
+		SPIN_ENABLED=isES and "Permite o elimina el giro físico y la voltereta de nuestro HRP. Desactivarlo no quita el movimiento vertical ni el empuje. Ejemplo: puedes probar contacto sin rotación." or "Enables or removes physical spin and flipping of our HRP. Disabling it keeps vertical motion and momentum. Example: test contact without rotation.",
+		LATERAL_ENABLED=isES and "Permite o elimina el empuje horizontal de nuestra fuerza física. Al desactivarlo se conserva el impulso vertical. Ejemplo: sin empuje lateral no se aplica fuerza en X/Z; las colisiones aún pueden desplazarnos." or "Enables or removes horizontal momentum from our physical force. Vertical momentum remains when disabled. Example: no X/Z force is applied, but collisions can still move us.",
 		VERTICAL_DISTANCE=isES and "Define la altura de nuestro HRP respecto al target durante el contacto. Un valor bajo lo mantiene casi a la misma altura; uno alto lo coloca más arriba. Ejemplo: 0.1 produce un contacto muy cercano y 1.5 deja mayor separación vertical." or "Sets our HRP height relative to the target during contact. A low value keeps it nearly level; a high value places it farther above. Example: 0.1 gives very close contact, while 1.5 adds more vertical separation.",
 		LINEAR_SPEED=isES and "Controla la rapidez del movimiento de subida y bajada de nuestro HRP cerca del target. No es la velocidad normal al caminar. Ejemplo: un valor bajo genera un movimiento suave; uno alto cambia de posición mucho más rápido." or "Controls how quickly our HRP moves up and down near the target. This is not normal walking speed. Example: a low value creates gentler movement, while a high value changes position much faster.",
 		ANGULAR_SPEED=isES and "Controla qué tan rápido gira nuestro HRP durante el contacto. Ese giro intenta transmitir impulso al target. Ejemplo: un valor bajo gira lentamente; uno alto hace que el giro sea mucho más rápido." or "Controls how fast our HRP spins during contact. That spin attempts to transfer momentum to the target. Example: a low value spins slowly, while a high value spins much faster.",
@@ -55,7 +61,13 @@ return function(context)
 	local mediumButton=button(header,isES and "Valores medios" or "Medium values",UDim2.new(.334,-12,0,34),UDim2.new(.333,6,0,142))
 	local maximumButton=button(header,isES and "Valores máximos" or "Maximum values",UDim2.new(.333,-12,0,34),UDim2.new(.667,0,0,142))
 	local definitions={
+		{"SHORT_ROUTE",isES and "Recorrido corto" or "Short route",1,"switch"},
+		{"APPROACH_ANGLE",isES and "Ángulo de aproximación" or "Approach angle",10},
 		{"VERTICAL_DISTANCE",isES and "Altura del contacto" or "Contact height",0.1},
+		{"TRAVEL_TIME",isES and "Tiempo de viaje" or "Travel time",0.05},
+		{"HOME_INTERVAL",isES and "Espera antes de regresar" or "Wait before revisiting",0.05},
+		{"SPIN_ENABLED",isES and "Giro del personaje" or "Character spin",1,"switch"},
+		{"LATERAL_ENABLED",isES and "Empuje lateral" or "Lateral momentum",1,"switch"},
 		{"LINEAR_SPEED",isES and "Rapidez de subida y bajada" or "Up/down speed"},
 		{"ANGULAR_SPEED",isES and "Rapidez del giro" or "Spin speed"},
 		{"FLINGER_SPEED",isES and "Impulso del contacto" or "Contact momentum"},
@@ -80,6 +92,15 @@ return function(context)
 		if hasToggle then optionToggle=button(row,isES and "Desactivado" or "Disabled",UDim2.new(.19,-6,0,28),UDim2.new(.36,0,.5,-14));optionToggle.TextSize=isMobile and 8 or 9 end
 		local minus=button(row,"−",UDim2.new(0,34,0,32),UDim2.new(controlsX,0,.5,-16));local value=button(row,"0",UDim2.new(1-controlsX,-92,0,32),UDim2.new(controlsX,40,.5,-16));value.Active=false;local plus=button(row,"+",UDim2.new(0,34,0,32),UDim2.new(1,-40,.5,-16))
 		rows[key]={value=value,minus=minus,plus=plus,fixedStep=fixedStep,toggle=optionToggle,toggleMode=toggleMode}
+		if toggleMode=="switch" then
+			minus.Visible=false;value.Visible=false;plus.Visible=false
+			rows[key].toggleOnly=true
+			optionToggle.Size=UDim2.new(.62,-8,0,32);optionToggle.Position=UDim2.new(.36,0,.5,-16)
+			optionToggle.Activated:Connect(function()
+				local values=CustomFlingCore:GetParameters()
+				if CustomFlingCore:SetParameter(key,values[key]==1 and 0 or 1) then markCustomFlingUsage();UpdateCustomFlingPanel() end
+			end)
+		end
 		local function change(direction)
 			if CustomFlingCore.Running or CustomFlingCore.Stopping then return end
 			if toggleMode=="contact" and not CustomFlingCore:IsContactTimeEnabled() then return end
@@ -125,6 +146,7 @@ return function(context)
 			if row.toggleMode=="contact" then optionEnabled=CustomFlingCore:IsContactTimeEnabled()
 			elseif row.toggleMode=="chase" then optionEnabled=CustomFlingCore:IsMaxChaseEnabled()
 			elseif row.toggleMode=="retry" then optionEnabled=CustomFlingCore:IsAutoRetryEnabled() end
+			if row.toggleMode=="switch" then optionEnabled=values[key]==1 end
 			if not row.toggleOnly then
 				row.value.Text=tostring(values[key])
 				row.minus.Active=not locked and optionEnabled and values[key]>limits[key].min

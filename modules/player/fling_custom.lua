@@ -35,9 +35,14 @@ local CONFIG = {
 	DISPLACEMENT_DISTANCE = 1000,
 	MAX_CHASE_DISTANCE = 500,
 	CHASE_FALLBACK_DISTANCE = 1000,
+	SHORT_ROUTE=0, APPROACH_ANGLE=0, TRAVEL_TIME=0, HOME_INTERVAL=0.05,
+	SPIN_ENABLED=1, LATERAL_ENABLED=1,
 }
 local LIMITS = {
-	VERTICAL_DISTANCE={min=0.1,max=1.5,decimal=true},
+	VERTICAL_DISTANCE={min=0,max=1.5,decimal=true},
+	SHORT_ROUTE={min=0,max=1,optional=true}, APPROACH_ANGLE={min=0,max=90,optional=true},
+	TRAVEL_TIME={min=0,max=2,decimal=true,optional=true}, HOME_INTERVAL={min=0.05,max=1,decimal=true,optional=true},
+	SPIN_ENABLED={min=0,max=1,optional=true}, LATERAL_ENABLED={min=0,max=1,optional=true},
 	LINEAR_SPEED={min=1,max=900000000}, ANGULAR_SPEED={min=1,max=900000000},
 	FLINGER_SPEED={min=1,max=900000000}, P={min=1,max=1250},
 	RECOVERY_DISTANCE={min=1,max=80}, NEAR_DISTANCE={min=0.5,max=6,decimal=true},
@@ -206,10 +211,10 @@ function VR7EfficientCore:SetParameter(name,value)
 	if self.Running or self.Stopping then return false,T("Detén el Fling personalizable para cambiar valores.","Stop Custom Fling before changing values.") end
 	if not self:IsAuthorized() then return false,T("Disponible próximamente.","Coming soon.") end
 	local limit=LIMITS[name];value=tonumber(value)
-	if not limit or not value then return false,T("Parámetro inválido.","Invalid parameter.") end
+	if not limit or not value or value~=value or math.abs(value)==math.huge then return false,T("Parámetro inválido.","Invalid parameter.") end
 	value=math.clamp(value,limit.min,limit.max)
 	if name=="NEAR_DISTANCE" then value=value<1 and 0.5 or math.floor(value+0.5)
-	elseif name=="CONTACT_TIME" then value=math.floor(value*20+0.5)/20
+	elseif name=="CONTACT_TIME" or name=="TRAVEL_TIME" or name=="HOME_INTERVAL" then value=math.floor(value*20+0.5)/20
 	elseif not limit.decimal then value=math.floor(value+0.5) end
 	CONFIG[name]=value
 	if name=="FLINGER_SPEED" then CONFIG.FLINGER_VELOCITY=Vector3.new(value,value,value) end
@@ -221,6 +226,9 @@ end
 
 function VR7EfficientCore:ApplySettings(profile)
 	if self.Running or self.Stopping or type(profile)~="table" or type(profile.parameters)~="table" then return false end
+	for name,value in pairs({SHORT_ROUTE=0,APPROACH_ANGLE=0,TRAVEL_TIME=0,HOME_INTERVAL=.05,SPIN_ENABLED=1,LATERAL_ENABLED=1}) do
+		if profile.parameters[name]==nil then self:SetParameter(name,value) end
+	end
 	for name,value in pairs(profile.parameters) do if LIMITS[name] then self:SetParameter(name,value) end end
 	self.ContactTimeEnabled=profile.contact_time_enabled==true
 	self.AutoRetryEnabled=profile.auto_retry_enabled==true
@@ -234,6 +242,7 @@ function VR7EfficientCore:ApplyPreset(preset)
 	preset=string.upper(tostring(preset or "MINIMUM"))
 	if preset~="MINIMUM" and preset~="MEDIUM" and preset~="MAXIMUM" then return false end
 	for name,limit in pairs(LIMITS) do
+		if not limit.optional then
 		local value=limit.min
 		if preset=="MAXIMUM" then value=limit.max
 		elseif preset=="MEDIUM" and name=="NEAR_DISTANCE" then value=3
@@ -243,6 +252,7 @@ function VR7EfficientCore:ApplyPreset(preset)
 			if limit.decimal then value=math.floor(value*10+0.5)/10 else value=math.floor(value+0.5) end
 		end
 		CONFIG[name]=value
+		end
 	end
 	CONFIG.FLINGER_VELOCITY=Vector3.new(CONFIG.FLINGER_SPEED,CONFIG.FLINGER_SPEED,CONFIG.FLINGER_SPEED)
 	return true
@@ -268,7 +278,7 @@ end
 
 function VR7EfficientCore:ActivateFrontFlip(root)
 	self:DestroyFrontFlip()
-	if not root then return end
+	if not root or CONFIG.SPIN_ENABLED==0 then return end
 
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "FrontFlipAttachment"
@@ -303,6 +313,7 @@ function VR7EfficientCore:SetFrontFlipEnabled(enabled)
 end
 
 function VR7EfficientCore:EnsureFrontFlip(root)
+	if CONFIG.SPIN_ENABLED==0 then self:DestroyFrontFlip();return end
 	if not self.FrontFlipEnabled or not root then
 		return
 	end
@@ -334,13 +345,42 @@ function VR7EfficientCore:Disconnect()
 	self:DestroyFrontFlip()
 end
 
+function VR7EfficientCore:GetContactVelocity()
+	return CONFIG.LATERAL_ENABLED==1 and CONFIG.FLINGER_VELOCITY or Vector3.new(0,CONFIG.FLINGER_SPEED,0)
+end
+function VR7EfficientCore:GetContactForce()
+	return CONFIG.LATERAL_ENABLED==1 and CONFIG.MAX_FORCE or Vector3.new(0,math.huge,0)
+end
+function VR7EfficientCore:GetApproachHome(target)
+	if not target then return self.AttackerCheckpoint end
+	local angle=math.rad(CONFIG.APPROACH_ANGLE)
+	local horizontal=CONFIG.APPROACH_ANGLE==90 and 0 or math.cos(angle)
+	local offset=self.ApproachDirection*(self.ApproachDistance*horizontal)+Vector3.new(0,self.ApproachDistance*math.sin(angle),0)
+	return CFrame.new(target.Position+offset)*self.AttackerCheckpoint.Rotation
+end
+function VR7EfficientCore:BeginTravel(phase,root)
+	self:DestroyFlinger();self:DestroyFrontFlip()
+	self.EfficientPhase=phase
+	self.Travel={from=root.CFrame,started=os.clock()}
+end
+function VR7EfficientCore:AdvanceTravel(root,target)
+	local returning=self.EfficientPhase=="TO_HOME"
+	local goal=returning and self:GetApproachHome(target) or (CFrame.new((target.CFrame*CFrame.new(0,CONFIG.VERTICAL_DISTANCE*self.Direction,0)).Position)*self.Travel.from.Rotation)
+	local alpha=CONFIG.TRAVEL_TIME==0 and 1 or math.clamp((os.clock()-self.Travel.started)/CONFIG.TRAVEL_TIME,0,1)
+	root.CFrame=self.Travel.from:Lerp(goal,alpha)
+	root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+	if alpha<1 then return false end
+	self.Travel=nil
+	if returning then self.EfficientPhase="HOME";self.HomeUntil=os.clock()+CONFIG.HOME_INTERVAL;return false end
+	self.EfficientPhase="NEAR";self.NearUntil=os.clock()+self:GetContactDuration();return true
+end
 function VR7EfficientCore:CreateFlinger(root)
 	self:DestroyFlinger()
 	local bodyVelocity = Instance.new("BodyVelocity")
 	bodyVelocity.Name = "VR7VerticalFlinger"
 	bodyVelocity.P = CONFIG.P
-	bodyVelocity.MaxForce = CONFIG.MAX_FORCE
-	bodyVelocity.Velocity = CONFIG.FLINGER_VELOCITY
+	bodyVelocity.MaxForce = self:GetContactForce()
+	bodyVelocity.Velocity = self:GetContactVelocity()
 	bodyVelocity.Parent = root
 	self.Flinger = bodyVelocity
 end
@@ -440,7 +480,12 @@ function VR7EfficientCore:Start()
 	self.TargetStopQueued = false
 	self.TargetMissingSince = nil
 	self.DistanceFromTarget = 0
-	self.EfficientPhase = "NEAR"
+	self.EfficientPhase = CONFIG.SHORT_ROUTE==1 and "HOME" or "NEAR"
+	self.Travel=nil;self.HomeUntil=os.clock()+CONFIG.HOME_INTERVAL
+	local offset=attackerRoot.Position-targetRoot.Position
+	self.ApproachDistance=offset.Magnitude
+	local horizontal=Vector3.new(offset.X,0,offset.Z)
+	self.ApproachDirection=horizontal.Magnitude>.001 and horizontal.Unit or Vector3.new(1,0,0)
 	self.NearUntil = os.clock() + self:GetContactDuration()
 	self.ReturnSide = 1
 
@@ -470,6 +515,11 @@ function VR7EfficientCore:Start()
 		if not currentHumanoid or not currentRoot then self:Stop(); return end
 
 		if not currentTargetRoot then
+			if CONFIG.SHORT_ROUTE==1 then
+				self.Travel=nil;self:DestroyFlinger();self:DestroyFrontFlip()
+				if self.AttackerCheckpoint then currentRoot.CFrame=self.AttackerCheckpoint end
+				currentRoot.AssemblyLinearVelocity=Vector3.zero;currentRoot.AssemblyAngularVelocity=Vector3.zero
+			end
 			self.TargetMissingSince=self.TargetMissingSince or os.clock()
 			if not self.AutoRetryEnabled then
 				-- Una ausencia breve puede ser streaming y no un target perdido.
@@ -485,7 +535,7 @@ function VR7EfficientCore:Start()
 			end
 			if not self.WaitingForTarget then
 				self.WaitingForTarget=true
-				self.CurrentTargetRoot=nil
+				self.CurrentTargetRoot=nil;self.Travel=nil
 				self:DestroyFlinger()
 				self:DestroyFrontFlip()
 				if self.AttackerCheckpoint then currentRoot.CFrame=self.AttackerCheckpoint end
@@ -504,6 +554,7 @@ function VR7EfficientCore:Start()
 		if outsideChaseRange then
 			if not self.ChaseSuspended then
 				self.ChaseSuspended=true
+				self.Travel=nil
 				self.WaitingForTarget=false
 				self.CurrentTargetRoot=currentTargetRoot
 				self:DestroyFlinger()
@@ -520,15 +571,26 @@ function VR7EfficientCore:Start()
 			self.ChaseSuspended=false
 			self.CurrentTargetRoot=currentTargetRoot
 			self.LastTargetCFrame=currentTargetRoot.CFrame
-			self.EfficientPhase="NEAR"
+			self.EfficientPhase=CONFIG.SHORT_ROUTE==1 and "HOME" or "NEAR"
+			self.Travel=nil;self.HomeUntil=os.clock()+CONFIG.HOME_INTERVAL
 			self.NearUntil=os.clock()+self:GetContactDuration()
 			self.Direction=1
 			self.ReturnSide=1
 		end
 		self:UpdateLastTarget(currentTargetRoot)
+		if CONFIG.SHORT_ROUTE==1 then
+			if self.EfficientPhase=="HOME" then
+				self:DestroyFlinger();self:DestroyFrontFlip()
+				currentRoot.CFrame=self:GetApproachHome(currentTargetRoot)
+				currentRoot.AssemblyLinearVelocity=Vector3.zero;currentRoot.AssemblyAngularVelocity=Vector3.zero
+				if os.clock()<self.HomeUntil then return end
+				self:BeginTravel("TO_TARGET",currentRoot)
+			end
+			if self.Travel and not self:AdvanceTravel(currentRoot,currentTargetRoot) then return end
+		end
 		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
-		self.Flinger.Velocity = CONFIG.FLINGER_VELOCITY
-		self.Flinger.MaxForce = CONFIG.MAX_FORCE
+		self.Flinger.Velocity = self:GetContactVelocity()
+		self.Flinger.MaxForce = self:GetContactForce()
 		self.Flinger.P = CONFIG.P
 		self:EnsureFrontFlip(currentRoot)
 
@@ -537,9 +599,14 @@ function VR7EfficientCore:Start()
 			local desired = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 0)
 			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
 			currentRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
-			currentRoot.AssemblyAngularVelocity = Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
+			currentRoot.AssemblyAngularVelocity = CONFIG.SPIN_ENABLED==1 and Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED) or Vector3.zero
 		end
 
+		if CONFIG.SHORT_ROUTE==1 then
+			if os.clock()>=self.NearUntil then self:BeginTravel("TO_HOME",currentRoot);self:AdvanceTravel(currentRoot,currentTargetRoot)
+			else placeNear() end
+			return
+		end
 		if self.EfficientPhase == "NEAR" then
 			placeNear()
 			if os.clock() >= self.NearUntil then self.EfficientPhase = "FAR" end
@@ -548,7 +615,7 @@ function VR7EfficientCore:Start()
 			local sx = math.random(0, 1) == 0 and -1 or 1
 			local sz = math.random(0, 1) == 0 and -1 or 1
 			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz))
-			currentRoot.AssemblyLinearVelocity = CONFIG.FLINGER_VELOCITY
+			currentRoot.AssemblyLinearVelocity = self:GetContactVelocity()
 			self.EfficientPhase = "RETURN_DIRECT"
 		elseif self.EfficientPhase == "RETURN_DIRECT" then
 			placeNear()
