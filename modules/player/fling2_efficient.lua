@@ -496,8 +496,8 @@ function VR7EfficientCore:Start()
 			self:HoldShortHome(currentRoot,currentTargetRoot)
 		end
 
-		-- Short mode keeps the selected Player across death/respawn, not the old HRP.
-		if self.ShortDisplacementEnabled then
+		-- Both modes keep the selected Player across target death/respawn.
+		do
 			if not currentTargetRoot then
 				if not self.WaitingForTarget then
 					self.WaitingForTarget = true
@@ -514,15 +514,14 @@ function VR7EfficientCore:Start()
 			if self.WaitingForTarget or self.CurrentTargetRoot ~= currentTargetRoot then
 				self.WaitingForTarget = false
 				self.CurrentTargetRoot = currentTargetRoot
-				self.EfficientPhase = "HOME"
+				self.EfficientPhase = self.ShortDisplacementEnabled and "HOME" or "NEAR"
 				self.ShortTravel = nil
 				self.HomeUntil = os.clock() + self.ShortHomeInterval
 				self.NearUntil = os.clock() + self:GetContactDuration(true)
 				self.Direction = 1
 				self.ReturnSide = 1
+				if not self.ShortDisplacementEnabled and self.FrontFlipEnabled then self:ActivateFrontFlip(currentRoot) end
 			end
-		elseif not currentTargetRoot then
-			return
 		end
 		self:UpdateLastTarget(currentTargetRoot)
 		if self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
