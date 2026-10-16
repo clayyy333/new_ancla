@@ -15,8 +15,8 @@ local CONFIG = {
 	MAX_FORCE = Vector3.new(math.huge, math.huge, math.huge),
 	P = 1250,
 
-	NEAR_MIN_TIME = 0.060,
-	NEAR_MAX_TIME = 0.100,
+	NEAR_MIN_TIME = 0.300,
+	NEAR_MAX_TIME = 0.300,
 	DIRECT_RETURN_TOLERANCE = 4,
 
 	FAR_DISTANCES = {50, 75, 100, 125, 150, 175, 200},
