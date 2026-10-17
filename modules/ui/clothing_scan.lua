@@ -47,11 +47,13 @@ return function(context)
 		label.Font=Enum.Font.Gotham; label.TextSize=12; label.TextColor3=currentTheme.text; label.ZIndex=8; label.Parent=r
 		RegisterTheme(label,"TextColor3","text")
 		local code=Instance.new("TextBox"); code.Size=UDim2.new(.65,-12,0,34); code.Position=UDim2.new(0,8,0,46)
-		code.Text=tostring(id); code.ClearTextOnFocus=false; code.TextEditable=false; code.Font=Enum.Font.Gotham; code.TextSize=13
+		code.Text=id and tostring(id) or tr("Código no disponible","Code unavailable"); code.ClearTextOnFocus=false; code.TextEditable=false; code.Font=Enum.Font.Gotham; code.TextSize=13
 		code.BackgroundColor3=currentTheme.tertiary; code.TextColor3=currentTheme.text; code.ZIndex=8; code.Parent=r
 		RegisterTheme(code,"BackgroundColor3","tertiary"); RegisterTheme(code,"TextColor3","text")
 		local b=button(r,isTexture and tr("Copiar textura","Copy texture") or tr("Copiar ID","Copy ID"))
-		b.Size=UDim2.new(.35,-8,0,34); b.Position=UDim2.new(.65,0,0,46); b.Activated:Connect(function() copy(id) end)
+		if not id then b.Text=tr("Sin código","No code");b.AutoButtonColor=false;b.TextTransparency=.5 end
+		b.Size=UDim2.new(.35,-8,0,34); b.Position=UDim2.new(.65,0,0,46); b.Activated:Connect(function() if id then copy(id) end end)
+		return label,r
 	end
 	selectButton.Activated:Connect(function()
 		if busy then return end
@@ -74,69 +76,63 @@ return function(context)
 		busy=true; serial=serial+1; local token=serial
 		picker.Visible=false; status.Text=tr("Escaneando…","Scanning…")
 		for _,r in ipairs(rows) do r:Destroy() end; rows={}
+		local function valid()
+			return panel.Parent and token==serial and target.Character==character and character.Parent
+		end
+		local function kind(item)
+			local suffix=item.source=="texture" and tr(" · textura (no catálogo)"," · texture (not catalog)")
+				or item.source=="description" and tr(" · descripción, no verificada"," · description, unverified")
+				or item.source=="origin" and tr(" · ID de origen"," · source asset ID")
+				or tr(" · equipado, código desconocido"," · equipped, unknown ID")
+			return item.kind..suffix
+		end
+		local count=0
+		local sourceIds={}
+		local function show(item)
+			count=count+1
+			local label,card=row(item.id,kind(item),item.name,count,item.source=="texture")
+			return {item=item,label=label,card=card}
+		end
+		local ok,items=pcall(function() return ClothingScanReader:Snapshot(character) end)
+		local pending={}
+		if ok then
+			for _,item in ipairs(items) do
+				pending[#pending+1]=show(item)
+				if item.id and item.source=="origin" then sourceIds[item.id]=true end
+			end
+		end
+		-- Visible instances are rendered before any yielding metadata request.
+		busy=false
+		status.Text=tr("Objetos equipados: ","Equipped objects: ")..tostring(count)..tr(". Consultando descripción…",". Reading description…")
 		task.spawn(function()
-			local ok,err=pcall(function()
-				local items,seen={},{}
-				local function add(id,kind,texture)
-					id=tonumber(id); if not id or id<=0 then return end
-					local key=(texture and "texture:" or "asset:")..id
-					if seen[key] then return end; seen[key]=true
-					items[#items+1]={id=id,kind=kind,texture=texture}
+			local success,description=pcall(function() return ClothingScanReader:Description(humanoid) end)
+			if not valid() then return end
+			if success then
+				for _,item in ipairs(description) do
+					if not sourceIds[item.id] then pending[#pending+1]=show(item);sourceIds[item.id]=true end
 				end
-				local classic={
-					Shirt={"Shirt",tr("Camisa clásica","Classic shirt"),"ShirtTemplate"},
-					Pants={"Pants",tr("Pantalón clásico","Classic pants"),"PantsTemplate"},
-					ShirtGraphic={"GraphicTShirt",tr("Camiseta clásica","Classic T-shirt"),"Graphic"}
-				}
-				local worn={}
-				-- Inspect actual instances first, independently of the description.
-				-- Ignore stored clothing inside equipped Tools or nested NPC rigs.
-				for _,actual in ipairs(character:GetDescendants()) do
-					local entry=classic[actual.ClassName]
-					if entry and not actual:FindFirstAncestorOfClass("Tool") and actual:FindFirstAncestorOfClass("Model")==character then
-						worn[entry[1]]=entry[2]
-						local read,value=pcall(function() return actual[entry[3]] end)
-						if read then
-							local texture=tostring(value):match("[?&]id=(%d+)") or tostring(value):match("rbxassetid://(%d+)") or tostring(value):match("(%d+)$")
-							add(texture,entry[2]..tr(" · textura actual (no catálogo)"," · current texture (not catalog)"),true)
-						end
-					end
-				end
-				local hasDescription,description=pcall(function() return humanoid:GetAppliedDescription() end)
-				if hasDescription and description then
-					for property,kind in pairs(worn) do
-						local read,id=pcall(function() return description[property] end)
-						if read then add(id,kind..tr(" (descripción aplicada)"," (applied description)"),false) end
-					end
-					local gotAccessories,accessories=pcall(function() return description:GetAccessories(true) end)
-					if gotAccessories then
-						for _,a in ipairs(accessories) do add(a.AssetId,tostring(a.AccessoryType):gsub("Enum.AccessoryType%.","")..tr(" (descripción aplicada)"," (applied description)"),false) end
-					end
-					description:Destroy()
-				end
-				for i,item in ipairs(items) do
-					if not panel.Parent or token~=serial then return end
-					local name=tr("Nombre no disponible","Name unavailable")
-					if item.texture then name=tr("ID de imagen","Image ID") else
-						name=cache[item.id]
+			end
+			status.Text=count==0 and tr("No se detectaron prendas. El personaje puede estar incompleto.","No clothing detected. The character may be incompletely loaded.")
+				or tr("Equipados arriba; descripción como referencia. Una textura no es el ID del catálogo.","Equipped items above; description is a reference. A texture is not a catalog ID.")
+			-- At most two metadata calls at once; failures never remove visible items.
+			local cursor=0
+			local function worker()
+				while valid() do
+					cursor=cursor+1
+					local entry=pending[cursor]
+					if not entry then return end
+					local item=entry.item
+					if item.id and item.source~="texture" then
+						local name=cache[item.id]
 						if not name then
 							local got,info=pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(item.id,Enum.InfoType.Asset) end)
-							name=got and info.Name or tr("Nombre no disponible","Name unavailable")
-							if got then cache[item.id]=name end
+							if got and type(info)=="table" and type(info.Name)=="string" then name=info.Name;cache[item.id]=name end
 						end
+						if valid() and entry.card.Parent and name then entry.label.Text=kind(item).." — "..name end
 					end
-					if not panel.Parent then return end
-					if target.Character~=character or not character.Parent then
-						for _,r in ipairs(rows) do r:Destroy() end; rows={}
-						status.Text=tr("El personaje cambió durante el escaneo. Vuelve a escanear.","Character changed during the scan. Scan again.")
-						return
-					end
-					row(item.id,item.kind,name,i,item.texture)
 				end
-				status.Text=#items==0 and tr("No se encontraron prendas identificables.","No identifiable clothing found.") or tr("Escaneo terminado. Catálogo según descripción; texturas según ropa visible. No se consultó el perfil.","Scan complete. Catalog from description; textures from visible clothing. Profile was not queried.")
-			end)
-			busy=false
-			if not ok and panel.Parent then status.Text=tr("No se pudo completar. Vuelve a escanear.","Scan failed. Try scanning again."); warn("[ClothingScan] "..tostring(err)) end
+			end
+			task.spawn(worker);task.spawn(worker)
 		end)
 	end)
 	return true
