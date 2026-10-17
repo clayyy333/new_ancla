@@ -25,7 +25,7 @@ return function(context)
 	local function button(text,y)
 		local item=Instance.new("TextButton");item.Size=UDim2.new(1,0,0,44);item.Position=UDim2.new(0,0,0,y);item.BackgroundColor3=currentTheme.tertiary;item.Text=text;item.TextColor3=currentTheme.text;item.Font=Enum.Font.GothamBold;item.TextSize=isMobile and 11 or 13;item.AutoButtonColor=false;item.ZIndex=9;item.Parent=card;Instance.new("UICorner",item).CornerRadius=UDim.new(0,10);RegisterTheme(item,"BackgroundColor3","tertiary");RegisterTheme(item,"TextColor3","text");return item
 	end
-	label(isES and"Altura vertical (-10 a 10)"or"Vertical height (-10 to 10)",0)
+	label(isES and"Altura vertical (sin límite configurado)"or"Vertical height (no configured limit)",0)
 	local down=button("−",26);down.Size=UDim2.new(.2,-4,0,44);down.Position=UDim2.new(0,0,0,26)
 	local offsetValue=button("-5",26);offsetValue.Size=UDim2.new(.6,-8,0,44);offsetValue.Position=UDim2.new(.2,4,0,26);offsetValue.Active=false
 	local up=button("+",26);up.Size=UDim2.new(.2,-4,0,44);up.Position=UDim2.new(.8,4,0,26)

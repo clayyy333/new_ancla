@@ -22,7 +22,7 @@ return function(context)
 	function Core:SetOffset(value)
 		value=finite(value)
 		if not value then return false,isES and"Escribe una ubicación vertical válida."or"Enter a valid vertical location."end
-		self.Offset=math.clamp(value,-10,10)
+		self.Offset=value
 		if self.Running then self:Apply()end
 		return true,self.Offset
 	end
