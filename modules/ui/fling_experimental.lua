@@ -27,7 +27,7 @@ return function(context)
 		local c=ExperimentalFlingCore
 		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
 		toggle.BackgroundColor3=c.Running and currentTheme.critical or currentTheme.tertiary
-		status.Text=message or (c.Running and tr("Prueba activa: contacto breve y separación de 5 studs.","Test active: brief contact and 5-stud separation.") or tr("Experimental. Sin salida al void; no garantiza mayor efecto.","Experimental. No void travel; stronger effects are not guaranteed."))
+		status.Text=message or (c.Running and tr("Contacto giratorio sostenido: 0.20 s; separación de 5 studs y limpieza: 0.08 s.","Sustained rotating contact: 0.20 s; 5-stud separation and cleanup: 0.08 s.") or tr("Experimental para owners. Fuerza elevada, sin salida al void. Eficacia pendiente de prueba.","Owner experiment. High force, no void travel. Effectiveness requires testing."))
 	end
 	status.LayoutOrder=5
 	selectTarget.Activated:Connect(function()
