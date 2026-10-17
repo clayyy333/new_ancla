@@ -35,7 +35,7 @@ UpdateTabStyles = function()
 	local isGraphics = currentTab == "fps_booster" or currentTab == "shaders"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
+	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
@@ -457,7 +457,7 @@ UpdateTabData = function()
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno
+	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	settingsPanel.Visible  = isSettings
 	friendsPanel.Visible   = isFriends
@@ -470,6 +470,7 @@ UpdateTabData = function()
 	objectFlingPanel.Visible = isFlingObject
 	motoFlingPanel.Visible = isFlingMoto
 	motoFlingXenoPanel.Visible = isFlingMotoXeno
+	experimentalFlingPanel.Visible = currentTab=="fling_experimental"
 	anchorPanel.Visible = isAnchorBasic
 	moveAnchoredPanel.Visible = isMoveAnchored
 	autoAnchorPanel.Visible = isAnchorAuto
@@ -601,6 +602,9 @@ UpdateTabData = function()
 	elseif currentTab == "fling_moto_xeno" then
 		title.Text = isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"
 		if UpdateMotoFlingXenoPanel then UpdateMotoFlingXenoPanel() end
+	elseif currentTab == "fling_experimental" then
+		title.Text=isES and "Fling experimental corto" or "Experimental short Fling"
+		UpdateExperimentalFlingPanel()
 	elseif currentTab == "camera_control" then
 		title.Text = isES and "Perspectiva Cámara" or "Camera Perspective"
 		if UpdateCameraControlPanel then UpdateCameraControlPanel() end
@@ -684,6 +688,7 @@ fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab 
 fling2TabBtns["fling_object"].btn.MouseButton1Click:Connect(function() currentTab = "fling_object"; UpdateTabData() end)
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
 fling2TabBtns["fling_moto_xeno"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto_xeno"; UpdateTabData() end)
+fling2TabBtns.fling_experimental.btn.Activated:Connect(function()currentTab="fling_experimental";UpdateTabData()end)
 mainNavBtns["movements"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)

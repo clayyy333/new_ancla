@@ -4,6 +4,11 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
+	if ExperimentalFlingCore then
+		local start=ExperimentalFlingCore.Start
+		ExperimentalFlingCore.Start=function(self,...)if blocked then return false end;return start(self,...)end
+		cores[#cores+1]=ExperimentalFlingCore
+	end
 	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno"}) do
 		local core=context[name]
 		if core then
@@ -31,6 +36,10 @@ return function(context)
 		if corner then corner:Clone().Parent=shade end
 		buttons[button]={shade=shade,active=button.Active}
 		shade.Parent=button;shade.Activated:Connect(function() end)
+	end
+	if experimentalFlingPanel then
+		for _,b in ipairs(experimentalFlingPanel:GetDescendants())do protect(b)end
+		experimentalFlingPanel.DescendantAdded:Connect(protect)
 	end
 	for _,name in ipairs({"anchorPanel","moveAnchoredPanel","autoAnchorPanel","fling2Panel","customFlingPanel","contactFlingPanel","carFlingPanel","carFling2Panel","objectFlingPanel","motoFlingPanel","motoFlingXenoPanel"}) do
 		local panel=context[name]

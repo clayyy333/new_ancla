@@ -90,7 +90,9 @@ return function(context)
 	sideOverlay.Parent = movementNav
 	RegisterTheme(sideOverlay, "BackgroundColor3", "sidebar")
 
-	fling2Nav = Instance.new("Frame")
+	fling2Nav = Instance.new("ScrollingFrame")
+	fling2Nav.BorderSizePixel=0;fling2Nav.ScrollBarThickness=2
+	fling2Nav.ScrollingDirection=Enum.ScrollingDirection.Y
 	fling2Nav.Name = "Fling2Navigation"
 	fling2Nav.Size = UDim2.new(0, sideBarW, 1, -topNavH)
 	fling2Nav.Position = UDim2.new(0, 0, 0, topNavH)
@@ -329,7 +331,9 @@ return function(context)
 		{"fling_object", isES and "Fling con objeto" or "Object Fling"},
 		{"fling_moto", isES and "Fling con moto Delta" or "Delta Motorcycle Fling"},
 		{"fling_moto_xeno", isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"},
+		{"fling_experimental", isES and "Fling experimental corto" or "Experimental short Fling"},
 	}
+	fling2Nav.CanvasSize=UDim2.new(0,0,0,pad*2+#flingLabels*(buttonH+gap))
 	for index, item in ipairs(flingLabels) do
 		local btn, stroke, gradient = CreateTextButton(
 			fling2Nav, item[2], item[1],
