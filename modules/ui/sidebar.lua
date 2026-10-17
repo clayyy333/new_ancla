@@ -331,8 +331,10 @@ return function(context)
 		{"fling_object", isES and "Fling con objeto" or "Object Fling"},
 		{"fling_moto", isES and "Fling con moto Delta" or "Delta Motorcycle Fling"},
 		{"fling_moto_xeno", isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"},
-		{"fling_experimental", isES and "Fling experimental corto" or "Experimental short Fling"},
 	}
+	if ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized() then
+		table.insert(flingLabels,{"fling_experimental",isES and "Fling experimental corto" or "Experimental short Fling"})
+	end
 	fling2Nav.CanvasSize=UDim2.new(0,0,0,pad*2+#flingLabels*(buttonH+gap))
 	for index, item in ipairs(flingLabels) do
 		local btn, stroke, gradient = CreateTextButton(

@@ -2,6 +2,10 @@
 return function(context)
 	setfenv(1,context)
 	local Core={Running=false,Stopping=false,Target=nil,Checkpoint=nil,Phase="IDLE",Connection=nil,Serial=0}
+	local owners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo",[11797966007]="psychoop77"}
+	function Core:IsAuthorized()
+		return owners[player.UserId]~=nil and owners[player.UserId]==string.lower(player.Name)
+	end
 	local function text(es,en) return isES and es or en end
 	local function refresh(message) if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message) end end
 	local function parts(p)
@@ -25,6 +29,7 @@ return function(context)
 		self.Target=target;return true
 	end
 	function Core:Start()
+		if not self:IsAuthorized() then return false,text("Prueba exclusiva para owners.","Owner-only experiment.") end
 		if self.Running then return true end
 		if self.Stopping then return false,text("Espera la estabilización.","Wait for stabilization.") end
 		if conflict() then return false,text("Desactiva otras anclas y flings primero.","Disable other anchors and flings first.") end

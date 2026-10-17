@@ -470,7 +470,7 @@ UpdateTabData = function()
 	objectFlingPanel.Visible = isFlingObject
 	motoFlingPanel.Visible = isFlingMoto
 	motoFlingXenoPanel.Visible = isFlingMotoXeno
-	experimentalFlingPanel.Visible = currentTab=="fling_experimental"
+	experimentalFlingPanel.Visible = currentTab=="fling_experimental" and ExperimentalFlingCore:IsAuthorized()
 	anchorPanel.Visible = isAnchorBasic
 	moveAnchoredPanel.Visible = isMoveAnchored
 	autoAnchorPanel.Visible = isAnchorAuto
@@ -604,7 +604,7 @@ UpdateTabData = function()
 		if UpdateMotoFlingXenoPanel then UpdateMotoFlingXenoPanel() end
 	elseif currentTab == "fling_experimental" then
 		title.Text=isES and "Fling experimental corto" or "Experimental short Fling"
-		UpdateExperimentalFlingPanel()
+		if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel() end
 	elseif currentTab == "camera_control" then
 		title.Text = isES and "Perspectiva Cámara" or "Camera Perspective"
 		if UpdateCameraControlPanel then UpdateCameraControlPanel() end
@@ -688,7 +688,9 @@ fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab 
 fling2TabBtns["fling_object"].btn.MouseButton1Click:Connect(function() currentTab = "fling_object"; UpdateTabData() end)
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
 fling2TabBtns["fling_moto_xeno"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto_xeno"; UpdateTabData() end)
-fling2TabBtns.fling_experimental.btn.Activated:Connect(function()currentTab="fling_experimental";UpdateTabData()end)
+if fling2TabBtns.fling_experimental then
+	fling2TabBtns.fling_experimental.btn.Activated:Connect(function()currentTab="fling_experimental";UpdateTabData()end)
+end
 mainNavBtns["movements"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "emotes"; UpdateTabData() end)
 tabBtns["emotes"].btn.MouseButton1Click:Connect(function() currentTab = "emotes"; UpdateTabData() end)
 tabBtns["favorites"].btn.MouseButton1Click:Connect(function() currentTab = "favorites"; UpdateTabData() end)

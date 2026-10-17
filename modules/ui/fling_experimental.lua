@@ -5,6 +5,7 @@ return function(context)
 	local panel=experimentalFlingPanel
 	panel.Size=UDim2.new(1,-16,1,-(titleH+20));panel.Position=UDim2.new(0,8,0,titleH+8)
 	panel.BackgroundTransparency=1;panel.BorderSizePixel=0;panel.ScrollBarThickness=3;panel.CanvasSize=UDim2.new();panel.AutomaticCanvasSize=Enum.AutomaticSize.Y;panel.Visible=false;panel.ZIndex=6;panel.Parent=content
+	if not ExperimentalFlingCore:IsAuthorized() then return true end
 	local layout=Instance.new("UIListLayout",panel);layout.Padding=UDim.new(0,8)
 	layout.SortOrder=Enum.SortOrder.LayoutOrder
 	local function button(label)
