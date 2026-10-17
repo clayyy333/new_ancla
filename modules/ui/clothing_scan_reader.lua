@@ -37,7 +37,10 @@ return function(context)
 					elseif category and category~="Unknown" then kind=kind.." ("..category..")" end
 				end
 				local id=assetId(read(object,"SourceAssetId"))
-				items[#items+1]={id=id,kind=kind,name=object.Name,source=id and "origin" or "unknown",instance=object}
+				-- Some games name inserted accessories with their catalog ID but expose
+				-- no SourceAssetId. Keep it as a candidate until metadata is validated.
+				local candidate=not entry and tostring(object.Name):match("^%d+$") and assetId(object.Name) or nil
+				items[#items+1]={id=id,candidate=candidate,kind=kind,name=object.Name,source=id and "origin" or "unknown",instance=object}
 				if entry then
 					local texture=assetId(read(object,entry[3]))
 					if texture then items[#items+1]={id=texture,kind=kind,name=object.Name,source="texture",instance=object} end
@@ -45,6 +48,16 @@ return function(context)
 			end
 		end
 		return items
+	end
+	function Reader:ValidateAccessoryCandidate(item,info)
+		local accessoryTypes={[8]=true,[41]=true,[42]=true,[43]=true,[44]=true,[45]=true,[46]=true,[47]=true,[64]=true,[65]=true,[66]=true,[67]=true,[68]=true,[69]=true,[70]=true,[71]=true,[72]=true,[76]=true,[77]=true}
+		local id=item.candidate
+		if not id or type(info)~="table" or not accessoryTypes[tonumber(info.AssetTypeId)] then return false end
+		if info.AssetId and tonumber(info.AssetId)~=id then return false end
+		if type(info.Name)~="string" or info.Name=="" then return false end
+		item.id=id;item.source="validated_name";item.name=info.Name
+		if tonumber(info.AssetTypeId)==41 then item.kind=tr("Cabello","Hair") end
+		return true
 	end
 	function Reader:Description(humanoid)
 		local ok,description=pcall(function() return humanoid:GetAppliedDescription() end)

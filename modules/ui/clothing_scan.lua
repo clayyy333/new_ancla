@@ -53,7 +53,14 @@ return function(context)
 		local b=button(r,isTexture and tr("Copiar textura","Copy texture") or tr("Copiar ID","Copy ID"))
 		if not id then b.Text=tr("Sin código","No code");b.AutoButtonColor=false;b.TextTransparency=.5 end
 		b.Size=UDim2.new(.35,-8,0,34); b.Position=UDim2.new(.65,0,0,46); b.Activated:Connect(function() if id then copy(id) end end)
-		return label,r
+		local function update(newId,newKind,newName)
+			id=newId
+			label.Text=newKind.." — "..newName
+			code.Text=id and tostring(id) or tr("Código no disponible","Code unavailable")
+			b.Text=id and tr("Copiar ID","Copy ID") or tr("Sin código","No code")
+			b.TextTransparency=id and 0 or .5
+		end
+		return label,r,update
 	end
 	selectButton.Activated:Connect(function()
 		if busy then return end
@@ -83,6 +90,7 @@ return function(context)
 			local suffix=item.source=="texture" and tr(" · textura (no catálogo)"," · texture (not catalog)")
 				or item.source=="description" and tr(" · descripción, no verificada"," · description, unverified")
 				or item.source=="origin" and tr(" · ID de origen"," · source asset ID")
+				or item.source=="validated_name" and tr(" · ID del nombre validado"," · validated name ID")
 				or tr(" · equipado, código desconocido"," · equipped, unknown ID")
 			return item.kind..suffix
 		end
@@ -90,8 +98,8 @@ return function(context)
 		local sourceIds={}
 		local function show(item)
 			count=count+1
-			local label,card=row(item.id,kind(item),item.name,count,item.source=="texture")
-			return {item=item,label=label,card=card}
+			local label,card,update=row(item.id,kind(item),item.name,count,item.source=="texture")
+			return {item=item,label=label,card=card,update=update}
 		end
 		local ok,items=pcall(function() return ClothingScanReader:Snapshot(character) end)
 		local pending={}
@@ -122,13 +130,18 @@ return function(context)
 					local entry=pending[cursor]
 					if not entry then return end
 					local item=entry.item
-					if item.id and item.source~="texture" then
-						local name=cache[item.id]
-						if not name then
-							local got,info=pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(item.id,Enum.InfoType.Asset) end)
-							if got and type(info)=="table" and type(info.Name)=="string" then name=info.Name;cache[item.id]=name end
+					local lookup=item.id or item.candidate
+					if lookup and item.source~="texture" then
+						local info=cache[lookup]
+						if not info then
+							local got,result=pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(lookup,Enum.InfoType.Asset) end)
+							if got and type(result)=="table" and type(result.Name)=="string" then info=result;cache[lookup]=info end
 						end
-						if valid() and entry.card.Parent and name then entry.label.Text=kind(item).." — "..name end
+						if valid() and entry.card.Parent and info then
+							if item.id then item.name=info.Name
+							else ClothingScanReader:ValidateAccessoryCandidate(item,info) end
+							if item.id then entry.update(item.id,kind(item),item.name) end
+						end
 					end
 				end
 			end
