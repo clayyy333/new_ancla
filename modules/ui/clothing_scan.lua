@@ -51,14 +51,29 @@ return function(context)
 		code.BackgroundColor3=currentTheme.tertiary; code.TextColor3=currentTheme.text; code.ZIndex=8; code.Parent=r
 		RegisterTheme(code,"BackgroundColor3","tertiary"); RegisterTheme(code,"TextColor3","text")
 		local b=button(r,isTexture and tr("Copiar textura","Copy texture") or tr("Copiar ID","Copy ID"))
+		local shade=Instance.new("UIGradient")
+		shade.Rotation=90
+		shade.Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(195,195,195))
+		shade.Parent=b
+		local edge=Instance.new("UIStroke")
+		edge.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;edge.Thickness=1;edge.Transparency=.75
+		edge.Color=currentTheme.stroke;edge.Parent=b;RegisterTheme(edge,"Color","stroke")
+		local function styleCopy()
+			b.AutoButtonColor=id~=nil
+			b.TextTransparency=id and 0 or .5
+			b.BackgroundTransparency=id and 0 or .35
+			shade.Enabled=id~=nil
+			edge.Transparency=id and .75 or .92
+		end
 		if not id then b.Text=tr("Sin código","No code");b.AutoButtonColor=false;b.TextTransparency=.5 end
+		styleCopy()
 		b.Size=UDim2.new(.35,-8,0,34); b.Position=UDim2.new(.65,0,0,46); b.Activated:Connect(function() if id then copy(id) end end)
 		local function update(newId,newKind,newName)
 			id=newId
 			label.Text=newKind.." — "..newName
 			code.Text=id and tostring(id) or tr("Código no disponible","Code unavailable")
 			b.Text=id and tr("Copiar ID","Copy ID") or tr("Sin código","No code")
-			b.TextTransparency=id and 0 or .5
+			styleCopy()
 		end
 		return label,r,update
 	end

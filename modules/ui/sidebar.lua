@@ -14,8 +14,9 @@ return function(context)
 
 	mainNav = Instance.new("ScrollingFrame")
 	mainNav.Name = "TopNavigationTabs"
-	mainNav.Size = UDim2.new(1, -(isMobile and 96 or 112), 1, -12)
-	mainNav.Position = UDim2.new(0, 8, 0, 6)
+	-- Reserve separate lanes for scroll hints; never cover tabs or window controls.
+	mainNav.Size = UDim2.new(1, -(isMobile and 156 or 172), 1, -12)
+	mainNav.Position = UDim2.new(0, 38, 0, 6)
 	mainNav.BackgroundTransparency = 1
 	mainNav.BorderSizePixel = 0
 	mainNav.ScrollBarThickness = 0
@@ -25,6 +26,48 @@ return function(context)
 	mainNav.CanvasSize = UDim2.new(0, isMobile and 722 or 877, 0, 0)
 	mainNav.ZIndex = 21
 	mainNav.Parent = topNav
+	local cancelTabScroll
+	do
+		local scrollingTween
+		cancelTabScroll=function()
+			if scrollingTween then scrollingTween:Cancel();scrollingTween=nil end
+		end
+		local function arrow(name,text,position)
+			local b=Instance.new("TextButton")
+			b.Name=name;b.Text=text;b.Size=UDim2.new(0,24,1,-20);b.Position=position
+			b.BackgroundColor3=currentTheme.tertiary;b.BackgroundTransparency=.2
+			b.TextColor3=currentTheme.textDim;b.Font=Enum.Font.GothamMedium;b.TextSize=23
+			b.BorderSizePixel=0;b.AutoButtonColor=true;b.ZIndex=23;b.Visible=false;b.Parent=topNav
+			Instance.new("UICorner",b).CornerRadius=UDim.new(0,7)
+			local edge=Instance.new("UIStroke",b);edge.Color=currentTheme.stroke;edge.Transparency=.8
+			RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","textDim");RegisterTheme(edge,"Color","stroke")
+			return b
+		end
+		local left=arrow("PreviousTabs","‹",UDim2.new(0,8,0,10))
+		local right=arrow("MoreTabs","›",UDim2.new(1,-(isMobile and 116 or 132),0,10))
+		local function limit() return math.max(0,mainNav.AbsoluteCanvasSize.X-mainNav.AbsoluteSize.X) end
+		local function update()
+			local maximum=limit()
+			left.Visible=maximum>1 and mainNav.CanvasPosition.X>1
+			right.Visible=maximum>1 and mainNav.CanvasPosition.X<maximum-1
+		end
+		local function move(direction)
+			cancelTabScroll()
+			local goal=math.clamp(mainNav.CanvasPosition.X+direction*math.max(110,mainNav.AbsoluteSize.X*.7),0,limit())
+			scrollingTween=TweenService:Create(mainNav,TweenInfo.new(.25,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{CanvasPosition=Vector2.new(goal,0)})
+			scrollingTween:Play()
+		end
+		left.Activated:Connect(function() move(-1) end)
+		right.Activated:Connect(function() move(1) end)
+		mainNav:GetPropertyChangedSignal("CanvasPosition"):Connect(update)
+		mainNav:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+		mainNav:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(update)
+		mainNav.InputBegan:Connect(function(input)
+			if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then cancelTabScroll() end
+		end)
+		main.Destroying:Connect(cancelTabScroll)
+		task.defer(update)
+	end
 
 	-- Navegacion interna de Movimientos.
 	movementNav = Instance.new("Frame")
@@ -230,6 +273,7 @@ return function(context)
 	mainNavDragSuppressUntil = 0
 	local dragStartX, dragStartCanvas, dragInput, dragged
 	local function beginTabDrag(input)
+		if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then cancelTabScroll() end
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 		dragStartX = input.Position.X
 		dragStartCanvas = mainNav.CanvasPosition.X
