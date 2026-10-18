@@ -6,9 +6,9 @@ return function(context)
 local CONFIG = {
 	SHORT_STABILITY_TEST = false, -- Original lateral thrust and rotation restored.
 	VERTICAL_DISTANCE = 1.5,
-	LINEAR_SPEED = 90000000,
-	ANGULAR_SPEED = 90000000,
-	FLINGER_VELOCITY = Vector3.new(90000000, 90000000, 90000000),
+	LINEAR_SPEED = 900000000,
+	ANGULAR_SPEED = 900000000,
+	FLINGER_VELOCITY = Vector3.new(900000000, 900000000, 900000000),
 	MAX_FORCE = Vector3.new(math.huge, math.huge, math.huge),
 	P = 1250,
 
