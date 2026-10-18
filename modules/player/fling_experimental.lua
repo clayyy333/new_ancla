@@ -24,7 +24,9 @@ local CONFIG = {
 	NEAR_MAX_TIME = 0.085,
 	DIRECT_RETURN_TOLERANCE = 4,
 	FAR_DISTANCE = 1000000,
+	MICRO_STEP_TIME = 0.05,
 }
+	local microOffsets={Vector3.new(0,0.5,0),Vector3.new(0,-0.5,0),Vector3.new(0,0,-0.5),Vector3.new(0,0,0.5)}
 
 --------------------------------------------------
 -- PROVIDER
@@ -213,7 +215,7 @@ function VR7MotoExperimentalCore:SetTarget(option)
 	if self.Running or self.Stopping then return false end
 	if option == nil then self.SelectedTarget=nil;self.Target=nil;return true end
 	local resolved = self.Provider:ResolveTarget(option)
-	if not resolved or not resolved:IsA("Player") or resolved.UserId ~= 11773278300 then return false end
+	if not resolved or not resolved:IsA("Player") or resolved == LocalPlayer then return false end
 	self.SelectedTarget = resolved
 	self.Target = resolved
 	return resolved ~= nil
@@ -490,7 +492,8 @@ end
 
 function VR7MotoExperimentalCore:Start()
 	if not self:IsAuthorized() then return false, "Prueba exclusiva para owners." end
-	if not self.SelectedTarget or self.SelectedTarget.UserId ~= 11773278300 then return false, "Selecciona dayzero777 para esta prueba." end
+	if not self.SelectedTarget then return false, "Selecciona un objetivo." end
+	if not self.MicroMovementEnabled and self.SelectedTarget.UserId ~= 11773278300 then return false, "El flujo de moto sigue limitado a dayzero777; usa el nuevo botón para otros objetivos." end
 	-- Si INICIAR se pulsa durante la estabilización del Stop anterior,
 	-- cancelar inmediatamente ese ciclo y liberar nuestro HumanoidRootPart.
 	if self.Stopping then
@@ -556,6 +559,7 @@ function VR7MotoExperimentalCore:Start()
 	self.HomeUntil = os.clock() + self.ShortHomeInterval
 	self.NearUntil = os.clock() + self:GetContactDuration(true)
 	self.ReturnSide = 1
+	self.MicroStarted = os.clock()
 
 	attackerHumanoid.PlatformStand = false
 	attackerHumanoid.AutoRotate = true
@@ -569,7 +573,7 @@ function VR7MotoExperimentalCore:Start()
 		self:ActivateFrontFlip(attackerRoot)
 	end
 
-	self:StartPassengerMonitor()
+	if self.MicroMovementEnabled then self:StopPassengerMonitor() else self:StartPassengerMonitor() end
 	self.Connection = RunService.Heartbeat:Connect(function()
 		if not self.Running then return end
 		local currentHumanoid, currentRoot = getParts(self.Provider:GetLocalCharacter())
@@ -620,6 +624,23 @@ function VR7MotoExperimentalCore:Start()
 			end
 		end
 		self:UpdateLastTarget(currentTargetRoot)
+		if self.MicroMovementEnabled then
+			-- Reuse the efficient engine's contact physics, lifecycle and Stop cleanup.
+			-- Only the local contact position changes; no HOME/FAR/return phases.
+			local step=math.floor((os.clock()-self.MicroStarted)/CONFIG.MICRO_STEP_TIME)%#microOffsets+1
+			self.EfficientPhase="MICRO_"..step
+			local desired=currentTargetRoot.CFrame* CFrame.new(microOffsets[step])
+			currentRoot.CFrame=CFrame.new(desired.Position)*currentRoot.CFrame.Rotation
+			if not self.Flinger or self.Flinger.Parent~=currentRoot then self:CreateFlinger(currentRoot) end
+			self.Flinger.Velocity=self:GetFlingerVelocity()
+			self.Flinger.MaxForce=self:GetFlingerMaxForce()
+			self.Flinger.P=CONFIG.P
+			self.Direction=-self.Direction
+			currentRoot.AssemblyLinearVelocity=Vector3.new(0,CONFIG.LINEAR_SPEED*self.Direction,0)
+			currentRoot.AssemblyAngularVelocity=Vector3.new(CONFIG.ANGULAR_SPEED,CONFIG.ANGULAR_SPEED,CONFIG.ANGULAR_SPEED)
+			self:EnsureFrontFlip(currentRoot)
+			return
+		end
 		-- Check prerequisites before allocating or updating physics actuators.
 		if not self.PassengerVehicle or not self.PassengerVehicle.Parent or not self.PassengerSeat or not self.PassengerSeat.Parent then
 			self:DestroyFlinger()

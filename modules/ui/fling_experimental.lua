@@ -20,8 +20,10 @@ return function(context)
 	choices.LayoutOrder=2
 	local toggle=button(tr("Activar Fling experimental corto","Enable experimental short Fling"))
 	toggle.LayoutOrder=3
+	local microToggle=button(tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
+	microToggle.LayoutOrder=4
 	local back=button(tr("Forzar regreso","Force return"))
-	back.LayoutOrder=4
+	back.LayoutOrder=5
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
 	copyDiagnostic.LayoutOrder=7
 	local report=Instance.new("TextBox")
@@ -41,13 +43,16 @@ return function(context)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
 		local c=ExperimentalFlingCore
-		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
-		toggle.BackgroundColor3=c.Running and currentTheme.critical or currentTheme.tertiary
+		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and not c.MicroMovementEnabled and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
+		toggle.BackgroundColor3=c.Running and not c.MicroMovementEnabled and currentTheme.critical or currentTheme.tertiary
+		microToggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and c.MicroMovementEnabled and tr("Desactivar contacto sutil 0.5 studs","Disable subtle contact 0.5 studs") or tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
+		microToggle.BackgroundColor3=c.Running and c.MicroMovementEnabled and currentTheme.critical or currentTheme.tertiary
 		status.Text=message or tr("Copia del eficiente: contacto hasta confirmar a dayzero777 en tu moto, alejamiento y regreso. Prueba exclusiva para owners.","Efficient copy: contact until dayzero777 is confirmed in your bike, far travel and return. Owner-only test.")
 		if not message and c.PassengerMonitoring then
 			local labels={WAIT_VEHICLE=tr("Esperando tu moto; no se eligen vehículos ambiguos.","Waiting for your bike; ambiguous vehicles are not selected."),WAIT_SEAT=tr("Moto identificada; esperando asiento.","Bike identified; waiting for seat."),WAIT_PASSENGER=tr("Esperando a dayzero777 en el copiloto.","Waiting for dayzero777 in passenger seat."),OCCUPIED=tr("dayzero777 detectado; esperando SeatWeld.","dayzero777 detected; waiting for SeatWeld."),CONFIRMED=tr("dayzero777: ocupación y conexión al HRP confirmadas localmente.","dayzero777: occupancy and HRP connection confirmed locally."),OTHER_PASSENGER=tr("Otro ocupante; no es la cuenta de prueba.","Other occupant; not the test account.")}
 			status.Text=labels[c.PassengerState] or "…"
 		end
+		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 	end
 	status.LayoutOrder=6
 	selectTarget.Activated:Connect(function()
@@ -55,15 +60,24 @@ return function(context)
 		choices.Visible=not choices.Visible
 		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") then b:Destroy() end end
 		local players=Players:GetPlayers();table.sort(players,function(a,b)return a.Name:lower()<b.Name:lower()end)
-		for _,p in ipairs(players)do if p~=player and p.UserId==11773278300 then
+		for _,p in ipairs(players)do if p~=player then
 			local b=button(p.DisplayName.." (@"..p.Name..")");b.Parent=choices;b.Size=UDim2.new(1,-4,0,36)
 			b.Activated:Connect(function()if ExperimentalFlingCore:SetTarget(p) then selectTarget.Text=p.DisplayName;choices.Visible=false end end)
 		end end
 	end)
 	toggle.Activated:Connect(function()
 		choices.Visible=false
-		if ExperimentalFlingCore.Running then ExperimentalFlingCore:Stop()
-		else local ok,err=ExperimentalFlingCore:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
+		local c=ExperimentalFlingCore
+		if c.Stopping then return end
+		if c.Running then c:Stop()
+		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
+	end)
+	microToggle.Activated:Connect(function()
+		choices.Visible=false
+		local c=ExperimentalFlingCore
+		if c.Stopping then return end
+		if c.Running then c:Stop()
+		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	back.Activated:Connect(function()local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)end)
 	gui.Destroying:Connect(function()
