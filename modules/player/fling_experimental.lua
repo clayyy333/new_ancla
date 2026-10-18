@@ -212,8 +212,8 @@ local function getParts(character)
 end
 
 function VR7MotoExperimentalCore:SetTarget(option)
-	if self.Running or self.Stopping then return false end
 	if option == nil then self.SelectedTarget=nil;self.Target=nil;return true end
+	if self.Running or self.Stopping then return false end
 	local resolved = self.Provider:ResolveTarget(option)
 	if not resolved or not resolved:IsA("Player") or resolved == LocalPlayer then return false end
 	self.SelectedTarget = resolved

@@ -14,10 +14,16 @@ return function(context)
 		Instance.new("UICorner",b).CornerRadius=UDim.new(0,10);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
 	local selectTarget=button(tr("Seleccionar jugador","Select player"))
+	selectTarget.Font=Enum.Font.GothamMedium;selectTarget.TextXAlignment=Enum.TextXAlignment.Left
+	Instance.new("UIPadding",selectTarget).PaddingLeft=UDim.new(0,12)
 	selectTarget.LayoutOrder=1
 	local choices=Instance.new("ScrollingFrame");choices.Size=UDim2.new(1,-4,0,150);choices.BackgroundTransparency=1;choices.BorderSizePixel=0;choices.ScrollBarThickness=3;choices.CanvasSize=UDim2.new();choices.AutomaticCanvasSize=Enum.AutomaticSize.Y;choices.Visible=false;choices.ZIndex=7;choices.Parent=panel
 	Instance.new("UIListLayout",choices).Padding=UDim.new(0,4)
 	choices.LayoutOrder=2
+	choices.BackgroundTransparency=0;choices.BackgroundColor3=currentTheme.tertiary;choices.Active=true
+	choices.ScrollingDirection=Enum.ScrollingDirection.Y;choices.ScrollBarThickness=4;choices.ZIndex=30
+	Instance.new("UICorner",choices).CornerRadius=UDim.new(0,10)
+	RegisterTheme(choices,"BackgroundColor3","tertiary")
 	local toggle=button(tr("Activar Fling experimental corto","Enable experimental short Fling"))
 	toggle.LayoutOrder=3
 	local microToggle=button(tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
@@ -43,6 +49,8 @@ return function(context)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
 		local c=ExperimentalFlingCore
+		local target=c:GetTarget()
+		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
 		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and not c.MicroMovementEnabled and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
 		toggle.BackgroundColor3=c.Running and not c.MicroMovementEnabled and currentTheme.critical or currentTheme.tertiary
 		microToggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and c.MicroMovementEnabled and tr("Desactivar contacto sutil 0.5 studs","Disable subtle contact 0.5 studs") or tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
@@ -55,15 +63,40 @@ return function(context)
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 	end
 	status.LayoutOrder=6
+	local function refreshTargets()
+		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") or b:IsA("TextLabel") then b:Destroy() end end
+		local players=Players:GetPlayers();table.sort(players,function(a,b)return a.Name:lower()<b.Name:lower()end)
+		local count=0
+		for _,p in ipairs(players)do if p~=player then
+			count=count+1
+			local b=button(p.DisplayName.."  (@"..p.Name..")");b.Parent=choices;b.Size=UDim2.new(1,-8,0,36)
+			b.ZIndex=31;b.LayoutOrder=count;b.Font=Enum.Font.GothamMedium;b.TextXAlignment=Enum.TextXAlignment.Left
+			b.AutoButtonColor=false
+			Instance.new("UIPadding",b).PaddingLeft=UDim.new(0,12)
+			b.Activated:Connect(function()
+				if p.Parent==Players and ExperimentalFlingCore:SetTarget(p) then choices.Visible=false;UpdateExperimentalFlingPanel() end
+			end)
+		end end
+		if count==0 then
+			local empty=Instance.new("TextLabel");empty.Size=UDim2.new(1,-8,0,36);empty.BackgroundTransparency=1
+			empty.Text=tr("No hay otros usuarios en este servidor","No other players in this server")
+			empty.TextColor3=currentTheme.textDim;empty.Font=Enum.Font.Gotham;empty.TextSize=12;empty.ZIndex=31;empty.Parent=choices
+		end
+		choices.CanvasPosition=Vector2.zero
+	end
 	selectTarget.Activated:Connect(function()
 		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping then return end
 		choices.Visible=not choices.Visible
-		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") then b:Destroy() end end
-		local players=Players:GetPlayers();table.sort(players,function(a,b)return a.Name:lower()<b.Name:lower()end)
-		for _,p in ipairs(players)do if p~=player then
-			local b=button(p.DisplayName.." (@"..p.Name..")");b.Parent=choices;b.Size=UDim2.new(1,-4,0,36)
-			b.Activated:Connect(function()if ExperimentalFlingCore:SetTarget(p) then selectTarget.Text=p.DisplayName;choices.Visible=false end end)
-		end end
+		if choices.Visible then refreshTargets() end
+	end)
+	local targetAdded=Players.PlayerAdded:Connect(function()if choices.Visible then refreshTargets() end end)
+	local targetRemoved=Players.PlayerRemoving:Connect(function(leaving)
+		if ExperimentalFlingCore:GetTarget()==leaving then
+			if ExperimentalFlingCore.Running then ExperimentalFlingCore:Stop() end
+			ExperimentalFlingCore:SetTarget(nil)
+			selectTarget.Text=tr("Seleccionar jugador","Select player")
+		end
+		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
 		choices.Visible=false
@@ -81,6 +114,7 @@ return function(context)
 	end)
 	back.Activated:Connect(function()local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)end)
 	gui.Destroying:Connect(function()
+		targetAdded:Disconnect();targetRemoved:Disconnect()
 		local c=ExperimentalFlingCore
 		c:StopPassengerMonitor();c:Stop()
 		if c.PlayerRemovingConnection then c.PlayerRemovingConnection:Disconnect() end
