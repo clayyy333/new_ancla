@@ -870,6 +870,64 @@ end
 	ExperimentalFlingCore = VR7MotoExperimentalCore.new(Provider)
 	ExperimentalFlingCore.LastCheckpoint = nil
 
+	-- Bounded local diagnostics only: never changes physical properties.
+	local diagnostic = {rows={},next=1,count=0,elapsed=0,recording=false}
+	local function appendDiagnostic(event)
+		local core=ExperimentalFlingCore
+		local character=LocalPlayer.Character
+		local root=character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+		local function vector(v)
+			return string.format("(%.3f,%.3f,%.3f)",v.X,v.Y,v.Z)
+		end
+		local row=string.format("t=%.3f event=%s phase=%s running=%s passenger=%s",os.clock(),event,tostring(core.EfficientPhase),tostring(core.Running),tostring(core.PassengerState))
+		if root then
+			row=row.." pos="..vector(root.Position).." linear="..vector(root.AssemblyLinearVelocity).." angular="..vector(root.AssemblyAngularVelocity).." anchored="..tostring(root.Anchored)
+		else row=row.." HRP=missing" end
+		if humanoid then row=row.." health="..tostring(humanoid.Health).." state="..humanoid:GetState().Name end
+		diagnostic.rows[diagnostic.next]=row
+		diagnostic.next=diagnostic.next%300+1
+		diagnostic.count=math.min(diagnostic.count+1,300)
+	end
+	function ExperimentalFlingCore:GetDiagnosticReport()
+		local rows={"EXPERIMENTAL DIAGNOSTIC | local observations only; server cause unknown", "Samples: "..diagnostic.count.." | bounded to 300 rows; regular interval 0.05 s"}
+		local first=diagnostic.count==300 and diagnostic.next or 1
+		for offset=0,diagnostic.count-1 do table.insert(rows,diagnostic.rows[(first+offset-1)%300+1]) end
+		if diagnostic.incident then
+			table.insert(rows,"--- SAVED CHARACTER REMOVAL / RESPAWN ---")
+			table.insert(rows,diagnostic.incident)
+		end
+		return table.concat(rows,"\n")
+	end
+	local function safeDiagnostic(event) pcall(appendDiagnostic,event) end
+	ExperimentalFlingCore.DiagnosticConnection=RunService.Heartbeat:Connect(function(dt)
+		local core=ExperimentalFlingCore
+		if not core.Running then
+			if diagnostic.recording then safeDiagnostic("STOP");diagnostic.recording=false end
+			return
+		end
+		if not diagnostic.recording then
+			diagnostic.recording=true;diagnostic.elapsed=0
+			safeDiagnostic("START")
+		end
+		diagnostic.elapsed=diagnostic.elapsed+dt
+		if diagnostic.elapsed>=.05 or diagnostic.phase~=core.EfficientPhase then
+			diagnostic.elapsed=0;diagnostic.phase=core.EfficientPhase;safeDiagnostic("SAMPLE")
+		end
+	end)
+	ExperimentalFlingCore.CharacterRemovingDiagnosticConnection=LocalPlayer.CharacterRemoving:Connect(function()
+		if not diagnostic.recording and not ExperimentalFlingCore.Running then return end
+		safeDiagnostic("CHARACTER_REMOVING")
+		-- Snapshot survives stabilization, respawn and later sampling.
+		diagnostic.incident=nil
+		diagnostic.incident=ExperimentalFlingCore:GetDiagnosticReport()
+	end)
+	ExperimentalFlingCore.CharacterAddedDiagnosticConnection=LocalPlayer.CharacterAdded:Connect(function()
+		if diagnostic.incident then
+			diagnostic.incident=diagnostic.incident..string.format("\nt=%.3f event=CHARACTER_ADDED",os.clock())
+		end
+	end)
+
 	ExperimentalFlingCore.PlayerRemovingConnection = Players.PlayerRemoving:Connect(function(leavingPlayer)
 		if ExperimentalFlingCore:GetTarget() == leavingPlayer then
 			if ExperimentalMotoAutoController and ExperimentalMotoAutoController.Running then

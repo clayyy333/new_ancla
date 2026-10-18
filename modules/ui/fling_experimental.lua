@@ -22,6 +22,22 @@ return function(context)
 	toggle.LayoutOrder=3
 	local back=button(tr("Forzar regreso","Force return"))
 	back.LayoutOrder=4
+	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
+	copyDiagnostic.LayoutOrder=7
+	local report=Instance.new("TextBox")
+	report.Size=UDim2.new(1,-12,0,180);report.LayoutOrder=8;report.MultiLine=true;report.ClearTextOnFocus=false
+	report.TextEditable=false;report.TextWrapped=false;report.TextSize=11;report.Font=Enum.Font.Code
+	report.TextXAlignment=Enum.TextXAlignment.Left;report.TextYAlignment=Enum.TextYAlignment.Top
+	report.BackgroundColor3=currentTheme.tertiary;report.TextColor3=currentTheme.text;report.ZIndex=8;report.Visible=false;report.Parent=panel
+	RegisterTheme(report,"BackgroundColor3","tertiary");RegisterTheme(report,"TextColor3","text")
+	copyDiagnostic.Activated:Connect(function()
+		local text=ExperimentalFlingCore:GetDiagnosticReport()
+		local copy=setclipboard or toclipboard
+		local ok=type(copy)=="function" and pcall(copy,text)
+		report.Text=text;report.Visible=not ok
+		if not ok then report:CaptureFocus();report.SelectionStart=1;report.CursorPosition=#text+1 end
+		UpdateExperimentalFlingPanel(ok and tr("Diagnóstico copiado.","Diagnostic copied.") or tr("Selecciona y copia el reporte de abajo.","Select and copy the report below."))
+	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
 		local c=ExperimentalFlingCore
@@ -55,6 +71,9 @@ return function(context)
 		c:StopPassengerMonitor();c:Stop()
 		if c.PlayerRemovingConnection then c.PlayerRemovingConnection:Disconnect() end
 		if c.CharacterAddedConnection then c.CharacterAddedConnection:Disconnect() end
+		if c.DiagnosticConnection then c.DiagnosticConnection:Disconnect() end
+		if c.CharacterRemovingDiagnosticConnection then c.CharacterRemovingDiagnosticConnection:Disconnect() end
+		if c.CharacterAddedDiagnosticConnection then c.CharacterAddedDiagnosticConnection:Disconnect() end
 	end)
 	UpdateExperimentalFlingPanel()
 	return true
