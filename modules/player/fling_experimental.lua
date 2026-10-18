@@ -19,6 +19,64 @@ return function(context)
 	end
 	local function text(es,en) return isES and es or en end
 	local function refresh(message) if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message) end end
+	-- Read-only passenger test, independent from the experimental physics loop.
+	function Core:StopPassengerMonitor()
+		if self.PassengerConnection then self.PassengerConnection:Disconnect();self.PassengerConnection=nil end
+		self.PassengerMonitoring=false;self.PassengerState=nil;self.PassengerVehicle=nil;self.PassengerSeat=nil
+	end
+	function Core:StartPassengerMonitor()
+		if not self:IsAuthorized() then return false end
+		self:StopPassengerMonitor()
+		self.PassengerMonitoring=true
+		local elapsed=0
+		local function inspect()
+			local cars=workspace:FindFirstChild("Cars")
+			local candidates={}
+			if cars then for _,vehicle in ipairs(cars:GetChildren()) do
+				local attribute=vehicle:GetAttribute("VehicleOwner")
+				local reference=vehicle:FindFirstChild("VehicleOwner")
+				local hasReference=reference and reference:IsA("ObjectValue")
+				local attributeMatch=attribute==player.UserId or attribute==tostring(player.UserId)
+				local referenceMatch=hasReference and reference.Value==player
+				local contradictory=(attribute~=nil and not attributeMatch) or (hasReference and reference.Value~=nil and not referenceMatch)
+				if not contradictory and (attributeMatch or referenceMatch) then table.insert(candidates,vehicle) end
+			end end
+			local driven={}
+			for _,vehicle in ipairs(candidates) do
+				local driver=vehicle:GetAttribute("DriverId")
+				if driver==player.UserId or driver==tostring(player.UserId) then table.insert(driven,vehicle) end
+			end
+			local vehicle=#driven==1 and driven[1] or (#driven==0 and #candidates==1 and candidates[1] or nil)
+			local state="WAIT_VEHICLE"
+			local seat
+			if vehicle then
+				local mover=vehicle:FindFirstChild("MoverModel")
+				local body=mover and mover:FindFirstChild("Body")
+				seat=body and body:FindFirstChild("Seat")
+				if seat and not (seat:IsA("Seat") or seat:IsA("VehicleSeat")) then seat=nil end
+				state=seat and "WAIT_PASSENGER" or "WAIT_SEAT"
+				if seat and seat.Occupant then
+					local occupant=seat.Occupant
+					local account=Players:GetPlayerFromCharacter(occupant.Parent)
+					if account and account.UserId==11773278300 then
+						state="OCCUPIED"
+						local root=account.Character and account.Character:FindFirstChild("HumanoidRootPart")
+						local weld=seat:FindFirstChild("SeatWeld")
+						if root and weld and weld:IsA("JointInstance") and ((weld.Part0==seat and weld.Part1==root) or (weld.Part1==seat and weld.Part0==root)) then state="CONFIRMED" end
+					else state="OTHER_PASSENGER" end
+				end
+			end
+			local changed=state~=self.PassengerState or vehicle~=self.PassengerVehicle or seat~=self.PassengerSeat
+			self.PassengerState=state;self.PassengerVehicle=vehicle;self.PassengerSeat=seat
+			if changed then refresh() end
+		end
+		self.PassengerConnection=RunService.Heartbeat:Connect(function(dt)
+			elapsed=elapsed+dt;if elapsed<.1 then return end;elapsed=0
+			local ok,err=pcall(inspect)
+			if not ok then self:StopPassengerMonitor();refresh(tostring(err)) end
+		end)
+		inspect();return true
+	end
 	local function parts(p)
 		local c=p and p.Character
 		local h=c and c:FindFirstChildOfClass("Humanoid")
