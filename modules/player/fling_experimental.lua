@@ -123,6 +123,8 @@ end
 	-- Read-only passenger test, independent from the experimental physics loop.
 	function VR7MotoExperimentalCore:StopPassengerMonitor()
 		if self.PassengerConnection then self.PassengerConnection:Disconnect();self.PassengerConnection=nil end
+		for _,connection in ipairs(self.PassengerObservers or {}) do connection:Disconnect() end
+		self.PassengerObservers=nil
 		self.PassengerMonitoring=false;self.PassengerState=nil;self.PassengerVehicle=nil;self.PassengerSeat=nil
 	end
 	function VR7MotoExperimentalCore:StartPassengerMonitor()
@@ -130,8 +132,24 @@ end
 		self:StopPassengerMonitor()
 		self.PassengerMonitoring=true
 		local elapsed=0
+		local cachedVehicle, cachedCars
+		local dirty=true
+		local nextSearch=0
+		self.PassengerObservers={}
+		local function observe(signal)
+			table.insert(self.PassengerObservers,signal:Connect(function() dirty=true end))
+		end
 		local function inspect()
 			local cars=workspace:FindFirstChild("Cars")
+			if cars~=cachedCars then
+				cachedCars=cars;dirty=true
+				if cars then observe(cars.ChildAdded);observe(cars.ChildRemoved) end
+			end
+			local vehicle=cachedVehicle
+			-- Keep the selected vehicle cached. Re-discover periodically for ownership
+			-- and DriverId changes, or immediately when Cars adds/removes a vehicle.
+			if dirty or os.clock()>=nextSearch or (vehicle and vehicle.Parent~=cars) then
+			dirty=false;nextSearch=os.clock()+1
 			local candidates={}
 			if cars then for _,vehicle in ipairs(cars:GetChildren()) do
 				local attribute=vehicle:GetAttribute("VehicleOwner")
@@ -147,7 +165,9 @@ end
 				local driver=vehicle:GetAttribute("DriverId")
 				if driver==player.UserId or driver==tostring(player.UserId) then table.insert(driven,vehicle) end
 			end
-			local vehicle=#driven==1 and driven[1] or (#driven==0 and #candidates==1 and candidates[1] or nil)
+			vehicle=#driven==1 and driven[1] or (#driven==0 and #candidates==1 and candidates[1] or nil)
+			cachedVehicle=vehicle
+			end
 			local state="WAIT_VEHICLE"
 			local seat
 			if vehicle then
@@ -598,6 +618,15 @@ function VR7MotoExperimentalCore:Start()
 			end
 		end
 		self:UpdateLastTarget(currentTargetRoot)
+		-- Check prerequisites before allocating or updating physics actuators.
+		if not self.PassengerVehicle or not self.PassengerVehicle.Parent or not self.PassengerSeat or not self.PassengerSeat.Parent then
+			self:DestroyFlinger()
+			self:DestroyFrontFlip()
+			currentRoot.AssemblyLinearVelocity = Vector3.zero
+			currentRoot.AssemblyAngularVelocity = Vector3.zero
+			self.EfficientPhase = "NEAR"
+			return
+		end
 		if self.ShortDisplacementEnabled and self.EfficientPhase == "HOME" then
 			self:HoldShortHome(currentRoot,currentTargetRoot)
 			if os.clock() < self.HomeUntil then return end
@@ -631,14 +660,6 @@ function VR7MotoExperimentalCore:Start()
 			return
 		end
 
-		if not self.PassengerVehicle or not self.PassengerSeat then
-			self:DestroyFlinger()
-			self:DestroyFrontFlip()
-			currentRoot.AssemblyLinearVelocity = Vector3.zero
-			currentRoot.AssemblyAngularVelocity = Vector3.zero
-			self.EfficientPhase = "NEAR"
-			return
-		end
 		if self.EfficientPhase == "NEAR" then
 			placeNear()
 			if self.PassengerState == "CONFIRMED" then self.EfficientPhase = "FAR" end
