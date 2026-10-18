@@ -635,13 +635,26 @@ function VR7MotoExperimentalCore:Start()
 		if self.ShortDisplacementEnabled and self.ShortTravel then
 			if not self:AdvanceShortTravel(currentRoot,currentTargetRoot) then return end
 		end
-		if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
-		self.Flinger.Velocity = self:GetFlingerVelocity()
-		self.Flinger.MaxForce = self:GetFlingerMaxForce()
-		self.Flinger.P = CONFIG.P
+		local function clearTravelPhysics()
+			self:DestroyFlinger()
+			self:DestroyFrontFlip()
+			currentRoot.AssemblyLinearVelocity = Vector3.zero
+			currentRoot.AssemblyAngularVelocity = Vector3.zero
+		end
+		local function travelTo(cframe)
+			clearTravelPhysics()
+			currentRoot.CFrame = cframe
+			currentRoot.AssemblyLinearVelocity = Vector3.zero
+			currentRoot.AssemblyAngularVelocity = Vector3.zero
+		end
 		if self.ShortDisplacementEnabled then self:EnsureFrontFlip(currentRoot) end
 
 		local function placeNear()
+			if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
+			self.Flinger.Velocity = self:GetFlingerVelocity()
+			self.Flinger.MaxForce = self:GetFlingerMaxForce()
+			self.Flinger.P = CONFIG.P
+			self:EnsureFrontFlip(currentRoot)
 			self.Direction = -self.Direction
 			local desired = currentTargetRoot.CFrame * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)
 			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
@@ -662,19 +675,26 @@ function VR7MotoExperimentalCore:Start()
 
 		if self.EfficientPhase == "NEAR" then
 			placeNear()
-			if self.PassengerState == "CONFIRMED" then self.EfficientPhase = "FAR" end
+			if self.PassengerState == "CONFIRMED" then
+				self.TravelTargetCFrame = currentTargetRoot.CFrame
+				clearTravelPhysics()
+				self.EfficientPhase = "FAR"
+			end
 		elseif self.EfficientPhase == "FAR" then
-			local look = currentTargetRoot.CFrame.LookVector
+			local reference = self.TravelTargetCFrame or currentTargetRoot.CFrame
+			local look = reference.LookVector
 			local forward = Vector3.new(look.X, 0, look.Z)
 			if forward.Magnitude < 0.001 then forward = Vector3.new(0, 0, -1) end
-			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + forward.Unit * CONFIG.FAR_DISTANCE)
-			currentRoot.AssemblyLinearVelocity = CONFIG.FLINGER_VELOCITY
+			travelTo(CFrame.new(reference.Position + forward.Unit * CONFIG.FAR_DISTANCE) * currentRoot.CFrame.Rotation)
 			self.EfficientPhase = "RETURN_DIRECT"
 		elseif self.EfficientPhase == "RETURN_DIRECT" then
-			placeNear()
+			local reference = self.TravelTargetCFrame or currentTargetRoot.CFrame
+			travelTo(CFrame.new((reference * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)).Position) * currentRoot.CFrame.Rotation)
 			self.EfficientPhase = "VERIFY_RETURN"
 		elseif self.EfficientPhase == "VERIFY_RETURN" then
-			if (currentRoot.Position - currentTargetRoot.Position).Magnitude <= CONFIG.DIRECT_RETURN_TOLERANCE then
+			clearTravelPhysics()
+			local reference = self.TravelTargetCFrame or currentTargetRoot.CFrame
+			if (currentRoot.Position - reference.Position).Magnitude <= CONFIG.DIRECT_RETURN_TOLERANCE then
 				self.EfficientPhase = "NEAR"
 				self.NearUntil = os.clock() + self:GetContactDuration()
 			else
@@ -682,10 +702,11 @@ function VR7MotoExperimentalCore:Start()
 				self.EfficientPhase = "RETURN_16"
 			end
 		elseif self.EfficientPhase == "RETURN_16" then
-			currentRoot.CFrame = currentTargetRoot.CFrame * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide)
+			travelTo((self.TravelTargetCFrame or currentTargetRoot.CFrame) * CFrame.new(0, CONFIG.VERTICAL_DISTANCE * self.Direction, 16 * self.ReturnSide))
 			self.EfficientPhase = "RETURN_NEAR"
 		else
-			placeNear()
+			local reference = self.TravelTargetCFrame or currentTargetRoot.CFrame
+			travelTo(CFrame.new((reference * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)).Position) * currentRoot.CFrame.Rotation)
 			self.EfficientPhase = "NEAR"
 			self.NearUntil = os.clock() + self:GetContactDuration()
 		end
