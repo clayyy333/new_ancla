@@ -72,6 +72,8 @@ return function(context)
 		if c.PlayerRemovingConnection then c.PlayerRemovingConnection:Disconnect() end
 		if c.CharacterAddedConnection then c.CharacterAddedConnection:Disconnect() end
 		if c.DiagnosticConnection then c.DiagnosticConnection:Disconnect() end
+		if c.DiagnosticPreConnection then c.DiagnosticPreConnection:Disconnect() end
+		if c.DiagnosticPostConnection then c.DiagnosticPostConnection:Disconnect() end
 		if c.CharacterRemovingDiagnosticConnection then c.CharacterRemovingDiagnosticConnection:Disconnect() end
 		if c.CharacterAddedDiagnosticConnection then c.CharacterAddedDiagnosticConnection:Disconnect() end
 	end)

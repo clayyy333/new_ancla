@@ -906,12 +906,47 @@ end
 			row=row.." pos="..vector(root.Position).." linear="..vector(root.AssemblyLinearVelocity).." angular="..vector(root.AssemblyAngularVelocity).." anchored="..tostring(root.Anchored)
 		else row=row.." HRP=missing" end
 		if humanoid then row=row.." health="..tostring(humanoid.Health).." state="..humanoid:GetState().Name end
+		row=row.." frame="..tostring(diagnostic.frame or 0).." simDt="..tostring(diagnostic.simDt or 0)
+		local target=core:GetTarget()
+		local targetCharacter=target and core.Provider:GetCharacterFromTarget(target)
+		local targetRoot=targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
+		local vehicle=core.PassengerVehicle
+		local bikeRoot=vehicle and (vehicle:IsA("BasePart") and vehicle or vehicle.PrimaryPart)
+		local seat=core.PassengerSeat
+		if not bikeRoot and seat and seat:IsA("BasePart") then bikeRoot=seat.AssemblyRootPart or seat end
+		local function describePart(label,part)
+			if not part or not part.Parent then return " "..label.."=missing" end
+			return " "..label.."={pos="..vector(part.Position).." linear="..vector(part.AssemblyLinearVelocity).." angular="..vector(part.AssemblyAngularVelocity).." anchored="..tostring(part.Anchored).."}"
+		end
+		row=row..describePart("target",targetRoot)..describePart("bike",bikeRoot)
+		if root and targetRoot then row=row.." targetDistance="..string.format("%.3f",(root.Position-targetRoot.Position).Magnitude) end
+		if root and event=="POST_SIM" and diagnostic.prePosition then
+			row=row.." physicsDelta="..vector(root.Position-diagnostic.prePosition)
+		end
+		local force=core.Flinger
+		row=row.." flingerActive="..tostring(force~=nil and force.Parent~=nil)
+		if force and force.Parent then row=row.." forceVelocity="..vector(force.Velocity).." maxForce="..vector(force.MaxForce).." P="..tostring(force.P) end
+		row=row.." frontFlipActive="..tostring(core.FrontFlipAngular~=nil and core.FrontFlipAngular.Parent~=nil)
+		if seat and seat.Parent then
+			local occupant=seat.Occupant
+			local account=occupant and Players:GetPlayerFromCharacter(occupant.Parent)
+			local weld=seat:FindFirstChild("SeatWeld")
+			row=row.." seat="..seat:GetFullName().." occupantId="..tostring(account and account.UserId)
+			row=row.." seatPartMatches="..tostring(occupant~=nil and occupant.SeatPart==seat)
+			if weld and weld:IsA("JointInstance") then
+				row=row.." seatWeld0="..(weld.Part0 and weld.Part0:GetFullName() or "nil").." seatWeld1="..(weld.Part1 and weld.Part1:GetFullName() or "nil")
+			else row=row.." seatWeld=missing" end
+		end
+		local driverWeld=vehicle and vehicle:FindFirstChild("WeldToPlayer")
+		if driverWeld and (driverWeld:IsA("WeldConstraint") or driverWeld:IsA("JointInstance")) then
+			row=row.." driverWeld0="..(driverWeld.Part0 and driverWeld.Part0:GetFullName() or "nil").." driverWeld1="..(driverWeld.Part1 and driverWeld.Part1:GetFullName() or "nil")
+		else row=row.." driverWeld=missing" end
 		diagnostic.rows[diagnostic.next]=row
 		diagnostic.next=diagnostic.next%300+1
 		diagnostic.count=math.min(diagnostic.count+1,300)
 	end
 	function ExperimentalFlingCore:GetDiagnosticReport()
-		local rows={"EXPERIMENTAL DIAGNOSTIC | local observations only; server cause unknown", "Samples: "..diagnostic.count.." | bounded to 300 rows; regular interval 0.05 s"}
+		local rows={"EXPERIMENTAL DIAGNOSTIC V2 | local observations only; server cause unknown", "Samples: "..diagnostic.count.." | bounded to 300 rows; paired PRE_SIM/POST_SIM every 0.05 s or phase change; SAMPLE is Heartbeat, not simulation boundary"}
 		local first=diagnostic.count==300 and diagnostic.next or 1
 		for offset=0,diagnostic.count-1 do table.insert(rows,diagnostic.rows[(first+offset-1)%300+1]) end
 		if diagnostic.incident then
@@ -921,6 +956,25 @@ end
 		return table.concat(rows,"\n")
 	end
 	local function safeDiagnostic(event) pcall(appendDiagnostic,event) end
+	ExperimentalFlingCore.DiagnosticPreConnection=RunService.PreSimulation:Connect(function(dt)
+		diagnostic.paired=false
+		if not ExperimentalFlingCore.Running then return end
+		diagnostic.frame=(diagnostic.frame or 0)+1;diagnostic.simDt=dt
+		diagnostic.pairElapsed=(diagnostic.pairElapsed or 0)+dt
+		if diagnostic.pairElapsed<.05 and diagnostic.pairPhase==ExperimentalFlingCore.EfficientPhase then return end
+		diagnostic.pairElapsed=0;diagnostic.pairPhase=ExperimentalFlingCore.EfficientPhase;diagnostic.paired=true
+		local character=LocalPlayer.Character
+		local root=character and character:FindFirstChild("HumanoidRootPart")
+		diagnostic.prePosition=root and root.Position;diagnostic.preRoot=root
+		safeDiagnostic("PRE_SIM")
+	end)
+	ExperimentalFlingCore.DiagnosticPostConnection=RunService.PostSimulation:Connect(function()
+		if not diagnostic.paired then return end
+		diagnostic.paired=false
+		local character=LocalPlayer.Character
+		if not character or character:FindFirstChild("HumanoidRootPart")~=diagnostic.preRoot then diagnostic.prePosition=nil end
+		safeDiagnostic("POST_SIM")
+	end)
 	ExperimentalFlingCore.DiagnosticConnection=RunService.Heartbeat:Connect(function(dt)
 		local core=ExperimentalFlingCore
 		if not core.Running then
