@@ -23,7 +23,7 @@ local CONFIG = {
 	NEAR_MIN_TIME = 0.040,
 	NEAR_MAX_TIME = 0.085,
 	DIRECT_RETURN_TOLERANCE = 4,
-	FAR_DISTANCES = {100, 7554477, 9193601, 11000000, 12572022, 15000000, 17003482, 21098414},
+	FAR_DISTANCE = 1000000,
 }
 
 --------------------------------------------------
@@ -664,10 +664,10 @@ function VR7MotoExperimentalCore:Start()
 			placeNear()
 			if self.PassengerState == "CONFIRMED" then self.EfficientPhase = "FAR" end
 		elseif self.EfficientPhase == "FAR" then
-			local far = CONFIG.FAR_DISTANCES[math.random(1, #CONFIG.FAR_DISTANCES)]
-			local sx = math.random(0, 1) == 0 and -1 or 1
-			local sz = math.random(0, 1) == 0 and -1 or 1
-			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + Vector3.new(far * sx, far * 0.15 * self.Direction, far * sz))
+			local look = currentTargetRoot.CFrame.LookVector
+			local forward = Vector3.new(look.X, 0, look.Z)
+			if forward.Magnitude < 0.001 then forward = Vector3.new(0, 0, -1) end
+			currentRoot.CFrame = CFrame.new(currentTargetRoot.Position + forward.Unit * CONFIG.FAR_DISTANCE)
 			currentRoot.AssemblyLinearVelocity = CONFIG.FLINGER_VELOCITY
 			self.EfficientPhase = "RETURN_DIRECT"
 		elseif self.EfficientPhase == "RETURN_DIRECT" then
