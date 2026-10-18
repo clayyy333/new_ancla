@@ -437,8 +437,16 @@ function VR7MotoExperimentalCore:Disconnect()
 end
 
 function VR7MotoExperimentalCore:CreateFlinger(root)
-	-- Diagnostic trial: direct assembly velocities only; no persistent mover.
+	-- Diagnostic trial: BodyVelocity owns linear contact motion; direct spin remains.
 	self:DestroyFlinger()
+	if not root then return end
+	local bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Name = "VR7VerticalFlinger"
+	bodyVelocity.P = CONFIG.P
+	bodyVelocity.MaxForce = self:GetFlingerMaxForce()
+	bodyVelocity.Velocity = self:GetFlingerVelocity()
+	bodyVelocity.Parent = root
+	self.Flinger = bodyVelocity
 end
 
 --------------------------------------------------
@@ -644,11 +652,14 @@ function VR7MotoExperimentalCore:Start()
 		if self.ShortDisplacementEnabled then self:EnsureFrontFlip(currentRoot) end
 
 		local function placeNear()
+			if not self.Flinger or self.Flinger.Parent ~= currentRoot then self:CreateFlinger(currentRoot) end
+			self.Flinger.Velocity = self:GetFlingerVelocity()
+			self.Flinger.MaxForce = self:GetFlingerMaxForce()
+			self.Flinger.P = CONFIG.P
 			self:EnsureFrontFlip(currentRoot)
 			self.Direction = -self.Direction
 			local desired = currentTargetRoot.CFrame * CFrame.new(0, self:GetContactHeight() * self.Direction, 0)
 			currentRoot.CFrame = CFrame.new(desired.Position) * currentRoot.CFrame.Rotation
-			currentRoot.AssemblyLinearVelocity = Vector3.new(0, CONFIG.LINEAR_SPEED * self.Direction, 0)
 			currentRoot.AssemblyAngularVelocity = self:IsStableShortMode() and Vector3.zero or Vector3.new(CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED, CONFIG.ANGULAR_SPEED)
 		end
 
