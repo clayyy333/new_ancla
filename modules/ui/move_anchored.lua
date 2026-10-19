@@ -19,7 +19,7 @@ return function(context)
 	moveAnchoredPanel.Parent=content
 
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,0,0,isMobile and 210 or 222)
+	card.Size=UDim2.new(1,0,0,isMobile and 250 or 262)
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=moveAnchoredPanel
@@ -138,10 +138,21 @@ return function(context)
 	toggle.Parent=card
 	Instance.new("UICorner",toggle).CornerRadius=UDim.new(0,10)
 	RegisterTheme(toggle,"TextColor3","text")
+	local deploymentToggle=Instance.new("TextButton")
+	deploymentToggle.Size=UDim2.new(1,0,0,30);deploymentToggle.Position=UDim2.new(0,0,0,148)
+	deploymentToggle.BackgroundColor3=currentTheme.tertiary;deploymentToggle.TextColor3=currentTheme.text
+	deploymentToggle.Font=Enum.Font.GothamMedium;deploymentToggle.TextSize=isMobile and 10 or 12
+	deploymentToggle.AutoButtonColor=false;deploymentToggle.ZIndex=8;deploymentToggle.Parent=card
+	Instance.new("UICorner",deploymentToggle).CornerRadius=UDim.new(0,8)
+	RegisterTheme(deploymentToggle,"TextColor3","text")
+	deploymentToggle.Activated:Connect(function()
+		DeploymentSafetyCore:SetMobileEnabled(not DeploymentSafetyCore.MobileEnabled)
+		UpdateMoveAnchoredPanel(DeploymentSafetyCore.LastError)
+	end)
 
 	local status=Instance.new("TextLabel")
 	status.Size=UDim2.new(1,0,0,42)
-	status.Position=UDim2.new(0,0,0,150)
+	status.Position=UDim2.new(0,0,0,188)
 	status.BackgroundTransparency=1
 	status.TextColor3=currentTheme.textDim
 	status.Font=Enum.Font.GothamMedium
@@ -153,6 +164,8 @@ return function(context)
 	RegisterTheme(status,"TextColor3","textDim")
 
 	UpdateMoveAnchoredPanel=function(message)
+		deploymentToggle.Text=DeploymentSafetyCore.MobileEnabled and (isES and "Desactivar seguridad de despliegue" or "Disable deployment safety") or (isES and "Activar seguridad de despliegue" or "Enable deployment safety")
+		deploymentToggle.BackgroundColor3=DeploymentSafetyCore.MobileEnabled and currentTheme.accent or currentTheme.tertiary
 		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
 		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
 		local running=running10 or running11
@@ -231,7 +244,9 @@ return function(context)
 		else
 			local selectedCore=selectedVersion=="1.1" and core11 or core10
 			if not selectedCore then return end
+			if DeploymentSafetyCore:IsRunning() then UpdateMoveAnchoredPanel(isES and "Desactiva Ancla con despliegue primero." or "Disable Deployment Anchor first.");return end
 			ok,message=selectedCore:Start()
+			if ok and DeploymentSafetyCore.MobileEnabled then DeploymentSafetyCore:Prepare() end
 		end
 		UpdateMoveAnchoredPanel(ok and nil or message)
 		if UpdateAnchorPanel then UpdateAnchorPanel() end

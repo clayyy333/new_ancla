@@ -579,6 +579,12 @@ return function(context)
 		return true
 	end
 	function Core:IsRunning()return self.Running end
+	function Core:RelocateForDeployment(target)
+		if not self.Running then return false end
+		self.Center=target
+		commit(target)
+		return true
+	end
 	function Core:SetInterval(value)
 		value=tonumber(value)
 		if not value or value~=value or math.abs(value)==math.huge then return false end
@@ -592,6 +598,7 @@ return function(context)
 		self.Distances[axis]=math.clamp(value,0,100);refresh();return true
 	end
 	function Core:SetPhase(enabled)
+		if enabled and DeploymentSafetyCore and DeploymentSafetyCore.StaticEnabled then return false end
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()
 		phaseStatus(nil)
 		if not self.PhaseEnabled and self.Running then index=1;commit(self.Center) end

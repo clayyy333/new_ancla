@@ -4,6 +4,12 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
+	if DeploymentSafetyCore then
+		local original=DeploymentSafetyCore.Start
+		DeploymentSafetyCore.Start=function(self,...)if blocked then return false end;return original(self,...)end
+		local mobile=DeploymentSafetyCore.SetMobileEnabled
+		DeploymentSafetyCore.SetMobileEnabled=function(self,value)if blocked and value then return false end;return mobile(self,value)end
+	end
 	if ExperimentalFlingCore then
 		local start=ExperimentalFlingCore.Start
 		ExperimentalFlingCore.Start=function(self,...)if blocked then return false end;return start(self,...)end

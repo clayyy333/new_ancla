@@ -118,14 +118,14 @@ return function(context)
 		anchorButton.Text=AnchorCore.AnclaEnabled and (isES and "Desactivar Ancla" or "Disable Anchor") or (isES and "Activar Ancla" or "Enable Anchor")
 		antiSeatButton.Text=AnchorCore.AntiSeatEnabled and (isES and "Desactivar AntiSeat" or "Disable AntiSeat") or (isES and "Activar AntiSeat" or "Enable AntiSeat")
 		heartbeatButton.Text=AnchorCore.HeartbeatEnabled and (isES and "Desactivar Heartbeat" or "Disable Heartbeat") or (isES and "Activar Heartbeat" or "Enable Heartbeat")
-		testButton.Text=AnchorCore.TestEnabled and (isES and "Desactivar Ancla test" or "Disable Test Anchor") or (isES and "Activar Ancla test" or "Enable Test Anchor")
+		testButton.Text=DeploymentSafetyCore:IsRunning() and (isES and "Desactivar Ancla con despliegue" or "Disable Deployment Anchor") or (isES and "Activar Ancla con despliegue" or "Enable Deployment Anchor")
 		combinedButton.Text=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
 			and (isES and "Desactivar Ancla" or "Disable Anchor")
 			or (isES and "Activar Ancla" or "Enable Anchor")
 		anchorButton.BackgroundColor3=AnchorCore.AnclaEnabled and currentTheme.accent or currentTheme.tertiary
 		antiSeatButton.BackgroundColor3=AnchorCore.AntiSeatEnabled and currentTheme.accent or currentTheme.tertiary
 		heartbeatButton.BackgroundColor3=AnchorCore.HeartbeatEnabled and currentTheme.accent or currentTheme.tertiary
-		testButton.BackgroundColor3=AnchorCore.TestEnabled and currentTheme.accent or currentTheme.tertiary
+		testButton.BackgroundColor3=DeploymentSafetyCore:IsRunning() and currentTheme.accent or currentTheme.tertiary
 		combinedButton.BackgroundColor3=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning() and currentTheme.accent or currentTheme.tertiary
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
 		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
@@ -134,9 +134,9 @@ return function(context)
 		anchorButton.Active=manualEnabled
 		antiSeatButton.Active=manualEnabled
 		heartbeatButton.Active=manualEnabled
-		testButton.Active=not automaticBusy and not mobileBusy and not combinedBusy
-		combinedButton.Active=canUseExperimentalAnchor and not automaticBusy and not mobileBusy
-		description.Text=message or (combinedBusy and StaticPassThroughAnchorCore.PhaseStatus) or (AnchorCore.TestEnabled
+		testButton.Active=DeploymentSafetyCore:IsRunning() or (not automaticBusy and not mobileBusy and not combinedBusy)
+		combinedButton.Active=canUseExperimentalAnchor and not automaticBusy and not mobileBusy and not DeploymentSafetyCore:IsRunning()
+		description.Text=message or (DeploymentSafetyCore:IsRunning() and (DeploymentSafetyCore.LastError or (isES and "Seguridad de despliegue activa." or "Deployment safety active."))) or (combinedBusy and StaticPassThroughAnchorCore.PhaseStatus) or (AnchorCore.TestEnabled
 			and (isES and "Ancla activa" or "Anchor active")
 			or (AnchorCore.HeartbeatEnabled and not AnchorCore.AnclaEnabled
 			and (isES and "Heartbeat está preparado; se aplicará al activar Ancla." or "Heartbeat is ready; it applies when Anchor is enabled.")
@@ -158,10 +158,13 @@ return function(context)
 		UpdateAnchorPanel()
 	end)
 	testButton.MouseButton1Click:Connect(function()
-		local ok,err=AnchorCore:ToggleTest()
+		if not testButton.Active then return end
+		local ok,err
+		if DeploymentSafetyCore:IsRunning() then ok,err=DeploymentSafetyCore:Stop() else ok,err=DeploymentSafetyCore:Start() end
 		UpdateAnchorPanel(ok and nil or err)
 	end)
 	combinedButton.MouseButton1Click:Connect(function()
+		if DeploymentSafetyCore:IsRunning() then return end
 		if not canUseExperimentalAnchor or not StaticPassThroughAnchorCore then return end
 		local _,message=StaticPassThroughAnchorCore:Toggle()
 		UpdateAnchorPanel(message)
