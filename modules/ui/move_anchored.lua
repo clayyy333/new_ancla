@@ -2,6 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local selectedVersion="1.0"
+	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()
 
 	moveAnchoredPanel=Instance.new("ScrollingFrame")
 	moveAnchoredPanel.Name="MoveAnchoredPanel"
@@ -20,6 +21,7 @@ return function(context)
 
 	local card=Instance.new("Frame")
 	card.Size=UDim2.new(1,0,0,isMobile and 250 or 262)
+	if not deploymentAvailable then card.Size=UDim2.new(1,0,0,isMobile and 210 or 222) end
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=moveAnchoredPanel
@@ -143,6 +145,7 @@ return function(context)
 	deploymentToggle.BackgroundColor3=currentTheme.tertiary;deploymentToggle.TextColor3=currentTheme.text
 	deploymentToggle.Font=Enum.Font.GothamMedium;deploymentToggle.TextSize=isMobile and 10 or 12
 	deploymentToggle.AutoButtonColor=false;deploymentToggle.ZIndex=8;deploymentToggle.Parent=card
+	deploymentToggle.Visible=deploymentAvailable
 	Instance.new("UICorner",deploymentToggle).CornerRadius=UDim.new(0,8)
 	RegisterTheme(deploymentToggle,"TextColor3","text")
 	deploymentToggle.Activated:Connect(function()
@@ -152,7 +155,7 @@ return function(context)
 
 	local status=Instance.new("TextLabel")
 	status.Size=UDim2.new(1,0,0,42)
-	status.Position=UDim2.new(0,0,0,188)
+	status.Position=UDim2.new(0,0,0,deploymentAvailable and 188 or 150)
 	status.BackgroundTransparency=1
 	status.TextColor3=currentTheme.textDim
 	status.Font=Enum.Font.GothamMedium

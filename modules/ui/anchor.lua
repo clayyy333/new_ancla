@@ -11,9 +11,12 @@ return function(context)
 	anchorPanel.Parent=content
 
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
+	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()
+	local shiftY=deploymentAvailable and 246 or 194
 
 	local card=Instance.new("Frame")
 	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 570 or 586) or (isMobile and 266 or 282))
+	if not deploymentAvailable then card.Size=card.Size-UDim2.fromOffset(0,52) end
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -70,13 +73,14 @@ return function(context)
 	local antiSeatButton=makeButton(90)
 	local heartbeatButton=makeButton(142)
 	local testButton=makeButton(194)
-	local combinedButton=makeButton(246)
+	testButton.Visible=deploymentAvailable
+	local combinedButton=makeButton(shiftY)
 
 	combinedButton.Visible=canUseExperimentalAnchor
 	combinedButton.Size=UDim2.new(0.5,-4,0,44)
-	local phaseButton=makeButton(246)
+	local phaseButton=makeButton(shiftY)
 	phaseButton.Size=UDim2.new(0.5,-4,0,44)
-	phaseButton.Position=UDim2.new(0.5,4,0,246)
+	phaseButton.Position=UDim2.new(0.5,4,0,shiftY)
 	phaseButton.Visible=canUseExperimentalAnchor
 	phaseButton.Activated:Connect(function()
 		if canUseExperimentalAnchor and StaticPassThroughAnchorCore then
@@ -84,7 +88,7 @@ return function(context)
 		end
 	end)
 	for index,entry in ipairs({{"Left",isES and "Izquierda" or "Left"},{"Right",isES and "Derecha" or "Right"},{"Up",isES and "Arriba" or "Up"},{"Down",isES and "Abajo" or "Down"},{"Interval",isES and "Intervalo (menos = rapido)" or "Interval (less = faster)"}}) do
-		local y=298+(index-1)*48
+		local y=shiftY+52+(index-1)*48
 		local label=Instance.new("TextLabel")
 		label.Size=UDim2.new(0.4,0,0,40);label.Position=UDim2.new(0,0,0,y)
 		label.BackgroundTransparency=1;label.Text=entry[2];label.TextColor3=currentTheme.text

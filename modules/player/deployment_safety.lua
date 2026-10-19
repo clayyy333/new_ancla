@@ -2,6 +2,9 @@
 return function(context)
  setfenv(1,context)
  local Core={StaticEnabled=false,MobileEnabled=false,Ready=false,Destinations={},Owners={},LastError=nil}
+ function Core:IsAvailable()
+  return game.GameId==4540138978 or game.PlaceId==12985361032
+ end
  local center=Vector3.new(-224.5553,62.8129,494.7579)
 	local safetyDistance=18
  -- First 11 entries are the user's original measurements, in their original order.
@@ -201,11 +204,13 @@ return function(context)
   for object,entry in pairs(watched) do tryObject(object,entry) end
  end
  function Core:SetMobileEnabled(enabled)
+  if enabled and not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   self.MobileEnabled=enabled==true
   if self.MobileEnabled then self:Prepare() end
   enableWatchers();refresh();return true
  end
  function Core:Start()
+  if not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   if self.StaticEnabled then return true end
   if StaticPassThroughAnchorCore:IsRunning() then return false,"Desactiva primero el ancla normal con desfase." end
   if not self:Prepare() then return false,self.LastError end

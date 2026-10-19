@@ -1,5 +1,6 @@
 -- Standalone mocked lifecycle test; pass the module source as the first argument.
 local source=...
+game={GameId=4540138978,PlaceId=12985361032}
 table.clear=table.clear or function(value)for key in pairs(value)do value[key]=nil end end
 local function signal()
  local callbacks={}
@@ -96,4 +97,8 @@ local saved=mobile.SafeCFrame
 RunService.Heartbeat:Fire()
 assert(mobile.SafeCFrame==saved and mobile.Running,'disabled safety must not alter locomotion')
 safety:Destroy()
+game.GameId=1;game.PlaceId=2
+assert(not safety:IsAvailable())
+assert(not safety:Start(),'deployment anchor must be unavailable outside Metro Life')
+assert(not safety:SetMobileEnabled(true),'mobile deployment safety must be unavailable outside Metro Life')
 print('Deployment safety mock: static/mobile, 24 prepared points, owner distance, dedup and cleanup OK')
