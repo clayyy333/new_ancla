@@ -85,7 +85,7 @@ return function(context)
   self.LastError=not self.Ready and "No hay suelo detectado en los destinos." or nil
   return self.Ready
  end
- function Core:Relocate()
+ function Core:Relocate(allowUnknownCreator)
   if busy or not self.Ready or not active() then return false end
   local character=player.Character
   local root=character and character:FindFirstChild("HumanoidRootPart")
@@ -96,7 +96,7 @@ return function(context)
    local other=account and account.Character and account.Character:FindFirstChild("HumanoidRootPart")
    if other then table.insert(hazards,other.Position) end
   end
-  if #hazards==0 then self.LastError="Creador identificado, posición no disponible.";return false end
+  if #hazards==0 and not allowUnknownCreator then self.LastError="Creador identificado, posición no disponible.";return false end
   local first=rng:NextInteger(1,#self.Destinations)
   for offset=0,#self.Destinations-1 do
    local target=self.Destinations[(first+offset-1)%#self.Destinations+1]
@@ -142,11 +142,28 @@ return function(context)
   local accessory=attached and attached:FindFirstAncestorOfClass("Accessory")
   if not accessory or not accessory:IsDescendantOf(character) then return end
   local id=tonumber(object:GetAttribute("CreatedPlayer"))
-  if not id or id<=0 or id%1~=0 or id==player.UserId then return end
-  if entry.character==character then return end
-  entry.character=character
-  Core.Owners[id]=true;Core.LastCreatorId=id;Core.LastCreatorName=object:GetAttribute("CreatedPlayerName")
-  Core:Relocate();refresh()
+  local identified=id and id>0 and id%1==0
+  if identified and id==player.UserId then return end
+  if entry.character~=character then
+   entry.character=character;entry.relocated=false;entry.owner=nil
+  end
+  if identified then
+   Core.Owners[id]=true;Core.LastCreatorId=id;Core.LastCreatorName=object:GetAttribute("CreatedPlayerName")
+  end
+  if not entry.relocated then
+   -- The attachment is sufficient for the initial escape. Creator replication
+   -- is not a prerequisite; already-known owners are still excluded.
+   entry.relocated=Core:Relocate(true)
+   if identified then entry.owner=id end
+   refresh()
+  elseif identified and entry.owner~=id then
+   entry.owner=id
+   local account=Players:GetPlayerByUserId(id)
+   local other=account and account.Character and account.Character:FindFirstChild("HumanoidRootPart")
+   local root=character:FindFirstChild("HumanoidRootPart")
+   if other and root and (root.Position-other.Position).Magnitude<=safetyDistance then Core:Relocate() end
+   refresh()
+  end
  end
  local function watchObject(object)
   if watched[object] then return end

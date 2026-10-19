@@ -64,17 +64,27 @@ assert(safety.Destinations[1].Position.X==-226.8972)
 assert(safety.Destinations[1].Position.Y==humanoidHeight)
 local accessory={IsDescendantOf=function(_,rig)return rig==character end}
 local handle={IsDescendantOf=function(_,rig)return rig==character end,FindFirstAncestorOfClass=function()return accessory end}
-local object={Parent=folder,attributes={ToolId='FoldingTable',CreatedPlayer=2,CreatedPlayerName='other'},ChildAdded=signal()}
+local object={Parent=folder,attributes={ToolId='FoldingTable'},attributeSignals={},ChildAdded=signal()}
 local link={Name='weld2target',Part0=handle,Part1=object,IsA=function(_,class)return class=='Weld'end,GetPropertyChangedSignal=function()return signal()end}
 link.IsA=function(_,class)return class=='JointInstance'end
 function object:GetAttribute(name)return self.attributes[name]end
-function object:GetAttributeChangedSignal()return signal()end
+function object:GetAttributeChangedSignal(name)
+ self.attributeSignals[name]=self.attributeSignals[name] or signal()
+ return self.attributeSignals[name]
+end
 function object:FindFirstChild(name)if name=='weld2target' then return link end end
 function object:GetChildren()return {link}end
 folder.objects={object};folder.ChildAdded:Fire(object)
+assert(static.Target and safety.LastCreatorId==nil,'attached chair must trigger before creator replication')
+local initialEscape=static.Target
+otherRoot.Position=initialEscape.Position
+object.attributes.CreatedPlayer=2;object.attributes.CreatedPlayerName='other'
+object:GetAttributeChangedSignal('CreatedPlayer'):Fire()
 assert(safety.LastCreatorId==2 and static.Target)
 assert((static.Target.Position-otherRoot.Position).Magnitude>18)
+assert(static.Target~=initialEscape,'late nearby creator must trigger distance correction')
 local previous=static.Target
+object:GetAttributeChangedSignal('CreatedPlayerName'):Fire()
 folder.ChildAdded:Fire(object)
 assert(previous==static.Target,'duplicate object must not relocate twice')
 safety:Stop();assert(not static.Running)
