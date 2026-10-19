@@ -73,7 +73,7 @@ function object:FindFirstChild(name)if name=='weld2target' then return link end 
 function object:GetChildren()return {link}end
 folder.objects={object};folder.ChildAdded:Fire(object)
 assert(safety.LastCreatorId==2 and static.Target)
-assert((static.Target.Position-otherRoot.Position).Magnitude>15)
+assert((static.Target.Position-otherRoot.Position).Magnitude>18)
 local previous=static.Target
 folder.ChildAdded:Fire(object)
 assert(previous==static.Target,'duplicate object must not relocate twice')

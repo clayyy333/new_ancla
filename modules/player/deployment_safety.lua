@@ -3,7 +3,7 @@ return function(context)
  setfenv(1,context)
  local Core={StaticEnabled=false,MobileEnabled=false,Ready=false,Destinations={},Owners={},LastError=nil}
  local center=Vector3.new(-224.5553,62.8129,494.7579)
-	local safetyDistance=15
+	local safetyDistance=18
  -- First 11 entries are the user's original measurements, in their original order.
  -- Remaining X/Z coordinates were calculated offline, not at reaction time.
  local positions={
@@ -125,7 +125,7 @@ return function(context)
     return true
    end
   end
-  self.LastError="Ningún destino respeta los 15 studs de todos los creadores."
+  self.LastError="Ningún destino respeta los 18 studs de todos los creadores."
   return false
  end
  local function tryObject(object,entry)
