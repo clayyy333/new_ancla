@@ -46,9 +46,11 @@ local static={Running=false,PhaseEnabled=false}
 function static:IsRunning()return self.Running end
 function static:Start()self.Running=true;return true end
 function static:Stop()self.Running=false end
+function static:Destroy()self:Stop()end
 function static:SetPhase(value)self.PhaseEnabled=value end
 function static:RelocateForDeployment(target)self.Target=target;root.Position=target.Position;return true end
-StaticPassThroughAnchorCore=static
+DeploymentAnchorMotorCore=static
+StaticPassThroughAnchorCore={Running=false,IsRunning=function(self)return self.Running end}
 local mobile={Running=false,SafeHistory={{}}}
 function mobile:IsRunning()return self.Running end
 MobileAnchorCore=mobile
@@ -56,6 +58,7 @@ local humanoidHeight=3
 assert(load(source))()(_G)
 local safety=DeploymentSafetyCore
 assert(safety:Start())
+assert(not StaticPassThroughAnchorCore.Running,'deployment must not start the original anchor')
 assert(#safety.Destinations==24 and not static.PhaseEnabled)
 assert(safety.Destinations[1].Position.X==-226.8972)
 assert(safety.Destinations[1].Position.Y==humanoidHeight)
@@ -70,7 +73,7 @@ function object:FindFirstChild(name)if name=='weld2target' then return link end 
 function object:GetChildren()return {link}end
 folder.objects={object};folder.ChildAdded:Fire(object)
 assert(safety.LastCreatorId==2 and static.Target)
-assert((static.Target.Position-otherRoot.Position).Magnitude>8)
+assert((static.Target.Position-otherRoot.Position).Magnitude>15)
 local previous=static.Target
 folder.ChildAdded:Fire(object)
 assert(previous==static.Target,'duplicate object must not relocate twice')

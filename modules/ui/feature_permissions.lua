@@ -5,6 +5,7 @@ return function(context)
 	local buttons={}
 	local cores={}
 	if DeploymentSafetyCore then
+		cores[#cores+1]=DeploymentSafetyCore
 		local original=DeploymentSafetyCore.Start
 		DeploymentSafetyCore.Start=function(self,...)if blocked then return false end;return original(self,...)end
 		local mobile=DeploymentSafetyCore.SetMobileEnabled

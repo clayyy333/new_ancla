@@ -458,7 +458,8 @@ return function(context)
 	local pairsByPart={}
 	local character,humanoid,seatState
 	local function conflict()
-		return (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.AntiSeatEnabled or AnchorCore.HeartbeatEnabled or AnchorCore.TestEnabled))
+		return (DeploymentAnchorMotorCore and DeploymentAnchorMotorCore:IsRunning())
+			or (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.AntiSeatEnabled or AnchorCore.HeartbeatEnabled or AnchorCore.TestEnabled))
 			or (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
 			or (AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy))
 	end
@@ -579,12 +580,6 @@ return function(context)
 		return true
 	end
 	function Core:IsRunning()return self.Running end
-	function Core:RelocateForDeployment(target)
-		if not self.Running then return false end
-		self.Center=target
-		commit(target)
-		return true
-	end
 	function Core:SetInterval(value)
 		value=tonumber(value)
 		if not value or value~=value or math.abs(value)==math.huge then return false end
@@ -598,7 +593,6 @@ return function(context)
 		self.Distances[axis]=math.clamp(value,0,100);refresh();return true
 	end
 	function Core:SetPhase(enabled)
-		if enabled and DeploymentSafetyCore and DeploymentSafetyCore.StaticEnabled then return false end
 		self.PhaseEnabled=enabled==true and self.Running;nextShift=os.clock()
 		phaseStatus(nil)
 		if not self.PhaseEnabled and self.Running then index=1;commit(self.Center) end

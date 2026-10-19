@@ -130,7 +130,7 @@ return function(context)
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
 		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
 		local combinedBusy=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
-		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy and not combinedBusy
+		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy and not combinedBusy and not DeploymentSafetyCore:IsRunning()
 		anchorButton.Active=manualEnabled
 		antiSeatButton.Active=manualEnabled
 		heartbeatButton.Active=manualEnabled
@@ -143,16 +143,19 @@ return function(context)
 			or (isES and "Controles de estabilidad del personaje" or "Character stability controls")))
 	end
 	anchorButton.MouseButton1Click:Connect(function()
+		if DeploymentSafetyCore:IsRunning() then return end
 		if AnchorCore.TestEnabled then return end
 		local ok,err=AnchorCore:ToggleAncla()
 		UpdateAnchorPanel(ok and nil or err)
 	end)
 	antiSeatButton.MouseButton1Click:Connect(function()
+		if DeploymentSafetyCore:IsRunning() then return end
 		if AnchorCore.TestEnabled then return end
 		AnchorCore:ToggleAntiSeat()
 		UpdateAnchorPanel()
 	end)
 	heartbeatButton.MouseButton1Click:Connect(function()
+		if DeploymentSafetyCore:IsRunning() then return end
 		if AnchorCore.TestEnabled then return end
 		AnchorCore:ToggleHeartbeat()
 		UpdateAnchorPanel()

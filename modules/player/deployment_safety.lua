@@ -3,6 +3,7 @@ return function(context)
  setfenv(1,context)
  local Core={StaticEnabled=false,MobileEnabled=false,Ready=false,Destinations={},Owners={},LastError=nil}
  local center=Vector3.new(-224.5553,62.8129,494.7579)
+	local safetyDistance=15
  -- First 11 entries are the user's original measurements, in their original order.
  -- Remaining X/Z coordinates were calculated offline, not at reaction time.
  local positions={
@@ -49,7 +50,7 @@ return function(context)
   if MobileAnchorV11Core and MobileAnchorV11Core:IsRunning() then return MobileAnchorV11Core end
  end
  local function active()
-  return (Core.StaticEnabled and StaticPassThroughAnchorCore:IsRunning()) or mobile()~=nil
+  return (Core.StaticEnabled and DeploymentAnchorMotorCore:IsRunning()) or mobile()~=nil
  end
  local function resetWatchers()
   disconnect(runtime)
@@ -101,7 +102,7 @@ return function(context)
    local target=self.Destinations[(first+offset-1)%#self.Destinations+1]
    local valid=(target.Position-root.Position).Magnitude>0.1
    for _,position in ipairs(hazards) do
-    if (target.Position-position).Magnitude<=8 then valid=false;break end
+    if (target.Position-position).Magnitude<=safetyDistance then valid=false;break end
    end
    if valid then
     busy=true
@@ -118,13 +119,13 @@ return function(context)
      end
      root.CFrame=target
     else
-     StaticPassThroughAnchorCore:RelocateForDeployment(target)
+     DeploymentAnchorMotorCore:RelocateForDeployment(target)
     end
     busy=false;self.LastError=nil;self.LastDestination=target
     return true
    end
   end
-  self.LastError="Ningún destino respeta los 8 studs de todos los creadores."
+  self.LastError="Ningún destino respeta los 15 studs de todos los creadores."
   return false
  end
  local function tryObject(object,entry)
@@ -191,21 +192,22 @@ return function(context)
   if self.StaticEnabled then return true end
   if StaticPassThroughAnchorCore:IsRunning() then return false,"Desactiva primero el ancla normal con desfase." end
   if not self:Prepare() then return false,self.LastError end
-  local ok,message=StaticPassThroughAnchorCore:Start()
+  local ok,message=DeploymentAnchorMotorCore:Start()
   if not ok then return false,message end
-  StaticPassThroughAnchorCore:SetPhase(false)
+  DeploymentAnchorMotorCore:SetPhase(false)
   self.StaticEnabled=true;enableWatchers();refresh();return true
  end
  function Core:Stop()
   local was=self.StaticEnabled
   self.StaticEnabled=false
-  if was then StaticPassThroughAnchorCore:Stop() end
+  if was then DeploymentAnchorMotorCore:Stop() end
   if not self.MobileEnabled then self.Owners={} end
   enableWatchers();refresh();return true
  end
- function Core:IsRunning()return self.StaticEnabled and StaticPassThroughAnchorCore:IsRunning()end
+ function Core:IsRunning()return self.StaticEnabled and DeploymentAnchorMotorCore:IsRunning()end
  function Core:Destroy()
   self:Stop();self.MobileEnabled=false;resetWatchers();disconnect(rigConnections);disconnect(persistent)
+  DeploymentAnchorMotorCore:Destroy()
  end
  local rebuildQueued=false
  local function rebuild()
@@ -241,7 +243,7 @@ return function(context)
  end))
  local previouslyActive=false
  table.insert(persistent,RunService.Heartbeat:Connect(function()
-  if Core.StaticEnabled and not StaticPassThroughAnchorCore:IsRunning() then Core.StaticEnabled=false;enableWatchers();refresh() end
+  if Core.StaticEnabled and not DeploymentAnchorMotorCore:IsRunning() then Core.StaticEnabled=false;enableWatchers();refresh() end
   if not active() then previouslyActive=false;return end
   local justActivated=not previouslyActive;previouslyActive=true
   if not Core.Ready then rebuild();return end
@@ -250,7 +252,7 @@ return function(context)
    for id in pairs(Core.Owners) do
     local account=Players:GetPlayerByUserId(id)
     local other=account and account.Character and account.Character:FindFirstChild("HumanoidRootPart")
-    if other and (root.Position-other.Position).Magnitude<=8 then Core:Relocate();break end
+    if other and (root.Position-other.Position).Magnitude<=safetyDistance then Core:Relocate();break end
    end
   end
   -- Re-evaluate existing objects when a mobile anchor starts; no world scan.
