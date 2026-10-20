@@ -255,11 +255,8 @@ return function(context)
 		if UpdateAnchorPanel then UpdateAnchorPanel() end
 		if UpdateAutoAnchorPanel then UpdateAutoAnchorPanel() end
 	end)
-	card.Size=card.Size+UDim2.fromOffset(0,38)
-	for _,child in ipairs(card:GetChildren()) do
-		if child:IsA("GuiObject") then child.Position=child.Position+UDim2.fromOffset(0,38) end
-	end
-	FoldingCleanupControls:Create(card,UDim2.fromOffset(0,0),UDim2.new(1,-132,0,30))
+	if FoldingCleanupCore:IsAvailable() then beta.Size=UDim2.new(0.75,-8,0,38) end
+	FoldingCleanupControls:Create(card,UDim2.new(0.75,4,0,0),UDim2.new(0.25,-4,0,30))
 	UpdateMoveAnchoredPanel()
 	return true
 end

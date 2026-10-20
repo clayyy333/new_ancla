@@ -5,7 +5,7 @@ return function(context)
  function Controls:Refresh()
   for button in pairs(self.Buttons) do
    if button.Parent then
-    button.Text=(isES and "Limpieza de FoldingTable" or "FoldingTable cleanup")..(FoldingCleanupCore.Enabled and " · ON" or " · OFF")
+    button.Text=isES and "Limpieza de\nFoldingTable" or "FoldingTable\ncleanup"
     button.BackgroundColor3=FoldingCleanupCore.Enabled and currentTheme.accent or currentTheme.tertiary
    else self.Buttons[button]=nil end
   end
@@ -16,6 +16,8 @@ return function(context)
   button.Name="FoldingTableCleanupToggle";button.Position=position;button.Size=size
   button.TextColor3=currentTheme.text;button.Font=Enum.Font.GothamBold;button.TextSize=isMobile and 9 or 11
   button.TextWrapped=true;button.AutoButtonColor=false;button.BorderSizePixel=0;button.ZIndex=8;button.Parent=parent
+  button.TextScaled=true
+  local textLimit=Instance.new("UITextSizeConstraint",button);textLimit.MinTextSize=7;textLimit.MaxTextSize=isMobile and 10 or 12
   Instance.new("UICorner",button).CornerRadius=UDim.new(0,9)
   RegisterTheme(button,"TextColor3","text")
   RegisterTheme(button,"BackgroundColor3","tertiary")

@@ -19,15 +19,7 @@ return function(context)
   for _,connection in ipairs(list) do connection:Disconnect() end
   table.clear(list)
  end
- local function anchored()
-  return (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.TestEnabled))
-   or (StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning())
-   or (DeploymentSafetyCore and DeploymentSafetyCore:IsRunning())
-   or (AutoAnchorCore and AutoAnchorCore.Mode~=nil)
-   or (MobileAnchorCore and MobileAnchorCore:IsRunning())
-   or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
- end
- local function running()return alive and Core.Enabled and Core:IsAvailable() and anchored() end
+ local function running()return alive and Core.Enabled and Core:IsAvailable() end
  local function remotes()
   local folder=RS:FindFirstChild("Remotes")
   local release=folder and folder:FindFirstChild("ReleaseObjectRE")
