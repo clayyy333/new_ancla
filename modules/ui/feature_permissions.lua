@@ -4,11 +4,6 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
-	if FoldingCleanupCore then
-		cores[#cores+1]=FoldingCleanupCore
-		local original=FoldingCleanupCore.SetEnabled
-		FoldingCleanupCore.SetEnabled=function(self,value)if blocked and value then return false end;return original(self,value)end
-	end
 	if DeploymentSafetyCore then
 		cores[#cores+1]=DeploymentSafetyCore
 		local original=DeploymentSafetyCore.Start
@@ -38,6 +33,8 @@ return function(context)
 		end
 	end
 	local function protect(button)
+		-- Cleanup is local opt-in only; the backend observes but never controls it.
+		if button.Name=="FoldingTableCleanupToggle" then return end
 		if not button:IsA("GuiButton") or buttons[button] or button.Name=="FeatureBlockShade" then return end
 		local shade=Instance.new("TextButton")
 		shade.Name="FeatureBlockShade";shade.Size=UDim2.fromScale(1,1);shade.Text=""

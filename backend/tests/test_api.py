@@ -174,6 +174,60 @@ def test_short_fling_activity_transitions_and_session_end():
         assert session_row()["short_fling_enabled"] == 0
 
 
+def test_folding_cleanup_activity_and_session_end():
+    with TestClient(main.app) as client:
+        target = start_session(client, 904, "folding-cleanup-user")
+
+        def session_row():
+            response = client.get(
+                "/api/v1/admin/sessions",
+                headers={"Authorization": "Bearer admin-test-token"},
+            )
+            assert response.status_code == 200
+            return next(row for row in response.json()["sessions"] if row["user_id"] == 904)
+
+        assert session_row()["folding_cleanup_enabled"] == 0
+        for enabled in (True, False, True):
+            response = client.post(
+                "/api/v1/sessions/heartbeat",
+                headers=client_headers(target["session_token"]),
+                json={"folding_cleanup_enabled": enabled},
+            )
+            assert response.status_code == 200
+            row = session_row()
+            assert row["folding_cleanup_enabled"] == int(enabled)
+            assert row["anchored"] == 0  # Cleanup does not require an anchor.
+        response = client.post(
+            "/api/v1/sessions/end", headers=client_headers(target["session_token"])
+        )
+        assert response.status_code == 200
+        # Ended sessions are intentionally absent from the active-sessions API.
+        with main.connection() as db:
+            row = db.execute(
+                "SELECT folding_cleanup_enabled FROM sessions WHERE id=?",
+                (target["session_id"],),
+            ).fetchone()
+        assert row["folding_cleanup_enabled"] == 0
+
+
+def test_folding_cleanup_column_migrates_existing_database(tmp_path, monkeypatch):
+    from app.database import connection, init_database
+
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "legacy.db"))
+    init_database()
+    with connection() as db:
+        db.execute("ALTER TABLE sessions DROP COLUMN folding_cleanup_enabled")
+    init_database()
+    init_database()  # Startup migration must also be idempotent.
+    with connection() as db:
+        column = next(
+            row for row in db.execute("PRAGMA table_info(sessions)")
+            if row["name"] == "folding_cleanup_enabled"
+        )
+    assert column["notnull"] == 1
+    assert column["dflt_value"] == "0"
+
+
 def test_network_profile_requires_consent_and_is_admin_only():
     payload = {
         "user_id": 3,

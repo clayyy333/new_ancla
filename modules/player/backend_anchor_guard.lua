@@ -126,7 +126,7 @@ return function(context)
 		return true
 	end
 
-	local function heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled)
+	local function heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled)
 		local response,_,status=call("POST","/api/v1/sessions/heartbeat",{
 			anchored=anchored,
 			anchor_mode=mode,
@@ -136,6 +136,7 @@ return function(context)
 			custom_fling_using=customFlingUsing==true,
 			move_anchored_enabled=moveAnchoredEnabled==true,
 			short_fling_enabled=shortFlingEnabled==true,
+			folding_cleanup_enabled=foldingCleanupEnabled==true,
 		},Guard.SessionToken)
 		if status==401 or status==403 then
 			Guard.Connected=false
@@ -262,6 +263,7 @@ return function(context)
 			local retryAt,heartbeatAt,targetsAt,commandsAt,inspectAt=0,0,0,0,0
 			local lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing,lastMoveAnchored=nil,nil,nil,nil,nil
 			local lastShortFling=nil
+			local lastFoldingCleanup=nil
 			local connecting,heartbeatBusy,targetsBusy,commandsBusy=false,false,false,false
 			while Guard.Running and Guard.Generation==generation do
 				local timestamp=os.clock()
@@ -276,21 +278,23 @@ return function(context)
 					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning())
 					local shortFlingEnabled=Fling2EfficientCore~=nil and Fling2EfficientCore.Running==true and Fling2EfficientCore:IsShortDisplacementEnabled() and not (Fling2AutoController and Fling2AutoController.Running)
 					local anchorFeatures=Guard.AnchorGuardEnabled==true
+					local foldingCleanupEnabled=FoldingCleanupCore~=nil and FoldingCleanupCore.Enabled==true and FoldingCleanupCore:IsAvailable()
 					if not anchorFeatures then
 						anchored,mode,checkpoint=false,"",nil
 						customFlingUsing=false
 						moveAnchoredEnabled=false
 					end
 					local checkpointChanged=(checkpoint~=lastCheckpoint)
-					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingUsing~=lastCustomFlingUsing or moveAnchoredEnabled~=lastMoveAnchored or shortFlingEnabled~=lastShortFling then
+					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingUsing~=lastCustomFlingUsing or moveAnchoredEnabled~=lastMoveAnchored or shortFlingEnabled~=lastShortFling or foldingCleanupEnabled~=lastFoldingCleanup then
 						if not heartbeatBusy then
 							local interval=anchorFeatures and (tonumber(Config.HeartbeatSeconds) or 30) or (tonumber(Config.ActivityHeartbeatSeconds) or 60)
 							heartbeatAt=timestamp+interval
 							lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing,lastMoveAnchored=anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled
 							lastShortFling=shortFlingEnabled
+							lastFoldingCleanup=foldingCleanupEnabled
 							heartbeatBusy=true
 							task.spawn(function()
-								if not heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
+								if not heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
 								heartbeatBusy=false
 							end)
 						end
