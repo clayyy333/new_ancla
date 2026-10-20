@@ -1,5 +1,5 @@
 -- V16 pickup -> equip -> clear, without its standalone GUI.
--- Creator filtering and timing are deliberately preserved from the supplied script.
+-- Only tables welded to local accessories; creator identity correlates pickup tools.
 return function(context)
  setfenv(1,context)
  local Players=game:GetService("Players")
@@ -10,7 +10,8 @@ return function(context)
 	function Core:IsAvailable()
 	 return game.GameId==4540138978 or game.PlaceId==12985361032
 	end
- local TARGET_CREATOR,TOOL_ID=11773278300,"FoldingTable"
+ local TOOL_ID="FoldingTable"
+ local pending
  local alive,epoch,accumulator=true,0,0
  local connections,rigConnections,backpackConnections,folderConnections={},{},{},{}
  local boundCharacter,boundBackpack,boundFolder,lastObject,lastAttempt
@@ -28,12 +29,22 @@ return function(context)
   Core.LastError="ReleaseObjectRE/ClearToolRE no disponibles."
  end
  local function isTable(object)
-  return object and object.Parent and object:GetAttribute("ToolId")==TOOL_ID
-   and tonumber(object:GetAttribute("CreatedPlayer"))==TARGET_CREATOR
+  if not object or not object.Parent or object:GetAttribute("ToolId")~=TOOL_ID then return false end
+  local character=LP.Character
+  local link=object:FindFirstChild("weld2target")
+  if not character or not link or not (link:IsA("JointInstance") or link:IsA("WeldConstraint")) then return false end
+  local a,b=link.Part0,link.Part1
+  local attached
+  if a and b then
+   if a:IsDescendantOf(character) and (b==object or b:IsDescendantOf(object)) then attached=a
+   elseif b:IsDescendantOf(character) and (a==object or a:IsDescendantOf(object)) then attached=b end
+  end
+  local accessory=attached and attached:FindFirstAncestorOfClass("Accessory")
+  return accessory~=nil and accessory:IsDescendantOf(character)
  end
  local function isOurTool(tool)
-  return tool and tool:IsA("Tool") and tool.Name==TOOL_ID
-   and tonumber(tool:GetAttribute("CreatedBy"))==TARGET_CREATOR
+  return pending and tool and tool:IsA("Tool") and tool.Name==TOOL_ID
+   and not pending.existing[tool] and tonumber(tool:GetAttribute("CreatedBy"))==pending.creator
  end
  local function findTool()
   for _,container in ipairs({LP.Character or false,LP:FindFirstChildOfClass("Backpack") or false}) do
@@ -45,6 +56,7 @@ return function(context)
   local _,clear=remotes();if not clear then return end
   Core.Busy=true
   local cycleEpoch=epoch
+  local cyclePending=pending
   task.spawn(function()
    local ok,err=xpcall(function()
     local character=LP.Character
@@ -60,7 +72,10 @@ return function(context)
     if not fired then return end
     local timeout=os.clock()+1.5
     while valid() and tool.Parent and os.clock()<timeout do RunService.Heartbeat:Wait() end
-    if valid() and not tool.Parent then Core.Cycles=Core.Cycles+1 end
+    if valid() and not tool.Parent then
+     Core.Cycles=Core.Cycles+1
+     if pending==cyclePending then pending=nil end
+    end
    end,debug.traceback)
    if not ok then Core.LastError=tostring(err) end
    Core.Busy=false
@@ -73,17 +88,31 @@ return function(context)
   local folder=workspace:FindFirstChild("ObjectPlaceFolder")
   if not folder then return end
   local object
-  for _,item in ipairs(folder:GetChildren()) do if isTable(item) then object=item;break end end
+  if pending then
+   if isTable(pending.object) then object=pending.object
+   elseif os.clock()-pending.started<1.5 then return
+   else pending=nil end
+  end
+  if not object then for _,item in ipairs(folder:GetChildren()) do if isTable(item) then object=item;break end end end
   if not object then return end
   local now=os.clock()
   if object==lastObject and now-lastAttempt<0.15 then return end
   local release=remotes();if not release then return end
+  if not pending then
+   local creator=tonumber(object:GetAttribute("CreatedPlayer"))
+   if not creator or creator<=0 or creator%1~=0 then Core.LastError="Esperando el creador de la mesa conectada.";return end
+   local existingTools={}
+   for _,container in ipairs({LP.Character or false,LP:FindFirstChildOfClass("Backpack") or false}) do
+    if container then for _,item in ipairs(container:GetChildren()) do existingTools[item]=true end end
+   end
+   pending={object=object,creator=creator,existing=existingTools,started=now}
+  end
   lastObject=object;lastAttempt=now;Core.Attempts=Core.Attempts+1
   local ok,err=pcall(function()release:FireServer("InteractWithObject",{object=object})end)
   Core.LastError=not ok and tostring(err) or nil
  end
  local function bindCharacter(character)
-  epoch=epoch+1;disconnect(rigConnections);boundCharacter=character
+  epoch=epoch+1;pending=nil;disconnect(rigConnections);boundCharacter=character
   if character then table.insert(rigConnections,character.ChildAdded:Connect(function(child)
    if running() and isOurTool(child) then task.defer(processTool,child) end
   end)) end
@@ -109,13 +138,13 @@ return function(context)
  end
  function Core:SetEnabled(value)
 	 if value and not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
-  self.Enabled=value==true;epoch=epoch+1
+  self.Enabled=value==true;epoch=epoch+1;pending=nil
   if self.Enabled then bindContainers();task.defer(processTable) end
   if FoldingCleanupControls then FoldingCleanupControls:Refresh() end
   return true
  end
  function Core:Destroy()
-  self.Enabled=false;alive=false;epoch=epoch+1
+  self.Enabled=false;alive=false;epoch=epoch+1;pending=nil
   disconnect(connections);disconnect(rigConnections);disconnect(backpackConnections);disconnect(folderConnections)
  end
  local wasRunning=false

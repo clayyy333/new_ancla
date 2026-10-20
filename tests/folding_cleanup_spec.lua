@@ -29,7 +29,7 @@ workspace={FindFirstChild=function(_,name)if name=='ObjectPlaceFolder' then retu
 local pickups,clears=0,0
 local release={IsA=function(_,class)return class=='RemoteEvent'end}
 function release:FireServer(action,data)
- assert(action=='InteractWithObject' and data.object==folder.items[1]);pickups=pickups+1
+ assert(action=='InteractWithObject' and data.object==folder.items[2]);pickups=pickups+1
 end
 local clear={IsA=release.IsA}
 function clear:FireServer(value)
@@ -42,19 +42,27 @@ game={GameId=4540138978,PlaceId=12985361032,GetService=function(_,name)return se
 AnchorCore={AnclaEnabled=false}
 assert(load(source))()(_G)
 local core=FoldingCleanupCore
-local object={Parent=folder,GetAttribute=function(_,name)if name=='ToolId' then return 'FoldingTable' elseif name=='CreatedPlayer' then return 11773278300 end end}
-folder.items={object}
+local object={Parent=folder,GetAttribute=function(_,name)if name=='ToolId' then return 'FoldingTable' elseif name=='CreatedPlayer' then return 42 end end}
+local accessory={IsDescendantOf=function(_,rig)return rig==character end}
+local handle={IsDescendantOf=function(_,rig)return rig==character end,FindFirstAncestorOfClass=function()return accessory end}
+local link={Part0=handle,Part1=object,IsA=function(_,class)return class=='JointInstance'end}
+function object:FindFirstChild(name)if name=='weld2target' then return link end end
+local floorTable={Parent=folder,GetAttribute=object.GetAttribute,FindFirstChild=function()return nil end}
+folder.items={floorTable,object}
+local preexisting={Name='FoldingTable',Parent=backpack,IsA=function(_,class)return class=='Tool'end,GetAttribute=function()return 42 end}
+backpack.items={preexisting}
 heartbeat:Fire(.1);assert(pickups==0 and not core.Enabled)
 core:SetEnabled(true);assert(pickups==1,'opt-in must work without any active anchor')
 heartbeat:Fire(.1);assert(pickups==1)
-local tool={Name='FoldingTable',Parent=backpack,IsA=function(_,class)return class=='Tool'end,GetAttribute=function()return 11773278300 end}
+backpack.ChildAdded:Fire(preexisting);assert(clears==0,'preexisting table from the same creator must not be cleared')
+local tool={Name='FoldingTable',Parent=backpack,IsA=function(_,class)return class=='Tool'end,GetAttribute=function()return 42 end}
 backpack.items={tool};backpack.ChildAdded:Fire(tool)
 assert(clears==1 and core.Cycles==1 and tool.Parent==nil)
-local unrelated={Name='FoldingTable',Parent=backpack,IsA=tool.IsA,GetAttribute=function()return 42 end}
+local unrelated={Name='FoldingTable',Parent=backpack,IsA=tool.IsA,GetAttribute=function()return 99 end}
 backpack.items={unrelated};backpack.ChildAdded:Fire(unrelated)
-assert(clears==1,'must retain the supplied creator filter')
+assert(clears==1,'must not clear an unrelated inventory tool')
 core:SetEnabled(false);local before=pickups;heartbeat:Fire(.2);assert(pickups==before and clears==1)
 core:Destroy();heartbeat:Fire(.2);assert(pickups==before)
 game.GameId=1;game.PlaceId=2
 assert(not core:IsAvailable() and not core:SetEnabled(true),'cleanup must not enable outside Metro Life')
-print('Folding cleanup mock OK: default off, works without anchors, original remote payloads, creator filter, equip/clear and shutdown')
+print('Folding cleanup mock OK: any creator, local accessory attachment only, floor tables and preexisting tools excluded, default off, no anchor needed')
