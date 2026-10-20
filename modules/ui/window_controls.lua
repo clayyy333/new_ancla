@@ -131,6 +131,7 @@ end
 minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
+	pcall(function()if FoldingCleanupCore then FoldingCleanupCore:Destroy()end end)
 	pcall(function()if DeploymentSafetyCore then DeploymentSafetyCore:Destroy()end end)
 	pcall(function()if ExperimentalFlingCore then ExperimentalFlingCore:Stop()end end)
 	pcall(function() if AdminPanelBridge then AdminPanelBridge:Destroy() end end)

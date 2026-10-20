@@ -4,6 +4,11 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
+	if FoldingCleanupCore then
+		cores[#cores+1]=FoldingCleanupCore
+		local original=FoldingCleanupCore.SetEnabled
+		FoldingCleanupCore.SetEnabled=function(self,value)if blocked and value then return false end;return original(self,value)end
+	end
 	if DeploymentSafetyCore then
 		cores[#cores+1]=DeploymentSafetyCore
 		local original=DeploymentSafetyCore.Start
