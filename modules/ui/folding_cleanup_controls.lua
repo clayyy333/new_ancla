@@ -5,7 +5,7 @@ return function(context)
  function Controls:Refresh()
   for button in pairs(self.Buttons) do
    if button.Parent then
-    button.Text=isES and "Limpieza de\nFoldingTable" or "FoldingTable\ncleanup"
+    button.Text=isES and "Limpieza\nMesa + globo" or "Cleanup\nTable + balloon"
     button.BackgroundColor3=FoldingCleanupCore.Enabled and currentTheme.accent or currentTheme.tertiary
    else self.Buttons[button]=nil end
   end

@@ -37,7 +37,7 @@ return function(context)
 		toggle.Text=active and(isES and"Desactivar desplazamiento"or"Disable displacement")or(isES and"Activar desplazamiento"or"Activate displacement")
 		toggle.BackgroundColor3=active and currentTheme.accent or currentTheme.tertiary
 		offsetValue.Text=tostring(VerticalControlController:GetOffset()).." studs"
-		status.Text=message or VerticalControlController.Status or(isES and"Al activar usa Ancla, AntiSeat, Heartbeat y el emote Invisible."or"Enabling uses Anchor, AntiSeat, Heartbeat, and the Invisible emote.")
+		status.Text=message or VerticalControlController.Status or(isES and"Primero ancla el HRP en el punto inicial; después desplaza el cuerpo y reproduce Invisible. Negativo = abajo."or"First anchors the HRP at origin; then offsets the body and plays Invisible. Negative = down.")
 	end
 	toggle.Activated:Connect(function()
 		local ok,message

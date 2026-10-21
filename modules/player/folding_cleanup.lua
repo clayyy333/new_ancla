@@ -54,6 +54,8 @@ return function(context)
  local function processTool(tool)
   if not running() or Core.Busy or not isOurTool(tool) then return end
   local _,clear=remotes();if not clear then return end
+  local token=CleanupToolGate:Acquire(Core)
+  if not token then return end
   Core.Busy=true
   local cycleEpoch=epoch
   local cyclePending=pending
@@ -62,12 +64,12 @@ return function(context)
     local character=LP.Character
     local humanoid=character and character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
-    local function valid()return running() and epoch==cycleEpoch and LP.Character==character end
+    local function valid()return running() and epoch==cycleEpoch and LP.Character==character and CleanupToolGate.Owner==token end
     if not valid() then return end
     if tool.Parent~=character then pcall(function()humanoid:EquipTool(tool)end) end
     local deadline=os.clock()+1.5
     while valid() and tool.Parent~=character and os.clock()<deadline do RunService.Heartbeat:Wait() end
-    if not valid() or tool.Parent~=character then return end
+    if not valid() or not CleanupToolGate:IsEquipped(tool,character) then return end
     local fired=pcall(function()clear:FireServer(true)end)
     if not fired then return end
     local timeout=os.clock()+1.5
@@ -78,6 +80,7 @@ return function(context)
     end
    end,debug.traceback)
    if not ok then Core.LastError=tostring(err) end
+   CleanupToolGate:Release(token)
    Core.Busy=false
   end)
  end
@@ -97,6 +100,7 @@ return function(context)
   if not object then return end
   local now=os.clock()
   if object==lastObject and now-lastAttempt<0.15 then return end
+  if CleanupToolGate.Owner then return end
   local release=remotes();if not release then return end
   if not pending then
    local creator=tonumber(object:GetAttribute("CreatedPlayer"))
@@ -139,12 +143,14 @@ return function(context)
  function Core:SetEnabled(value)
 	 if value and not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   self.Enabled=value==true;epoch=epoch+1;pending=nil
+  if ValentineCleanupCore then ValentineCleanupCore:SetEnabled(self.Enabled) end
   if self.Enabled then bindContainers();task.defer(processTable) end
   if FoldingCleanupControls then FoldingCleanupControls:Refresh() end
   return true
  end
  function Core:Destroy()
   self.Enabled=false;alive=false;epoch=epoch+1;pending=nil
+  if ValentineCleanupCore then ValentineCleanupCore:SetEnabled(false) end
   disconnect(connections);disconnect(rigConnections);disconnect(backpackConnections);disconnect(folderConnections)
  end
  local wasRunning=false

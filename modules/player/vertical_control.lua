@@ -94,7 +94,7 @@ return function(context)
 		if not self.Running then return end
 		local character,humanoid,root=rig()
 		if not character or not humanoid or humanoid.Health<=0 or not root then return end
-		-- Apply maintains physical displacement without changing body joints.
+		self:ApplyVisualOffset(character,root)
 	end
 	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
@@ -103,27 +103,18 @@ return function(context)
 		if humanoid.Sit then humanoid.Sit=false end
 		for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end;part.CanCollide=false end end
 
-		if self:IsAnchorHolding(root) then
-			-- Keep the physical HRP at the saved origin plus the world-space offset.
-			self:RestoreVisualOffset()
-			local target=self:GetDisplacedCheckpoint()
-			if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=target end
-			local positionLock=root:FindFirstChild("AnclaAlignPosition")
-			if positionLock and positionLock:IsA("AlignPosition") then positionLock.Position=target.Position end
-			root.CFrame=target
-			root.AssemblyLinearVelocity=Vector3.zero
-			root.AssemblyAngularVelocity=Vector3.zero
-			self.LastAppliedCFrame=root.CFrame
-		else
-			self:RestoreVisualOffset()
-			local currentFrame=root.CFrame
-			local direction=humanoid.MoveDirection
-			local step=direction.Magnitude>.01 and direction.Unit*humanoid.WalkSpeed*math.min(tonumber(dt)or 0,.1)or Vector3.zero
-			local targetY=self.Checkpoint.Position.Y+self.Offset
-			root.CFrame=CFrame.new(currentFrame.Position.X+step.X,targetY,currentFrame.Position.Z+step.Z)*currentFrame.Rotation
-			self.LastAppliedCFrame=root.CFrame
-			root.AssemblyLinearVelocity=Vector3.zero
-			root.AssemblyAngularVelocity=Vector3.zero
+		-- Anchor the HRP at the original point; offset only the animated body.
+		local target=self.Checkpoint
+		if AnchorCore and AnchorCore.AnclaEnabled then AnchorCore.Checkpoint=target end
+		local positionLock=root:FindFirstChild("AnclaAlignPosition")
+		if positionLock and positionLock:IsA("AlignPosition") then positionLock.Position=target.Position end
+		root.CFrame=target
+		root.AssemblyLinearVelocity=Vector3.zero
+		root.AssemblyAngularVelocity=Vector3.zero
+		self.LastAppliedCFrame=root.CFrame
+		if not self:ApplyVisualOffset(character,root) then
+			self.Status=isES and "No se encontró la articulación raíz para desplazar el cuerpo." or "Root joint unavailable for body displacement."
+			return false
 		end
 
 		if self.CameraAnchor and self.CameraAnchor.Parent then
@@ -201,12 +192,16 @@ return function(context)
 		self.Generation=(self.Generation or 0)+1
 		self:SetCharacterCollisions(true)
 		self.Running=true
-		root.CFrame=self:GetDisplacedCheckpoint()
 		local anchored,anchorMessage=AnchorCore:SetAncla(true)
 		if not anchored then self.Running=false;self:SetCharacterCollisions(false);return false,anchorMessage end
-		AnchorCore.Checkpoint=self:GetDisplacedCheckpoint()
+		AnchorCore.Checkpoint=self.Checkpoint
 		AnchorCore:SetAntiSeat(true)
 		AnchorCore:SetHeartbeat(true)
+		if not self:Apply() then
+			local failure=self.Status
+			self:Stop(true)
+			return false,failure
+		end
 		self:LockCamera()
 		self:CaptureSelectedEmote()
 		self:RestoreSelectedEmote()
@@ -224,7 +219,7 @@ return function(context)
 		self.VisualConnection=RunService.RenderStepped:Connect(function()
 			self:ReapplyVisualOffset()
 		end)
-		self.Status=isES and"Desplazamiento vertical activo."or"Vertical displacement active."
+		self.Status=isES and"Ancla en el punto inicial; cuerpo y emote desplazados."or"Anchored at origin; body and emote offset active."
 		return true,self.Status
 	end
 	function Core:Stop(restore)
@@ -282,13 +277,13 @@ return function(context)
 				AnchorCore:SetAntiSeat(false)
 				AnchorCore:SetHeartbeat(false)
 			end
-			root.CFrame=Core:GetDisplacedCheckpoint()
+			root.CFrame=Core.Checkpoint
 			root.AssemblyLinearVelocity=Vector3.zero
 			root.AssemblyAngularVelocity=Vector3.zero
 			if AnchorCore then
 				local anchored=AnchorCore:SetAncla(true)
 				if anchored then
-					AnchorCore.Checkpoint=Core:GetDisplacedCheckpoint()
+					AnchorCore.Checkpoint=Core.Checkpoint
 					AnchorCore:SetAntiSeat(true)
 					AnchorCore:SetHeartbeat(true)
 				end
@@ -299,16 +294,15 @@ return function(context)
 			character:WaitForChild("LowerTorso",4)
 			Core.EmoteClock=0
 
-			-- Maintain the physical destination while the new rig and emote load.
+			-- Hold the original HRP point while the new rig and emote load.
 			for attempt=1,10 do
 				if not Core.Running or Core.Generation~=generation or player.Character~=character or not Core.Checkpoint then return end
-				root.CFrame=Core:GetDisplacedCheckpoint()
+				root.CFrame=Core.Checkpoint
 				root.AssemblyLinearVelocity=Vector3.zero
 				root.AssemblyAngularVelocity=Vector3.zero
 				if not Core:IsInvisibleEmotePlaying()and(attempt==1 or attempt%3==0)then
 					Core:RestoreSelectedEmote()
 				end
-				Core:RestoreVisualOffset()
 				Core:Apply(0)
 				task.wait(.12)
 			end

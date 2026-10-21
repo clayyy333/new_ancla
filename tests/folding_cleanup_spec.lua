@@ -1,5 +1,5 @@
 -- Execute with module source as the first argument; no real remotes are used.
-local source=...
+local source,gateSource=...
 setfenv=function()end
 table.clear=table.clear or function(t)for key in pairs(t)do t[key]=nil end end
 local function signal()
@@ -40,6 +40,7 @@ local remotes={FindFirstChild=function(_,name)if name=='ReleaseObjectRE' then re
 local services={Players={LocalPlayer=localPlayer},ReplicatedStorage={FindFirstChild=function()return remotes end},RunService={Heartbeat=heartbeat}}
 game={GameId=4540138978,PlaceId=12985361032,GetService=function(_,name)return services[name]end}
 AnchorCore={AnclaEnabled=false}
+assert(load(gateSource))()(_G)
 assert(load(source))()(_G)
 local core=FoldingCleanupCore
 local object={Parent=folder,GetAttribute=function(_,name)if name=='ToolId' then return 'FoldingTable' elseif name=='CreatedPlayer' then return 42 end end}
@@ -56,7 +57,10 @@ core:SetEnabled(true);assert(pickups==1,'opt-in must work without any active anc
 heartbeat:Fire(.1);assert(pickups==1)
 backpack.ChildAdded:Fire(preexisting);assert(clears==0,'preexisting table from the same creator must not be cleared')
 local tool={Name='FoldingTable',Parent=backpack,IsA=function(_,class)return class=='Tool'end,GetAttribute=function()return 42 end}
+local competingToken=CleanupToolGate:Acquire({})
 backpack.items={tool};backpack.ChildAdded:Fire(tool)
+assert(clears==0,'table clearing must not run while balloon clearing owns the gate')
+CleanupToolGate:Release(competingToken);heartbeat:Fire(.1)
 assert(clears==1 and core.Cycles==1 and tool.Parent==nil)
 local unrelated={Name='FoldingTable',Parent=backpack,IsA=tool.IsA,GetAttribute=function()return 99 end}
 backpack.items={unrelated};backpack.ChildAdded:Fire(unrelated)
