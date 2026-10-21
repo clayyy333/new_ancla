@@ -46,7 +46,20 @@ local function launch()
  assert(r.AssemblyLinearVelocity.Magnitude==0,'physical velocity must not override CFrame route')
  assert((r.Position-tr.Position).Magnitude<0.001,'mandatory HRP waypoint reached before B')
  render();tick(1/60)
+ assert(math.abs(r.AssemblyLinearVelocity.Magnitude-900000000)<1,'physical pulse starts at target waypoint')
+ r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
+ local observedContactPosition=r.Position
+ post()
+ assert(r.Position==observedContactPosition,'post simulation must not snap or clear during contact')
+ assert(math.abs(r.AssemblyLinearVelocity.Magnitude-900000000)<1,'contact velocity must survive post simulation')
+ for i=1,30 do
+  tick(1/60)
+  if r.AssemblyLinearVelocity.Magnitude>0 then r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)end
+  post()
+  if math.abs(r.Position.Magnitude-1000000)<0.001 and r.AssemblyLinearVelocity.Magnitude==0 then break end
+ end
  assert(math.abs(r.Position.Magnitude-1000000)<0.001,'B is fixed one million from A')
+ assert(core.ContactPulses==core.Cycles,'one contact pulse per cycle')
  post()
 end
 local function recover()
@@ -82,7 +95,8 @@ core:Stop('Manual')
 assert(not core.Running and tick==nil and post==nil and render==nil and r.CFrame==checkpoint)
 assert(h.PlatformStand==false and h.AutoRotate==true,'restore ordinary Humanoid controls')
 local report=core:GetDiagnosticReport()
-assert(report:find('LAUNCH DIAGNOSTIC V6',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
+assert(report:find('LAUNCH DIAGNOSTIC V7',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
+assert(report:find('CONTACT_BEGIN',1,true) and report:find('CONTACT_POST_PHYSICS',1,true) and report:find('CONTACT_END',1,true),'contact lifecycle is diagnosed')
 assert(report:find('RENDER_HOME_LOCAL',1,true))
 assert(report:find('TARGET_WAYPOINT_REACHED',1,true) and report:find('RENDER_TARGET_WAYPOINT',1,true))
 -- Preserve a straight direction per outgoing leg, recalculate on next launch.
@@ -106,6 +120,9 @@ r.Anchored=true;assert(not core:Start());r.Anchored=false
 assert(core:GetDiagnosticReport():find('LAST START REJECTED',1,true))
 ExperimentalFlingCore.Running=true;assert(not core:Start());ExperimentalFlingCore.Running=false
 assert(core:Start());th.Health=0;tick(1/60);assert(not core.Running);th.Health=100
+assert(core:Start());tick(1/60);render();tick(1/60)
+assert(r.AssemblyLinearVelocity.Magnitude==900000000)
+th.Health=0;post();assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0,'death during physical contact must cancel and clean up');th.Health=100
 assert(core:Start());tick(.2);assert(not core.Running)
 assert(core:Start());core:Destroy();assert(not core.Running and render==nil)
 tr.Position=Vector3.new(229,0,0);assert(not core:Start());tr.Position=Vector3.new(30,0,0)
@@ -126,4 +143,4 @@ player.Character=replacement
 local replacementFrame=replacementRoot.CFrame
 tick(1/60)
 assert(not core.Running and replacementRoot.CFrame==replacementFrame)
-print('straight_pass_test_spec OK: mandatory target waypoint, fixed B, drift correction, repeat and recovery')
+print('straight_pass_test_spec OK: target waypoint, physical contact pulse without post cleanup, fixed B and recovery')
