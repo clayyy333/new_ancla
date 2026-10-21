@@ -12,7 +12,9 @@ mt.__index=function(a,k)
  if k=='Unit'then return Vector3.new(a.X/length,a.Y/length,a.Z/length)end
  if k=='Dot'then return function(v,b)return v.X*b.X+v.Y*b.Y+v.Z*b.Z end end
 end
-CFrame={new=function(position)return {Position=position}end}
+local frameMT={}
+CFrame={new=function(position)return setmetatable({Position=position},frameMT)end}
+frameMT.__add=function(frame,offset)return CFrame.new(frame.Position+offset)end
 local function rig(x)
  local h={Health=100,PlatformStand=false,AutoRotate=true}
  local values={Position=Vector3.new(x,0,0),AssemblyLinearVelocity=Vector3.zero,AssemblyAngularVelocity=Vector3.zero,Parent=true,Anchored=false}
@@ -41,8 +43,11 @@ local core=StraightPassTestCore
 local checkpoint=r.CFrame
 local function launch()
  tick(1/60)
- assert(math.abs(r.AssemblyLinearVelocity.Magnitude-900000000)<1,'full velocity on first step from A')
- assert(r.Position.Magnitude==0 and r.CFrame==checkpoint,'no approach movement or outgoing teleport before velocity launch')
+ assert(r.AssemblyLinearVelocity.Magnitude==0,'physical velocity must not override CFrame route')
+ assert((r.Position-tr.Position).Magnitude<0.001,'mandatory HRP waypoint reached before B')
+ render();tick(1/60)
+ assert(math.abs(r.Position.Magnitude-1000000)<0.001,'B is fixed one million from A')
+ post()
 end
 local function recover()
  local before=core.Returns
@@ -60,40 +65,40 @@ assert(core:Start())
 launch()
 assert(core:GetDiagnosticReport():find('LAUNCH_FROM_A',1,true))
 tick(1/60)
-assert(r.AssemblyLinearVelocity.Magnitude==900000000,'full velocity maintained along outgoing leg')
+assert(r.AssemblyLinearVelocity.Magnitude==0,'route does not depend on physical launch')
 assert(tr.AssemblyLinearVelocity.Magnitude==0,'never modify target')
-r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
-assert(r.Position.X>=15000000,'overshoot remains observable')
+r.Position=Vector3.new(1200000,500,0)
 post()
 assert(core.Returns==0 and r.AssemblyLinearVelocity.Magnitude==0)
+assert(r.Position.X==1000000 and r.Position.Y==0,'post-physics drift does not change route')
 render()
-assert(core.MaxRenderDistance>=15000000,'outgoing position is sampled at render')
+assert(core.MaxRenderDistance==1000000,'outgoing position is sampled at render')
 tick(1/60)
 assert(core.Returns==0,'one outgoing frame must not trigger return')
 recover()
 launch()
-assert(core.Cycles==2,'relaunch at full speed from original A')
+assert(core.Cycles==2,'relaunch route from original A')
 core:Stop('Manual')
 assert(not core.Running and tick==nil and post==nil and render==nil and r.CFrame==checkpoint)
 assert(h.PlatformStand==false and h.AutoRotate==true,'restore ordinary Humanoid controls')
 local report=core:GetDiagnosticReport()
-assert(report:find('LAUNCH DIAGNOSTIC V5',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
+assert(report:find('LAUNCH DIAGNOSTIC V6',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
 assert(report:find('RENDER_HOME_LOCAL',1,true))
-assert(not report:find('CROSS_BEGIN',1,true) and not report:find('CROSS_GEOMETRIC_CONFIRMED',1,true),'no slow crossing stages remain')
+assert(report:find('TARGET_WAYPOINT_REACHED',1,true) and report:find('RENDER_TARGET_WAYPOINT',1,true))
 -- Preserve a straight direction per outgoing leg, recalculate on next launch.
 assert(core:Start())
-launch()
-local initialVelocity=r.AssemblyLinearVelocity
+tick(1/60)
+local targetPoint=r.Position
 tr.Position=Vector3.new(30,5,0)
 tick(1/60)
-assert(r.AssemblyLinearVelocity.X==initialVelocity.X and r.AssemblyLinearVelocity.Y==initialVelocity.Y,'do not curve an outgoing leg')
+assert((r.Position-targetPoint).Magnitude==0,'wait at snapshot waypoint for its render')
 core:Stop('Manual');tr.Position=Vector3.new(30,0,0)
--- No movement despite velocity must time out, not hang indefinitely.
+-- A missing target-waypoint render must time out, not skip that point.
 assert(core:Start())
 for i=1,50 do if tick then tick(1/60);if post then post()end end end
-assert(not core.Running and core:GetDiagnosticReport():find('No alcanzo el umbral',1,true))
+assert(not core.Running and core:GetDiagnosticReport():find('Tiempo del recorrido',1,true))
 -- Missing render cancels safely after a successful departure.
-assert(core:Start());launch();r.Position=Vector3.new(2000000,0,0);post()
+assert(core:Start());launch()
 for i=1,20 do if tick then tick(1/60)end end
 assert(not core.Running and core:GetDiagnosticReport():find('No hubo render local',1,true))
 -- Safety guards and clean destruction.
@@ -107,11 +112,11 @@ tr.Position=Vector3.new(229,0,0);assert(not core:Start());tr.Position=Vector3.ne
 -- Signed 3D aiming, bounded diagnostics and no replacement-character teleport.
 tr.Position=Vector3.new(30,40,0)
 assert(core:Start());launch()
-assert(math.abs(r.AssemblyLinearVelocity.X-540000000)<1 and math.abs(r.AssemblyLinearVelocity.Y-720000000)<1)
+assert(math.abs(r.Position.X-600000)<1 and math.abs(r.Position.Y-800000)<1,'B follows 3D ray through target')
 core:Stop('Manual');tr.Position=Vector3.new(30,0,0)
 assert(core:Start())
 for i=1,150 do
- launch();r.Position=Vector3.new(2000000,0,0);post();recover()
+ launch();recover()
 end
 assert(core.Cycles==150 and #core.Samples==120 and #core.FirstSamples==24)
 core:Stop('Manual')
@@ -121,4 +126,4 @@ player.Character=replacement
 local replacementFrame=replacementRoot.CFrame
 tick(1/60)
 assert(not core.Running and replacementRoot.CFrame==replacementFrame)
-print('straight_pass_test_spec OK: full velocity from A, fixed outgoing direction, repeat, recovery and diagnostics')
+print('straight_pass_test_spec OK: mandatory target waypoint, fixed B, drift correction, repeat and recovery')

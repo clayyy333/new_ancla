@@ -28,7 +28,7 @@ return function(context)
 	toggle.LayoutOrder=3
 	local microToggle=button(tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
 	microToggle.LayoutOrder=4
-	local passToggle=button(tr("Activar despegue A-B · dayzero777 · 900M","Enable A-B launch · dayzero777 · 900M"))
+	local passToggle=button(tr("Activar ruta A-target-B · dayzero777","Enable A-target-B route · dayzero777"))
 	passToggle.LayoutOrder=5
 	local back=button(tr("Forzar regreso","Force return"))
 	back.LayoutOrder=6
@@ -53,7 +53,7 @@ return function(context)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
 		local passing=StraightPassTestCore and StraightPassTestCore.Running
-		passToggle.Text=passing and tr("Detener despegue y regresar","Stop launch and return") or tr("Activar despegue A-B · dayzero777 · 900M","Enable A-B launch · dayzero777 · 900M")
+		passToggle.Text=passing and tr("Detener ruta y regresar","Stop route and return") or tr("Activar ruta A-target-B · dayzero777","Enable A-target-B route · dayzero777")
 		passToggle.BackgroundColor3=passing and currentTheme.critical or currentTheme.tertiary
 		local c=ExperimentalFlingCore
 		local target=c:GetTarget()

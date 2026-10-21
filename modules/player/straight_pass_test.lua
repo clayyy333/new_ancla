@@ -1,4 +1,4 @@
--- Independent velocity launch test. No remote calls or target writes.
+-- Independent waypoint route test. No remote calls or target writes.
 return function(context)
 	setfenv(1, context)
 	local TARGET_ID = 11773278300
@@ -34,11 +34,11 @@ return function(context)
 		return ok and value or "unknown"
 	end
 	function core:BuildDiagnosticReport(result)
-		local lines={"LAUNCH DIAGNOSTIC V5 | client observations only; server cause/network ownership unknown",
+		local lines={"LAUNCH DIAGNOSTIC V6 | client observations only; server cause/network ownership unknown",
 			"Status: "..tostring(result or (self.Running and "ACTIVE" or "STOPPED")),
 			"Local: "..tostring(player.Name).." | UserId="..tostring(player.UserId).." | TargetId="..TARGET_ID,
-			"RequestedSpeed="..SPEED.." returnThreshold="..FAR_DISTANCE.." cycleTimeout="..MAX_TIME,
-			"Flow: A -> target direction -> B (distance threshold) -> A; full requested speed from A; no slow approach",
+			"CFrameTravelSpeed="..SPEED.." BDistanceFromA="..FAR_DISTANCE.." cycleTimeout="..MAX_TIME,
+			"Flow: A -> mandatory target waypoint -> B -> A; physical velocities cleared during CFrame travel",
 			"outgoingHold="..OUTGOING_HOLD.." | outgoing render frames >= 2 | origin render required before relaunch",
 			"Origin="..vector(self.DiagnosticOrigin).." vehicle="..tostring(self.DiagnosticVehicle or "none"),
 			"cycles="..(self.Cycles or 0).." returns="..(self.Returns or 0).." preEvents="..(self.PreEvents or 0).." postEvents="..(self.PostEvents or 0).." renderEvents="..(self.RenderEvents or 0),
@@ -161,6 +161,13 @@ return function(context)
 		local origin=r.Position
 		local elapsed,totalElapsed=0,0
 		local direction
+		local waypoints,waypointIndex,waypointReached,waypointRendered
+		local holdFrame=self.Checkpoint
+		local function applyFrame(frame)
+			holdFrame=frame
+			r.CFrame=frame
+			r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
+		end
 		local pendingReturn,renderSeen=false,false
 		local outgoingFrames=0
 		local waitingHome,homeRendered=false,false
@@ -199,18 +206,18 @@ return function(context)
 				totalElapsed=totalElapsed+dt
 				if waitingHome then
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
-					r.CFrame=self.Checkpoint
+					applyFrame(self.Checkpoint)
 					homeWait=homeWait+dt
 					if homeRendered then waitingHome=false;record("HOME_READY_FOR_NEXT_LAUNCH")
 					elseif homeWait>=0.25 then self:Stop("No hubo render del origen; parada de seguridad.") end
 					return
 				end
 				if pendingReturn then
-					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
+					applyFrame(holdFrame)
 					renderWait=renderWait+dt
 					if renderSeen and outgoingFrames>=2 and renderWait>=OUTGOING_HOLD then
 						-- Return on a later simulation step, never inside the render callback.
-						r.CFrame=self.Checkpoint
+						applyFrame(self.Checkpoint)
 						self.Returns=self.Returns+1
 						record("RETURN_ORIGIN_AFTER_RENDER")
 						pendingReturn=false;renderSeen=false;direction=nil
@@ -224,6 +231,9 @@ return function(context)
 					local aim=tr.Position-origin
 					if aim.Magnitude<5 or aim.Magnitude>228 then self:Stop("Objetivo fuera del rango de prueba.");return end
 					direction=aim.Unit
+					-- Preserve our orientation; target and B are snapshotted per cycle.
+					waypoints={self.Checkpoint+aim,self.Checkpoint+direction*FAR_DISTANCE}
+					waypointIndex=1;waypointReached=false;waypointRendered=false
 					elapsed=0
 					self.Cycles=self.Cycles+1
 					-- Keep ordinary walking/auto-rotation out of this physical experiment.
@@ -232,27 +242,42 @@ return function(context)
 					record("LAUNCH_FROM_A")
 				end
 				elapsed=elapsed+dt
-				r.AssemblyAngularVelocity=Vector3.zero
-				-- Full requested velocity from A; fixed direction for this outgoing leg.
-				r.AssemblyLinearVelocity=direction*SPEED
+				if elapsed>=MAX_TIME then self:Stop("Tiempo del recorrido por posiciones agotado.");return end
+				if waypointReached then
+					applyFrame(holdFrame)
+					if not waypointRendered then return end
+					waypointIndex=waypointIndex+1;waypointReached=false;waypointRendered=false
+				end
+				local goal=waypoints[waypointIndex]
+				if not goal then self:Stop("Destino del recorrido no disponible.");return end
+				local offset=goal.Position-holdFrame.Position
+				local remaining=offset.Magnitude
+				local advance=math.min(remaining,SPEED*dt)
+				if remaining<=advance or remaining<0.001 then
+					applyFrame(goal);waypointReached=true
+					record(waypointIndex==1 and "TARGET_WAYPOINT_REACHED" or "B_WAYPOINT_REACHED")
+				else
+					applyFrame(holdFrame+offset.Unit*advance)
+				end
 				record("PRE_AFTER_WRITE")
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
 		end)
 		self.PostConnection=RunService.PostSimulation:Connect(function()
 			local ok,err=pcall(function()
-				if not self.Running or not direction or pendingReturn then return end
+				if not self.Running then return end
 				self.PostEvents=self.PostEvents+1
 				self.MaxPostDistance=math.max(self.MaxPostDistance,(r.Position-origin).Magnitude)
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
 				record("POST_PHYSICS")
-				if (r.Position-origin).Magnitude>=FAR_DISTANCE then
+				-- Reject local physics drift from the selected waypoint route.
+				applyFrame(holdFrame)
+				if pendingReturn or waitingHome or not direction then return end
+				if waypointReached and waypointIndex==2 then
 					-- Stop further thrust, but leave the outgoing position for local render.
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
 					pendingReturn=true;renderSeen=false;renderWait=0;outgoingFrames=0
 					record("WAIT_OUTGOING_RENDER")
-				elseif elapsed>=MAX_TIME then
-					self:Stop("No alcanzo el umbral; posible bloqueo o correccion.")
 				end
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
@@ -266,9 +291,11 @@ return function(context)
 				if outgoingFrames<=2 then record("RENDER_OUTGOING_LOCAL") end
 			elseif waitingHome and not homeRendered then
 				homeRendered=true;record("RENDER_HOME_LOCAL")
+			elseif waypointReached and waypointIndex==1 then
+				waypointRendered=true;record("RENDER_TARGET_WAYPOINT")
 			elseif self.RenderEvents<=12 or self.RenderEvents%30==0 then record("RENDER_LOCAL") end
 		end)
-		refresh("Prueba activa: A -> direccion del HRP -> B, a 900 millones desde A. Regreso al detectar 1 millon y repeticion. Sin aproximacion lenta; pulsa para detener.")
+		refresh("Ruta por CFrame: A -> HRP del target -> B a 1 millon -> A. Velocidades fisicas limpiadas durante el traslado; no garantiza colision ni replicacion.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end
