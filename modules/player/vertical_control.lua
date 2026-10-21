@@ -190,6 +190,39 @@ return function(context)
 		end)
 		return ok
 	end
+	function Core:ResumeCharacter(character)
+		if not self.Running or not self.Checkpoint or player.Character~=character then return false end
+		local _,humanoid,root=rig()
+		if not root then return false end
+		-- No waits: position is restored even before Humanoid/Animator exist.
+		local applied=self:Apply(0)
+		if not humanoid or humanoid.Health<=0 then return false end
+		if self.ResumeRoot~=root then
+			if not AnchorCore then return false end
+			if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
+			AnchorCore:SetAntiSeat(false)
+			AnchorCore:SetHeartbeat(false)
+			root.CFrame=self.Checkpoint
+			local anchored=AnchorCore:SetAncla(true)
+			if not anchored then return false end
+			AnchorCore.Checkpoint=self.Checkpoint
+			AnchorCore:SetAntiSeat(true)
+			AnchorCore:SetHeartbeat(true)
+			self.ResumeRoot=root
+			applied=self:Apply(0)
+		end
+		local animator=humanoid:FindFirstChildOfClass("Animator")
+		if applied and animator and self.ResumeAnimator~=animator then
+			-- The body offset must already be applied before starting the emote.
+			if self:RestoreSelectedEmote() then
+				self.ResumeAnimator=animator
+				self.EmoteClock=0
+				self.Status=isES and"Punto y desplazamiento restaurados; emote solicitado."or"Position and offset restored; emote requested."
+				if UpdateVerticalControlPanel then UpdateVerticalControlPanel(self.Status) end
+			end
+		end
+		return applied
+	end
 	function Core:Start(value)
 		if self.Running then return true end
 		local valid,message=self:SetOffset(value)
@@ -220,6 +253,8 @@ return function(context)
 		self:LockCamera()
 		self:CaptureSelectedEmote()
 		self:RestoreSelectedEmote()
+		self.ResumeRoot=root
+		self.ResumeAnimator=humanoid:FindFirstChildOfClass("Animator")
 		self:Apply()
 		self.EmoteClock=0
 		self.Connection=RunService.Heartbeat:Connect(function(dt)
@@ -235,7 +270,7 @@ return function(context)
 			self:ReapplyVisualOffset()
 		end)
 		self.PositionConnection=RunService.PreSimulation:Connect(function()
-			if self.Running then self:Apply(0) end
+			if self.Running then self:ResumeCharacter(player.Character) end
 		end)
 		self.Status=isES and"Ancla en el punto inicial; cuerpo y emote desplazados."or"Anchored at origin; body and emote offset active."
 		return true,self.Status
@@ -260,6 +295,7 @@ return function(context)
 		local checkpoint=self.Checkpoint
 		self.Checkpoint=nil
 		self.LastAppliedCFrame=nil
+		self.ResumeRoot=nil;self.ResumeAnimator=nil
 		if restore~=false and checkpoint then
 			local _,humanoid,root=rig()
 			if root then
@@ -280,6 +316,7 @@ return function(context)
 	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
 		if not Core.Running then return end
 		Core.Generation=(Core.Generation or 0)+1
+		Core.ResumeRoot=nil;Core.ResumeAnimator=nil
 		if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect();Core.SpawnRootConnection=nil end
 		Core:RestoreVisualOffset()
 		table.clear(Core.SavedCollisions)
@@ -293,59 +330,12 @@ return function(context)
 			return Core.Running and Core.Generation==generation and player.Character==character and Core.Checkpoint~=nil
 		end
 		if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect() end
-		Core.SpawnRootConnection=character.ChildAdded:Connect(function(child)
-			if valid() and child.Name=="HumanoidRootPart" then Core:Apply(0) end
+		Core.SpawnRootConnection=character.DescendantAdded:Connect(function(child)
+			if valid() and (child.Name=="HumanoidRootPart" or child:IsA("Humanoid") or child:IsA("Animator") or child:IsA("Motor6D")) then
+				Core:ResumeCharacter(character)
+			end
 		end)
-		Core:Apply(0)
-		task.spawn(function()
-			local root=character:WaitForChild("HumanoidRootPart",8)
-			if not valid() or not root then return end
-			Core:Apply(0)
-			local humanoid=character:WaitForChild("Humanoid",8)
-			if not valid() or not humanoid or humanoid.Health<=0 then return end
-
-			-- Reuse the original world position and offset, never the spawn position.
-			if AnchorCore then
-				if AnchorCore.AnclaEnabled then AnchorCore:SetAncla(false) end
-				AnchorCore:SetAntiSeat(false)
-				AnchorCore:SetHeartbeat(false)
-			end
-			root.CFrame=Core.Checkpoint
-			root.AssemblyLinearVelocity=Vector3.zero
-			root.AssemblyAngularVelocity=Vector3.zero
-			if AnchorCore then
-				local anchored=AnchorCore:SetAncla(true)
-				if anchored then
-					AnchorCore.Checkpoint=Core.Checkpoint
-					AnchorCore:SetAntiSeat(true)
-					AnchorCore:SetHeartbeat(true)
-				end
-			end
-
-			Core:SetCharacterCollisions(true)
-			humanoid:WaitForChild("Animator",4)
-			if not valid() then return end
-			-- No R15-only LowerTorso wait: R6 must also resume promptly.
-			if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect();Core.SpawnRootConnection=nil end
-			Core.EmoteClock=0
-
-			-- Hold the original HRP point while the new rig and emote load.
-			for attempt=1,10 do
-				if not Core.Running or Core.Generation~=generation or player.Character~=character or not Core.Checkpoint then return end
-				root.CFrame=Core.Checkpoint
-				root.AssemblyLinearVelocity=Vector3.zero
-				root.AssemblyAngularVelocity=Vector3.zero
-				if not Core:IsInvisibleEmotePlaying()and(attempt==1 or attempt%3==0)then
-					Core:RestoreSelectedEmote()
-				end
-				Core:Apply(0)
-				task.wait(.12)
-			end
-			if not Core.Running or Core.Generation~=generation or player.Character~=character then return end
-			Core:Apply(0)
-			Core.Status=isES and"Desplazamiento vertical restaurado."or"Vertical displacement restored."
-			if UpdateVerticalControlPanel then UpdateVerticalControlPanel(Core.Status) end
-		end)
+		Core:ResumeCharacter(character)
 	end)
 	VerticalControlController=Core
 	return true

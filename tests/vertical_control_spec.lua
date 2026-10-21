@@ -49,8 +49,7 @@ assert(joint.C1.Position.Y==-8,'reversed root joint must offset the body through
 core:RestoreVisualOffset()
 assert(joint.C1.Position.Y==1)
 -- Respawn: relocate the HRP before the Humanoid/Animator finish loading.
-local queue={}
-task={spawn=function(fn)queue[#queue+1]=fn end,wait=function()end}
+task={spawn=function()error('respawn must not require a background wait')end,wait=function()error('respawn must not poll')end}
 local animator={tracks={}}
 function animator:GetPlayingAnimationTracks()return self.tracks end
 local newHumanoid={Health=100,Sit=false}
@@ -62,13 +61,12 @@ local newJoint={Parent=true,C0=CFrame.new(),C1=CFrame.new(),Part0=newRoot,Part1=
 newJoint.IsA=joint.IsA
 function newRoot:FindFirstChild(name)if name=='RootJoint'then return newJoint end end
 local ready=false
-local newCharacter={ChildAdded=event()}
+local newCharacter={DescendantAdded=event()}
 function newCharacter:FindFirstChild(name)if name=='HumanoidRootPart'then return newRoot end end
 function newCharacter:FindFirstChildOfClass(name)if name=='Humanoid'and ready then return newHumanoid end end
 function newCharacter:GetDescendants()return {newRoot}end
 function newCharacter:WaitForChild(name)
- if name=='HumanoidRootPart'then return newRoot end
- assert(name=='Humanoid','must not wait for R15-only torso');ready=true;return newHumanoid
+ error('restoration must not wait for '..name)
 end
 function AnchorCore:SetAncla(enabled)self.AnclaEnabled=enabled;return true end
 function AnchorCore:SetAntiSeat()end
@@ -85,8 +83,37 @@ player.Character=newCharacter
 player.CharacterAdded:Fire(newCharacter)
 assert(newRoot.CFrame==origin,'return immediately, before humanoid readiness')
 assert(not core:IsInvisibleEmotePlaying(),'old-character track is not a restored emote')
-queue[1]()
+ready=true
+newCharacter.DescendantAdded:Fire({Name='Humanoid',IsA=function(_,class)return class=='Humanoid'end})
 assert(playCount==1 and core:IsInvisibleEmotePlaying(),'reload emote on the new Animator')
 assert(newRoot.CFrame==origin and newJoint.C0.Position.Y==-9)
 assert(AnchorCore.Checkpoint==origin,'respawn must not capture the game spawn as checkpoint')
+core:ResumeCharacter(newCharacter)
+assert(playCount==1,'do not restart the emote every physics frame')
+newRoot.CFrame=CFrame.new(900,20,900)
+core:ResumeCharacter(newCharacter)
+assert(newRoot.CFrame==origin,'reassert exact checkpoint after a late spawn correction')
+-- Delayed root/Animator must trigger immediately when they arrive.
+player.CharacterRemoving:Fire(newCharacter)
+ready=false
+local rootReady=false
+local animatorReady=false
+local third={DescendantAdded=event()}
+function third:FindFirstChild(name)if name=='HumanoidRootPart'and rootReady then return newRoot end end
+function third:FindFirstChildOfClass(name)if name=='Humanoid'and ready then return newHumanoid end end
+third.GetDescendants=newCharacter.GetDescendants
+function newHumanoid:FindFirstChildOfClass(name)if name=='Animator'and animatorReady then return animator end end
+player.Character=third
+player.CharacterAdded:Fire(third)
+newRoot.CFrame=CFrame.new(100,0,100)
+rootReady=true
+third.DescendantAdded:Fire({Name='HumanoidRootPart'})
+assert(newRoot.CFrame==origin,'root arrival restores location without humanoid')
+ready=true
+third.DescendantAdded:Fire({Name='Humanoid',IsA=function(_,class)return class=='Humanoid'end})
+assert(playCount==1,'must wait for Animator, not create one locally')
+animatorReady=true
+third.DescendantAdded:Fire({Name='Animator',IsA=function(_,class)return class=='Animator'end})
+assert(playCount==2,'Animator arrival starts emote without polling')
+assert(newJoint.C0.Position.Y==-9 and newRoot.CFrame==origin)
 print('Vertical offset mock OK: local offset, immediate respawn return and new-Animator emote restoration')
