@@ -30,25 +30,30 @@ Players={GetPlayerByUserId=function(_,id)assert(id==target.UserId);return target
 target.Parent=Players
 workspace={FindFirstChild=function()return nil end}
 ExperimentalFlingCore={IsAuthorized=function()return true end,Running=false}
-local tick
-RunService={PreSimulation={Connect=function(_,fn)tick=fn;return {Disconnect=function()tick=nil end}end}}
+local tick,post
+RunService={PreSimulation={Connect=function(_,fn)tick=fn;return {Disconnect=function()tick=nil end}end},
+ PostSimulation={Connect=function(_,fn)post=fn;return {Disconnect=function()post=nil end}end}}
 local context={ExperimentalFlingCore=ExperimentalFlingCore}
 assert(load(source))()(context)
 local core=StraightPassTestCore
 local checkpoint=r.CFrame
 assert(core:Start())
 tick(1/60)
-assert(r.AssemblyLinearVelocity.Magnitude==600)
+assert(r.AssemblyLinearVelocity.Magnitude==900000000)
 assert(tr.AssemblyLinearVelocity.Magnitude==0,"target must not be modified")
-assert(r.CFrame.Position.X==1000000,'jump starts from activation, not target position')
-assert(r.CFrame.Rotation==checkpoint.Rotation,'preserve original orientation')
-tr.Position=Vector3.new(800,0,0)
-tick(1/60)
-assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0)
-assert(r.CFrame==checkpoint,"completion restores activation CFrame")
-assert(core:GetDiagnosticReport():find("Recorrido terminado",1,true))
-assert(core:GetDiagnosticReport():find('phase=FAR',1,true))
+assert(r.CFrame==checkpoint,'launch uses velocity, not an outgoing teleport')
+r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
+assert(r.Position.X==15000000,'physics step can exceed one million')
+post()
+assert(core.Running and r.AssemblyLinearVelocity.Magnitude==0)
+assert(r.CFrame==checkpoint,"each cycle restores activation CFrame")
+assert(core:GetDiagnosticReport():find('observedDistance=15000000.00',1,true),'record observed overshoot')
 assert(not core:GetDiagnosticReport():find('RETURN_TARGET',1,true),'no target return phase')
+r.Position=checkpoint.Position
+tick(1/60)
+assert(core.Cycles==2 and r.AssemblyLinearVelocity.Magnitude==900000000,'automatically launch next cycle')
+core:Stop('Manual')
+assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0 and tick==nil and post==nil)
 tr.Position=Vector3.new(30,0,0)
 r.Position=Vector3.new(0,0,0);r.Anchored=true
 assert(not core:Start());r.Anchored=false
@@ -57,24 +62,37 @@ assert(core:Start());th.Health=0;tick(1/60)
 assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0)
 th.Health=100
 assert(core:Start());tick(.2);assert(not core.Running,"cancel on long physics frame")
-assert(core:Start());core:Destroy();assert(not core.Running and tick==nil)
+assert(core:Start());core:Destroy();assert(not core.Running and tick==nil and post==nil)
 tr.Position=Vector3.new(228,0,0)
 assert(core:Start(),'extended target range must be available')
-for i=1,2 do tick(1/60)end
-assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0,'finite phases complete without a loop')
+tick(1/60);r.Position=Vector3.new(1000000,0,0);post()
+assert(core.Running and r.AssemblyLinearVelocity.Magnitude==0,'return without disabling the repeated test')
+core:Stop('Manual')
 r.Position=Vector3.new(0,0,0)
 tr.Position=Vector3.new(229,0,0)
 assert(not core:Start(),'reject targets beyond extended travel range')
 tr.Position=Vector3.new(30,40,0)
 assert(core:Start());tick(1/60)
-assert(math.abs(r.CFrame.Position.X-600000)<0.001 and math.abs(r.CFrame.Position.Y-800000)<0.001,'3D ray passes through HRP height, not a horizontal approximation')
-tick(1/60)
+assert(math.abs(r.AssemblyLinearVelocity.X-540000000)<0.001 and math.abs(r.AssemblyLinearVelocity.Y-720000000)<0.001,'3D velocity points through HRP height')
+core:Stop('Manual')
 tr.Position=Vector3.new(30,0,0)
 assert(core:Start());r.CFrame={};core:Stop("Manual")
 assert(r.CFrame==checkpoint,"manual cancellation restores checkpoint")
 assert(core:Start());local deadFrame={};r.CFrame=deadFrame;h.Health=0;tick(1/60)
 assert(r.CFrame==deadFrame,"do not teleport dead character");h.Health=100
 r.CFrame=checkpoint
+-- Cancel if the engine keeps us below the distance threshold for too long.
+assert(core:Start())
+for i=1,50 do if tick then tick(1/60);if post then post()end end end
+assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0)
+-- Diagnostic storage must remain bounded during a repeated run.
+assert(core:Start())
+for i=1,150 do
+ r.Position=checkpoint.Position;tick(1/60)
+ r.Position=Vector3.new(2000000,0,0);post()
+end
+assert(core.Cycles==150 and #core.Samples==120)
+core:Stop('Manual');r.Position=checkpoint.Position
 assert(core:Start())
 local replacement,_,replacementRoot=rig(70)
 player.Character=replacement

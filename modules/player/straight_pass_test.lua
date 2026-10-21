@@ -1,8 +1,8 @@
--- One-shot, bounded client physics observation. No remote calls or target writes.
+-- Independent velocity launch test. No remote calls or target writes.
 return function(context)
 	setfenv(1, context)
 	local TARGET_ID = 11773278300
-	local SPEED, FAR_DISTANCE, MAX_TIME = 600, 1000000, 0.6
+	local SPEED, FAR_DISTANCE, MAX_TIME = 900000000, 1000000, 0.6
 	local incompatible={"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno","CustomFlingCore"}
 	local core = {Running=false, Samples={}, Report="Sin prueba registrada."}
 	StraightPassTestCore = core
@@ -17,6 +17,7 @@ return function(context)
 	end
 	function core:Stop(reason)
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
+		if self.PostConnection then self.PostConnection:Disconnect();self.PostConnection=nil end
 		local wasRunning=self.Running
 		self.Running=false
 		local returned=false
@@ -34,13 +35,16 @@ return function(context)
 		if wasRunning then
 			local result=tostring(reason or "Cancelado")..(returned and " Regreso al punto de activacion completado." or " Sin regreso: personaje original no disponible.")
 			self.Report="STRAIGHT PASS TEST | observaciones locales; causa del servidor desconocida\n"
-				.."Target UserId: "..TARGET_ID.." | velocidad: "..SPEED.." | salto CFrame: "..FAR_DISTANCE
+				.."Target UserId: "..TARGET_ID.." | velocidad solicitada: "..SPEED.." | umbral de regreso: "..FAR_DISTANCE.." | ciclos: "..(self.Cycles or 0)
 				.."\nResultado: "..result.."\n"..table.concat(self.Samples,"\n")
 			self.Checkpoint=nil;self.Character=nil;self.Humanoid=nil;self.Root=nil
 			refresh(result)
 		end
 	end
-	function core:GetDiagnosticReport() return self.Report end
+	function core:GetDiagnosticReport()
+		if self.Running then return "STRAIGHT PASS TEST | ACTIVO | velocidad solicitada: "..SPEED.." | umbral: "..FAR_DISTANCE.." | ciclos: "..(self.Cycles or 0).."\n"..table.concat(self.Samples,"\n") end
+		return self.Report
+	end
 	function core:Start()
 		if self.Running then return false,"La prueba ya esta activa." end
 		if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized() then return false,"Prueba solo para owners." end
@@ -77,48 +81,64 @@ return function(context)
 			end
 		end end
 		self.Checkpoint=r.CFrame;self.Character=player.Character;self.Humanoid=h
-		self.Samples={};self.Root=r;self.Running=true
-		local direction=delta.Unit
-		-- Ray starts at activation, points through the snapshotted target HRP.
-		-- CFrame skips intermediate positions; this is not a swept collision.
+		self.Samples={};self.Cycles=0;self.Root=r;self.Running=true
 		local origin=r.Position
-		local rotation=self.Checkpoint.Rotation
-		local phases={
-			{Name="FAR",Position=origin+direction*FAR_DISTANCE,Velocity=direction*SPEED},
-		}
-		local elapsed,phaseIndex=0,1
+		local elapsed,totalElapsed=0,0
+		local direction
+		local function record(label)
+			table.insert(self.Samples,string.format("t=%.3f cycle=%d phase=%s observedDistance=%.2f speed=%.2f localHealth=%.2f targetHealth=%.2f",totalElapsed,self.Cycles,label,(r.Position-origin).Magnitude,r.AssemblyLinearVelocity.Magnitude,h.Health,th.Health))
+			if #self.Samples>120 then table.remove(self.Samples,1) end
+		end
+		local function validate()
+			local ch,cr=parts(player);local ct,ctr=parts(target)
+			if cr~=r or ch~=h or ct~=th or ctr~=tr or target.Parent~=Players then return false,"Cambio o muerte de personaje." end
+			if r.Anchored then return false,"Ancla detectada." end
+			for _,name in ipairs(incompatible) do
+				local other=context[name]
+				if other and (other.Running or other.Stopping) then return false,"Otro flujo activo." end
+			end
+			if vehicleWeld and (not vehicleWeld.Parent or not vehicleWeld.Enabled or (vehicleWeld.Part0~=r and vehicleWeld.Part1~=r)) then return false,"Conexion del vehiculo modificada." end
+			for _,seat in ipairs(seats) do
+				if not seat.Parent or (seat.Occupant and seat.Occupant~=h) then return false,"Cambio de asiento u ocupante." end
+			end
+			return true
+		end
 		self.Connection=RunService.PreSimulation:Connect(function(dt)
 			local ok,err=pcall(function()
+				if not self.Running then return end
+				local valid,reason=validate();if not valid then self:Stop(reason);return end
+				if dt>0.1 then self:Stop("Paso de fisica demasiado largo.");return end
+				totalElapsed=totalElapsed+dt
+				if not direction then
+					local aim=tr.Position-origin
+					if aim.Magnitude<5 or aim.Magnitude>228 then self:Stop("Objetivo fuera del rango de prueba.");return end
+					direction=aim.Unit
+					elapsed=0
+					self.Cycles=self.Cycles+1
+				end
 				elapsed=elapsed+dt
-				local ch,cr=parts(player);local ct,ctr=parts(target)
-				if cr~=r or ch~=h or ct~=th or ctr~=tr or target.Parent~=Players then self:Stop("Cambio o muerte de personaje.");return end
-				if r.Anchored then self:Stop("Ancla detectada.");return end
-				for _,name in ipairs(incompatible) do
-					local other=context[name]
-					if other and (other.Running or other.Stopping) then self:Stop("Otro flujo activo.");return end
-				end
-				if vehicleWeld and (not vehicleWeld.Parent or not vehicleWeld.Enabled or (vehicleWeld.Part0~=r and vehicleWeld.Part1~=r)) then
-					self:Stop("Conexion del vehiculo modificada.");return
-				end
-				for _,seat in ipairs(seats) do
-					if not seat.Parent or (seat.Occupant and seat.Occupant~=h) then self:Stop("Cambio de asiento u ocupante.");return end
-				end
-				if dt>0.1 or elapsed>=MAX_TIME then
-					self:Stop("Tiempo de seguridad alcanzado.");return
-				end
-				local phase=phases[phaseIndex]
-				if not phase then self:Stop("Recorrido terminado; velocidades limpiadas.");return end
-				-- One phase per physics step, no copied fling motor or continuous loop.
-				r.AssemblyLinearVelocity=Vector3.zero
 				r.AssemblyAngularVelocity=Vector3.zero
-				r.CFrame=CFrame.new(phase.Position)*rotation
-				r.AssemblyLinearVelocity=phase.Velocity
-				table.insert(self.Samples,string.format("t=%.3f phase=%s commandedDistance=%.2f observedDistance=%.2f speed=%.2f localHealth=%.2f targetHealth=%.2f",elapsed,phase.Name,(phase.Position-origin).Magnitude,(r.Position-origin).Magnitude,r.AssemblyLinearVelocity.Magnitude,h.Health,th.Health))
-				phaseIndex=phaseIndex+1
+				r.AssemblyLinearVelocity=direction*SPEED
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
 		end)
-		refresh("Prueba CFrame: salto desde el origen, direccion al HRP, destino a 1 millon y regreso al origen. Velocidad: 600 studs/s. Sin retorno al target; no garantiza colision ni replicacion.")
+		self.PostConnection=RunService.PostSimulation:Connect(function()
+			local ok,err=pcall(function()
+				if not self.Running or not direction then return end
+				local valid,reason=validate();if not valid then self:Stop(reason);return end
+				record("POST_PHYSICS")
+				if (r.Position-origin).Magnitude>=FAR_DISTANCE then
+					-- Observe overshoot before returning. CFrame is only used for recovery.
+					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
+					r.CFrame=self.Checkpoint
+					direction=nil
+				elseif elapsed>=MAX_TIME then
+					self:Stop("No alcanzo el umbral; posible bloqueo o correccion.")
+				end
+			end)
+			if not ok then self:Stop("Error: "..tostring(err)) end
+		end)
+		refresh("Prueba activa: velocidad solicitada 900 millones, regreso al superar 1 millon y repeticion. Distancia real puede exceder el umbral; pulsa para detener.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end
