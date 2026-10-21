@@ -16,6 +16,11 @@ return function(context)
 		ExperimentalFlingCore.Start=function(self,...)if blocked then return false end;return start(self,...)end
 		cores[#cores+1]=ExperimentalFlingCore
 	end
+	if StraightPassTestCore then
+		local start=StraightPassTestCore.Start
+		StraightPassTestCore.Start=function(self,...)if blocked then return false,"Funcion no disponible." end;return start(self,...)end
+		cores[#cores+1]=StraightPassTestCore
+	end
 	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno"}) do
 		local core=context[name]
 		if core then

@@ -99,7 +99,12 @@ return function(context)
 	function Core:Apply(dt)
 		if not self.Running or not self.Checkpoint then return false end
 		local character,humanoid,root=rig()
-		if not humanoid or humanoid.Health<=0 or not root then return false end
+		if not root or (humanoid and humanoid.Health<=0) then return false end
+		-- Position the new root as soon as it exists, before waiting for the rig.
+		root.CFrame=self.Checkpoint
+		root.AssemblyLinearVelocity=Vector3.zero
+		root.AssemblyAngularVelocity=Vector3.zero
+		if not humanoid then return false end
 		if humanoid.Sit then humanoid.Sit=false end
 		for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then if self.SavedCollisions[part]==nil then self.SavedCollisions[part]=part.CanCollide end;part.CanCollide=false end end
 
@@ -161,15 +166,25 @@ return function(context)
 		return true
 	end
 	function Core:IsInvisibleEmotePlaying()
+		local _,humanoid=rig()
+		local animator=humanoid and humanoid:FindFirstChildOfClass("Animator")
+		if not animator then return false end
 		local track=currentAnimTrack
 		if not track or not track.IsPlaying then return false end
 		local animation=track.Animation
 		local animationId=animation and tostring(animation.AnimationId):match("%d+")
-		return animationId==tostring(INVISIBLE_EMOTE_ID)
+		if animationId~=tostring(INVISIBLE_EMOTE_ID) then return false end
+		for _,playing in ipairs(animator:GetPlayingAnimationTracks()) do
+			if playing==track then return true end
+		end
+		return false
 	end
 	function Core:RestoreSelectedEmote()
 		self:CaptureSelectedEmote()
 		if not self.SelectedEmoteId or type(PlayEmote)~="function" then return false end
+		local _,humanoid=rig()
+		-- Do not cause GetAnimator to create a client-only Animator on respawn.
+		if not humanoid or humanoid.Health<=0 or not humanoid:FindFirstChildOfClass("Animator") then return false end
 		local ok=pcall(function()
 			PlayEmote(self.SelectedEmoteId,self.SelectedEmoteName or tostring(self.SelectedEmoteId),true)
 		end)
@@ -219,6 +234,9 @@ return function(context)
 		self.VisualConnection=RunService.RenderStepped:Connect(function()
 			self:ReapplyVisualOffset()
 		end)
+		self.PositionConnection=RunService.PreSimulation:Connect(function()
+			if self.Running then self:Apply(0) end
+		end)
 		self.Status=isES and"Ancla en el punto inicial; cuerpo y emote desplazados."or"Anchored at origin; body and emote offset active."
 		return true,self.Status
 	end
@@ -228,6 +246,8 @@ return function(context)
 		self.Running=false
 		if self.Connection then self.Connection:Disconnect();self.Connection=nil end
 		if self.VisualConnection then self.VisualConnection:Disconnect();self.VisualConnection=nil end
+		if self.PositionConnection then self.PositionConnection:Disconnect();self.PositionConnection=nil end
+		if self.SpawnRootConnection then self.SpawnRootConnection:Disconnect();self.SpawnRootConnection=nil end
 		self:RestoreVisualOffset()
 		self:SetCharacterCollisions(false)
 		self:RestoreCamera()
@@ -259,17 +279,30 @@ return function(context)
 	end
 	Core.CharacterConnection=player.CharacterRemoving:Connect(function()
 		if not Core.Running then return end
+		Core.Generation=(Core.Generation or 0)+1
+		if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect();Core.SpawnRootConnection=nil end
 		Core:RestoreVisualOffset()
 		table.clear(Core.SavedCollisions)
 		Core.Status=isES and"Reiniciando desplazamiento vertical..."or"Restarting vertical displacement..."
 	end)
 	Core.CharacterAddedConnection=player.CharacterAdded:Connect(function(character)
 		if not Core.Running then return end
+		Core.Generation=(Core.Generation or 0)+1
 		local generation=Core.Generation
+		local function valid()
+			return Core.Running and Core.Generation==generation and player.Character==character and Core.Checkpoint~=nil
+		end
+		if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect() end
+		Core.SpawnRootConnection=character.ChildAdded:Connect(function(child)
+			if valid() and child.Name=="HumanoidRootPart" then Core:Apply(0) end
+		end)
+		Core:Apply(0)
 		task.spawn(function()
 			local root=character:WaitForChild("HumanoidRootPart",8)
+			if not valid() or not root then return end
+			Core:Apply(0)
 			local humanoid=character:WaitForChild("Humanoid",8)
-			if not Core.Running or Core.Generation~=generation or player.Character~=character or not root or not humanoid or not Core.Checkpoint then return end
+			if not valid() or not humanoid or humanoid.Health<=0 then return end
 
 			-- Reuse the original world position and offset, never the spawn position.
 			if AnchorCore then
@@ -291,7 +324,9 @@ return function(context)
 
 			Core:SetCharacterCollisions(true)
 			humanoid:WaitForChild("Animator",4)
-			character:WaitForChild("LowerTorso",4)
+			if not valid() then return end
+			-- No R15-only LowerTorso wait: R6 must also resume promptly.
+			if Core.SpawnRootConnection then Core.SpawnRootConnection:Disconnect();Core.SpawnRootConnection=nil end
 			Core.EmoteClock=0
 
 			-- Hold the original HRP point while the new rig and emote load.

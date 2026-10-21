@@ -28,8 +28,12 @@ return function(context)
 	toggle.LayoutOrder=3
 	local microToggle=button(tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
 	microToggle.LayoutOrder=4
+	local passToggle=button(tr("Probar paso recto · dayzero777 · 300 studs/s","Test straight pass · dayzero777 · 300 studs/s"))
+	passToggle.LayoutOrder=5
 	local back=button(tr("Forzar regreso","Force return"))
-	back.LayoutOrder=5
+	back.LayoutOrder=6
+	local copyPass=button(tr("Copiar diagnostico de paso recto","Copy straight pass diagnostic"))
+	copyPass.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
 	copyDiagnostic.LayoutOrder=7
 	local report=Instance.new("TextBox")
@@ -48,6 +52,9 @@ return function(context)
 	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
+		local passing=StraightPassTestCore and StraightPassTestCore.Running
+		passToggle.Text=passing and tr("Detener prueba recta","Stop straight pass test") or tr("Probar paso recto · dayzero777 · 300 studs/s","Test straight pass · dayzero777 · 300 studs/s")
+		passToggle.BackgroundColor3=passing and currentTheme.critical or currentTheme.tertiary
 		local c=ExperimentalFlingCore
 		local target=c:GetTarget()
 		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
@@ -62,7 +69,18 @@ return function(context)
 		end
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 	end
-	status.LayoutOrder=6
+	status.LayoutOrder=7
+	copyDiagnostic.LayoutOrder=8;report.LayoutOrder=10
+	passToggle.Activated:Connect(function()
+		choices.Visible=false
+		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Prueba cancelada manualmente.")
+		else local ok,err=StraightPassTestCore:Start();if not ok then UpdateExperimentalFlingPanel(err) end end
+	end)
+	copyPass.Activated:Connect(function()
+		local text=StraightPassTestCore:GetDiagnosticReport()
+		local copy=setclipboard or toclipboard
+		if type(copy)~="function" or not pcall(copy,text) then report.Text=text;report.Visible=true end
+	end)
 	local function refreshTargets()
 		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") or b:IsA("TextLabel") then b:Destroy() end end
 		local players=Players:GetPlayers();table.sort(players,function(a,b)return a.Name:lower()<b.Name:lower()end)
@@ -99,6 +117,7 @@ return function(context)
 		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
+		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Cambio de flujo.") end
 		choices.Visible=false
 		local c=ExperimentalFlingCore
 		if c.Stopping then return end
@@ -106,14 +125,19 @@ return function(context)
 		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	microToggle.Activated:Connect(function()
+		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Cambio de flujo.") end
 		choices.Visible=false
 		local c=ExperimentalFlingCore
 		if c.Stopping then return end
 		if c.Running then c:Stop()
 		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
-	back.Activated:Connect(function()local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)end)
+	back.Activated:Connect(function()
+		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Regreso solicitado.");return end
+		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
+	end)
 	gui.Destroying:Connect(function()
+		StraightPassTestCore:Destroy()
 		targetAdded:Disconnect();targetRemoved:Disconnect()
 		local c=ExperimentalFlingCore
 		c:StopPassengerMonitor();c:Stop()
