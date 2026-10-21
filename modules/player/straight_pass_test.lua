@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1, context)
 	local TARGET_ID = 11773278300
-	local SPEED, MAX_DISTANCE, MAX_TIME = 300, 120, 0.6
+	local SPEED, FAR_DISTANCE, MAX_TIME = 600, 1000000, 0.6
 	local incompatible={"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno","CustomFlingCore"}
 	local core = {Running=false, Samples={}, Report="Sin prueba registrada."}
 	StraightPassTestCore = core
@@ -34,7 +34,7 @@ return function(context)
 		if wasRunning then
 			local result=tostring(reason or "Cancelado")..(returned and " Regreso al punto de activacion completado." or " Sin regreso: personaje original no disponible.")
 			self.Report="STRAIGHT PASS TEST | observaciones locales; causa del servidor desconocida\n"
-				.."Target UserId: "..TARGET_ID.." | velocidad: "..SPEED.." | distancia maxima: "..MAX_DISTANCE
+				.."Target UserId: "..TARGET_ID.." | velocidad: "..SPEED.." | salto CFrame: "..FAR_DISTANCE
 				.."\nResultado: "..result.."\n"..table.concat(self.Samples,"\n")
 			self.Checkpoint=nil;self.Character=nil;self.Humanoid=nil;self.Root=nil
 			refresh(result)
@@ -54,7 +54,7 @@ return function(context)
 		if not r or not tr or target==player then return false,"Tu personaje y dayzero777 deben estar disponibles." end
 		if r.Anchored then return false,"Desactiva el ancla antes de probar." end
 		local delta=tr.Position-r.Position
-		if delta.Magnitude<5 or delta.Magnitude>80 then return false,"Colocate entre 5 y 80 studs del objetivo." end
+		if delta.Magnitude<5 or delta.Magnitude>228 then return false,"Colocate entre 5 y 228 studs del objetivo." end
 		-- Validate any attached vehicle once. Never select a vehicle by its name.
 		local seats={}
 		local vehicleWeld
@@ -78,13 +78,18 @@ return function(context)
 		end end
 		self.Checkpoint=r.CFrame;self.Character=player.Character;self.Humanoid=h
 		self.Samples={};self.Root=r;self.Running=true
-		local origin=r.Position
 		local direction=delta.Unit
-		local distance=math.min(delta.Magnitude+12,MAX_DISTANCE)
-		local elapsed,sampleElapsed=0,0
+		-- Ray starts at activation, points through the snapshotted target HRP.
+		-- CFrame skips intermediate positions; this is not a swept collision.
+		local origin=r.Position
+		local rotation=self.Checkpoint.Rotation
+		local phases={
+			{Name="FAR",Position=origin+direction*FAR_DISTANCE,Velocity=direction*SPEED},
+		}
+		local elapsed,phaseIndex=0,1
 		self.Connection=RunService.PreSimulation:Connect(function(dt)
 			local ok,err=pcall(function()
-				elapsed=elapsed+dt;sampleElapsed=sampleElapsed+dt
+				elapsed=elapsed+dt
 				local ch,cr=parts(player);local ct,ctr=parts(target)
 				if cr~=r or ch~=h or ct~=th or ctr~=tr or target.Parent~=Players then self:Stop("Cambio o muerte de personaje.");return end
 				if r.Anchored then self:Stop("Ancla detectada.");return end
@@ -98,22 +103,22 @@ return function(context)
 				for _,seat in ipairs(seats) do
 					if not seat.Parent or (seat.Occupant and seat.Occupant~=h) then self:Stop("Cambio de asiento u ocupante.");return end
 				end
-				local displacement=r.Position-origin
-				if sampleElapsed>=0.03 then
-					sampleElapsed=0
-					table.insert(self.Samples,string.format("t=%.3f distance=%.2f speed=%.2f localHealth=%.2f targetHealth=%.2f targetDistance=%.2f",elapsed,displacement.Magnitude,r.AssemblyLinearVelocity.Magnitude,h.Health,th.Health,(tr.Position-r.Position).Magnitude))
+				if dt>0.1 or elapsed>=MAX_TIME then
+					self:Stop("Tiempo de seguridad alcanzado.");return
 				end
-				if dt>0.1 or elapsed>=MAX_TIME or displacement.Magnitude>=MAX_DISTANCE or displacement:Dot(direction)>=distance then
-					self:Stop("Recorrido terminado; velocidades limpiadas.");return
-				end
-				-- Fixed direction captured at activation: no tracking, teleport or spin.
-				local remaining=distance-math.max(0,displacement:Dot(direction))
+				local phase=phases[phaseIndex]
+				if not phase then self:Stop("Recorrido terminado; velocidades limpiadas.");return end
+				-- One phase per physics step, no copied fling motor or continuous loop.
+				r.AssemblyLinearVelocity=Vector3.zero
 				r.AssemblyAngularVelocity=Vector3.zero
-				r.AssemblyLinearVelocity=direction*math.min(SPEED,remaining/math.max(dt,0.001))
+				r.CFrame=CFrame.new(phase.Position)*rotation
+				r.AssemblyLinearVelocity=phase.Velocity
+				table.insert(self.Samples,string.format("t=%.3f phase=%s commandedDistance=%.2f observedDistance=%.2f speed=%.2f localHealth=%.2f targetHealth=%.2f",elapsed,phase.Name,(phase.Position-origin).Magnitude,(r.Position-origin).Magnitude,r.AssemblyLinearVelocity.Magnitude,h.Health,th.Health))
+				phaseIndex=phaseIndex+1
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
 		end)
-		refresh("Prueba recta activa: 300 studs/s, un recorrido; pulsa de nuevo para detener.")
+		refresh("Prueba CFrame: salto desde el origen, direccion al HRP, destino a 1 millon y regreso al origen. Velocidad: 600 studs/s. Sin retorno al target; no garantiza colision ni replicacion.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end
