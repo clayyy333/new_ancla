@@ -30,9 +30,10 @@ Players={GetPlayerByUserId=function(_,id)assert(id==target.UserId);return target
 target.Parent=Players
 workspace={FindFirstChild=function()return nil end}
 ExperimentalFlingCore={IsAuthorized=function()return true end,Running=false}
-local tick,post
+local tick,post,render
 RunService={PreSimulation={Connect=function(_,fn)tick=fn;return {Disconnect=function()tick=nil end}end},
- PostSimulation={Connect=function(_,fn)post=fn;return {Disconnect=function()post=nil end}end}}
+ PostSimulation={Connect=function(_,fn)post=fn;return {Disconnect=function()post=nil end}end},
+ RenderStepped={Connect=function(_,fn)render=fn;return {Disconnect=function()render=nil end}end}}
 local context={ExperimentalFlingCore=ExperimentalFlingCore}
 assert(load(source))()(context)
 local core=StraightPassTestCore
@@ -50,13 +51,22 @@ assert(r.CFrame==checkpoint,"each cycle restores activation CFrame")
 assert(core:GetDiagnosticReport():find('observedDistance=15000000.00',1,true),'record observed overshoot')
 assert(not core:GetDiagnosticReport():find('RETURN_TARGET',1,true),'no target return phase')
 r.Position=checkpoint.Position
+render()
+local liveReport=core:GetDiagnosticReport()
+assert(liveReport:find('LAUNCH DIAGNOSTIC V2',1,true))
+assert(liveReport:find('PRE_BEFORE_WRITE',1,true) and liveReport:find('PRE_AFTER_WRITE',1,true))
+assert(liveReport:find('POST_PHYSICS',1,true) and liveReport:find('RETURN_ORIGIN',1,true))
+assert(liveReport:find('RENDER_LOCAL',1,true))
+assert(liveReport:find('maxPostDistance=15000000.000',1,true) and liveReport:find('maxRenderDistance=0.000',1,true),'distinguish physics excursion from rendered position')
 tick(1/60)
 assert(core.Cycles==2 and r.AssemblyLinearVelocity.Magnitude==900000000,'automatically launch next cycle')
 core:Stop('Manual')
-assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0 and tick==nil and post==nil)
+assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0 and tick==nil and post==nil and render==nil)
+assert(core:GetDiagnosticReport():find('maxPostDistance=15000000.000',1,true),'stopped report keeps measurements')
 tr.Position=Vector3.new(30,0,0)
 r.Position=Vector3.new(0,0,0);r.Anchored=true
 assert(not core:Start());r.Anchored=false
+assert(core:GetDiagnosticReport():find('LAST START REJECTED',1,true))
 ExperimentalFlingCore.Running=true;assert(not core:Start());ExperimentalFlingCore.Running=false
 assert(core:Start());th.Health=0;tick(1/60)
 assert(not core.Running and r.AssemblyLinearVelocity.Magnitude==0)
@@ -92,6 +102,7 @@ for i=1,150 do
  r.Position=Vector3.new(2000000,0,0);post()
 end
 assert(core.Cycles==150 and #core.Samples==120)
+assert(#core.FirstSamples==24 and core.FirstSamples[1]:find('phase=START',1,true),'preserve startup evidence')
 core:Stop('Manual');r.Position=checkpoint.Position
 assert(core:Start())
 local replacement,_,replacementRoot=rig(70)

@@ -32,7 +32,7 @@ return function(context)
 	passToggle.LayoutOrder=5
 	local back=button(tr("Forzar regreso","Force return"))
 	back.LayoutOrder=6
-	local copyPass=button(tr("Copiar diagnostico de paso recto","Copy straight pass diagnostic"))
+	local copyPass=button(tr("Copiar reporte de despegue","Copy launch report"))
 	copyPass.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
 	copyDiagnostic.LayoutOrder=7
@@ -79,7 +79,10 @@ return function(context)
 	copyPass.Activated:Connect(function()
 		local text=StraightPassTestCore:GetDiagnosticReport()
 		local copy=setclipboard or toclipboard
-		if type(copy)~="function" or not pcall(copy,text) then report.Text=text;report.Visible=true end
+		local ok=type(copy)=="function" and pcall(copy,text)
+		report.Text=text;report.Visible=not ok
+		if not ok then report:CaptureFocus();report.SelectionStart=1;report.CursorPosition=#text+1 end
+		UpdateExperimentalFlingPanel(ok and tr("Reporte de despegue copiado. Pegalo en el chat.","Launch report copied. Paste it in chat.") or tr("Selecciona y copia el reporte mostrado abajo.","Select and copy the report below."))
 	end)
 	local function refreshTargets()
 		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") or b:IsA("TextLabel") then b:Destroy() end end
