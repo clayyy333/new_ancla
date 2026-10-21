@@ -149,6 +149,8 @@ return function(context)
 		local origin=r.Position
 		local elapsed,totalElapsed=0,0
 		local direction
+		local pendingReturn,renderSeen=false,false
+		local renderWait=0
 		local stepDt=0
 		local function record(label)
 			local row=string.format("t=%.4f dt=%.5f cycle=%d phase=%s observedDistance=%.2f pos=%s vel=%s speed=%.2f targetPos=%s localHealth=%.2f targetHealth=%.2f anchored=%s state=%s sit=%s seat=%s weld=%s",totalElapsed,stepDt,self.Cycles,label,(r.Position-origin).Magnitude,vector(r.Position),vector(r.AssemblyLinearVelocity),r.AssemblyLinearVelocity.Magnitude,vector(tr.Position),h.Health,th.Health,tostring(r.Anchored),state(h),tostring(h.Sit),path(h.SeatPart),tostring(vehicleWeld and vehicleWeld.Enabled or false))
@@ -180,6 +182,20 @@ return function(context)
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
 				if dt>0.1 then self:Stop("Paso de fisica demasiado largo.");return end
 				totalElapsed=totalElapsed+dt
+				if pendingReturn then
+					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
+					renderWait=renderWait+dt
+					if renderSeen then
+						-- Return on a later simulation step, never inside the render callback.
+						r.CFrame=self.Checkpoint
+						self.Returns=self.Returns+1
+						record("RETURN_ORIGIN_AFTER_RENDER")
+						pendingReturn=false;renderSeen=false;direction=nil
+					elseif renderWait>=0.25 then
+						self:Stop("No hubo render local; regreso de seguridad.")
+					end
+					return
+				end
 				if not direction then
 					local aim=tr.Position-origin
 					if aim.Magnitude<5 or aim.Magnitude>228 then self:Stop("Objetivo fuera del rango de prueba.");return end
@@ -196,18 +212,16 @@ return function(context)
 		end)
 		self.PostConnection=RunService.PostSimulation:Connect(function()
 			local ok,err=pcall(function()
-				if not self.Running or not direction then return end
+				if not self.Running or not direction or pendingReturn then return end
 				self.PostEvents=self.PostEvents+1
 				self.MaxPostDistance=math.max(self.MaxPostDistance,(r.Position-origin).Magnitude)
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
 				record("POST_PHYSICS")
 				if (r.Position-origin).Magnitude>=FAR_DISTANCE then
-					-- Observe overshoot before returning. CFrame is only used for recovery.
+					-- Stop further thrust, but leave the outgoing position for local render.
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
-					r.CFrame=self.Checkpoint
-					self.Returns=self.Returns+1
-					record("RETURN_ORIGIN")
-					direction=nil
+					pendingReturn=true;renderSeen=false;renderWait=0
+					record("WAIT_OUTGOING_RENDER")
 				elseif elapsed>=MAX_TIME then
 					self:Stop("No alcanzo el umbral; posible bloqueo o correccion.")
 				end
@@ -218,9 +232,12 @@ return function(context)
 			if not self.Running or player.Character~=self.Character or not r.Parent then return end
 			self.RenderEvents=self.RenderEvents+1
 			self.MaxRenderDistance=math.max(self.MaxRenderDistance,(r.Position-origin).Magnitude)
-			if self.RenderEvents<=12 or self.RenderEvents%30==0 then record("RENDER_LOCAL") end
+			if pendingReturn and not renderSeen then
+				renderSeen=true
+				record("RENDER_OUTGOING_LOCAL")
+			elseif self.RenderEvents<=12 or self.RenderEvents%30==0 then record("RENDER_LOCAL") end
 		end)
-		refresh("Prueba activa: velocidad solicitada 900 millones, regreso al superar 1 millon y repeticion. Distancia real puede exceder el umbral; pulsa para detener.")
+		refresh("Prueba activa: 900 millones, umbral 1 millon. Salida y regreso separados por render local; distancia real puede exceder el umbral. Pulsa para detener.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end

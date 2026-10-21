@@ -47,17 +47,20 @@ r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
 assert(r.Position.X==15000000,'physics step can exceed one million')
 post()
 assert(core.Running and r.AssemblyLinearVelocity.Magnitude==0)
-assert(r.CFrame==checkpoint,"each cycle restores activation CFrame")
+assert(core.Returns==0,'post simulation must not immediately return')
 assert(core:GetDiagnosticReport():find('observedDistance=15000000.00',1,true),'record observed overshoot')
 assert(not core:GetDiagnosticReport():find('RETURN_TARGET',1,true),'no target return phase')
-r.Position=checkpoint.Position
 render()
 local liveReport=core:GetDiagnosticReport()
 assert(liveReport:find('LAUNCH DIAGNOSTIC V2',1,true))
 assert(liveReport:find('PRE_BEFORE_WRITE',1,true) and liveReport:find('PRE_AFTER_WRITE',1,true))
-assert(liveReport:find('POST_PHYSICS',1,true) and liveReport:find('RETURN_ORIGIN',1,true))
-assert(liveReport:find('RENDER_LOCAL',1,true))
-assert(liveReport:find('maxPostDistance=15000000.000',1,true) and liveReport:find('maxRenderDistance=0.000',1,true),'distinguish physics excursion from rendered position')
+assert(liveReport:find('POST_PHYSICS',1,true) and liveReport:find('WAIT_OUTGOING_RENDER',1,true))
+assert(liveReport:find('RENDER_OUTGOING_LOCAL',1,true))
+assert(liveReport:find('maxPostDistance=15000000.000',1,true) and liveReport:find('maxRenderDistance=15000000.000',1,true),'render sees outgoing position before return')
+tick(1/60)
+assert(core.Returns==1 and r.CFrame==checkpoint,'return after render on next simulation step')
+assert(core.Cycles==1 and r.AssemblyLinearVelocity.Magnitude==0,'do not relaunch during return step')
+r.Position=checkpoint.Position
 tick(1/60)
 assert(core.Cycles==2 and r.AssemblyLinearVelocity.Magnitude==900000000,'automatically launch next cycle')
 core:Stop('Manual')
@@ -77,6 +80,11 @@ tr.Position=Vector3.new(228,0,0)
 assert(core:Start(),'extended target range must be available')
 tick(1/60);r.Position=Vector3.new(1000000,0,0);post()
 assert(core.Running and r.AssemblyLinearVelocity.Magnitude==0,'return without disabling the repeated test')
+assert(core.Returns==0)
+tick(1/60);post()
+assert(core.Returns==0 and r.AssemblyLinearVelocity.Magnitude==0,'extra physics before render must hold, not relaunch')
+render();tick(1/60)
+assert(core.Returns==1)
 core:Stop('Manual')
 r.Position=Vector3.new(0,0,0)
 tr.Position=Vector3.new(229,0,0)
@@ -91,6 +99,11 @@ assert(r.CFrame==checkpoint,"manual cancellation restores checkpoint")
 assert(core:Start());local deadFrame={};r.CFrame=deadFrame;h.Health=0;tick(1/60)
 assert(r.CFrame==deadFrame,"do not teleport dead character");h.Health=100
 r.CFrame=checkpoint
+-- Missing render must cancel rather than leaving the character far indefinitely.
+assert(core:Start());tick(1/60);r.Position=Vector3.new(2000000,0,0);post()
+for i=1,20 do if tick then tick(1/60) end end
+assert(not core.Running and core:GetDiagnosticReport():find('No hubo render local',1,true))
+r.Position=checkpoint.Position
 -- Cancel if the engine keeps us below the distance threshold for too long.
 assert(core:Start())
 for i=1,50 do if tick then tick(1/60);if post then post()end end end
@@ -100,6 +113,7 @@ assert(core:Start())
 for i=1,150 do
  r.Position=checkpoint.Position;tick(1/60)
  r.Position=Vector3.new(2000000,0,0);post()
+ render();tick(1/60)
 end
 assert(core.Cycles==150 and #core.Samples==120)
 assert(#core.FirstSamples==24 and core.FirstSamples[1]:find('phase=START',1,true),'preserve startup evidence')
