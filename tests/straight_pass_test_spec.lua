@@ -14,7 +14,7 @@ mt.__index=function(a,k)
 end
 CFrame={new=function(position)return {Position=position}end}
 local function rig(x)
- local h={Health=100}
+ local h={Health=100,PlatformStand=false,AutoRotate=true}
  local values={Position=Vector3.new(x,0,0),AssemblyLinearVelocity=Vector3.zero,AssemblyAngularVelocity=Vector3.zero,Parent=true,Anchored=false}
  values.CFrame=CFrame.new(values.Position)
  local r=setmetatable({}, {__index=values,__newindex=function(_,key,value)
@@ -39,54 +39,61 @@ RunService={PreSimulation={Connect=function(_,fn)tick=fn;return {Disconnect=func
 assert(load(source))()({ExperimentalFlingCore=ExperimentalFlingCore})
 local core=StraightPassTestCore
 local checkpoint=r.CFrame
-local function nearCross()
- local previous=core.Crossings
- for i=1,300 do
-  assert(core.Running,'test stopped before geometric crossing')
-  tick(1/60)
-  assert(r.AssemblyLinearVelocity.Magnitude<=120.001,'near leg must not use far velocity')
-  assert(r.CFrame==checkpoint,'no outgoing teleport')
-  r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
-  post()
-  if core.Crossings>previous then return end
+local function launch()
+ tick(1/60)
+ assert(math.abs(r.AssemblyLinearVelocity.Magnitude-900000000)<1,'full velocity on first step from A')
+ assert(r.Position.Magnitude==0 and r.CFrame==checkpoint,'no approach movement or outgoing teleport before velocity launch')
+end
+local function recover()
+ local before=core.Returns
+ local cycles=core.Cycles
+ for i=1,12 do
+  render();tick(1/60)
+  if core.Returns>before then break end
  end
- error('crossing was not detected')
+ assert(core.Returns==before+1 and r.CFrame==checkpoint,'return after outgoing hold and renders')
+ assert(r.AssemblyLinearVelocity.Magnitude==0,'return is separated from next launch')
+ render();tick(1/60)
+ assert(core.Cycles==cycles,'origin must be rendered before relaunch')
 end
 assert(core:Start())
-nearCross()
-assert(r.Position.X>=32 and core.Crossings==1)
-assert(core:GetDiagnosticReport():find('CROSS_GEOMETRIC_CONFIRMED',1,true))
+launch()
+assert(core:GetDiagnosticReport():find('LAUNCH_FROM_A',1,true))
 tick(1/60)
-assert(r.AssemblyLinearVelocity.Magnitude==900000000,'far velocity only after crossing')
+assert(r.AssemblyLinearVelocity.Magnitude==900000000,'full velocity maintained along outgoing leg')
 assert(tr.AssemblyLinearVelocity.Magnitude==0,'never modify target')
 r.Position=r.Position+r.AssemblyLinearVelocity*(1/60)
-assert(r.Position.X>15000000,'overshoot remains observable')
+assert(r.Position.X>=15000000,'overshoot remains observable')
 post()
 assert(core.Returns==0 and r.AssemblyLinearVelocity.Magnitude==0)
 render()
-assert(core.MaxRenderDistance>15000000,'outgoing position is sampled at render')
+assert(core.MaxRenderDistance>=15000000,'outgoing position is sampled at render')
 tick(1/60)
-assert(core.Returns==1 and r.CFrame==checkpoint)
-assert(r.AssemblyLinearVelocity.Magnitude==0,'do not relaunch on return step')
-nearCross()
-assert(core.Cycles==2 and core.Crossings==2,'each repeated cycle crosses before accelerating')
+assert(core.Returns==0,'one outgoing frame must not trigger return')
+recover()
+launch()
+assert(core.Cycles==2,'relaunch at full speed from original A')
 core:Stop('Manual')
 assert(not core.Running and tick==nil and post==nil and render==nil and r.CFrame==checkpoint)
+assert(h.PlatformStand==false and h.AutoRotate==true,'restore ordinary Humanoid controls')
 local report=core:GetDiagnosticReport()
-assert(report:find('LAUNCH DIAGNOSTIC V3',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
--- A target that moves during crossing must be reacquired, not blindly accelerated at.
+assert(report:find('LAUNCH DIAGNOSTIC V5',1,true) and report:find('RETURN_ORIGIN_AFTER_RENDER',1,true))
+assert(report:find('RENDER_HOME_LOCAL',1,true))
+assert(not report:find('CROSS_BEGIN',1,true) and not report:find('CROSS_GEOMETRIC_CONFIRMED',1,true),'no slow crossing stages remain')
+-- Preserve a straight direction per outgoing leg, recalculate on next launch.
 assert(core:Start())
-for i=1,13 do tick(1/60);r.Position=r.Position+r.AssemblyLinearVelocity*(1/60);post()end
+launch()
+local initialVelocity=r.AssemblyLinearVelocity
 tr.Position=Vector3.new(30,5,0)
-tick(1/60);r.Position=r.Position+r.AssemblyLinearVelocity*(1/60);post()
-assert(core.Crossings==0 and core:GetDiagnosticReport():find('CROSS_TARGET_MOVED',1,true))
+tick(1/60)
+assert(r.AssemblyLinearVelocity.X==initialVelocity.X and r.AssemblyLinearVelocity.Y==initialVelocity.Y,'do not curve an outgoing leg')
 core:Stop('Manual');tr.Position=Vector3.new(30,0,0)
--- Near-phase blocking must cancel without ever engaging far velocity.
+-- No movement despite velocity must time out, not hang indefinitely.
 assert(core:Start())
-for i=1,310 do if tick then tick(1/60);assert(r.AssemblyLinearVelocity.Magnitude<900000000);if post then post()end end end
-assert(not core.Running and core:GetDiagnosticReport():find('Cruce cercano no confirmado',1,true))
+for i=1,50 do if tick then tick(1/60);if post then post()end end end
+assert(not core.Running and core:GetDiagnosticReport():find('No alcanzo el umbral',1,true))
 -- Missing render cancels safely after a successful departure.
-assert(core:Start());nearCross();tick(1/60);r.Position=Vector3.new(2000000,0,0);post()
+assert(core:Start());launch();r.Position=Vector3.new(2000000,0,0);post()
 for i=1,20 do if tick then tick(1/60)end end
 assert(not core.Running and core:GetDiagnosticReport():find('No hubo render local',1,true))
 -- Safety guards and clean destruction.
@@ -99,14 +106,14 @@ assert(core:Start());core:Destroy();assert(not core.Running and render==nil)
 tr.Position=Vector3.new(229,0,0);assert(not core:Start());tr.Position=Vector3.new(30,0,0)
 -- Signed 3D aiming, bounded diagnostics and no replacement-character teleport.
 tr.Position=Vector3.new(30,40,0)
-assert(core:Start());nearCross();tick(1/60)
+assert(core:Start());launch()
 assert(math.abs(r.AssemblyLinearVelocity.X-540000000)<1 and math.abs(r.AssemblyLinearVelocity.Y-720000000)<1)
 core:Stop('Manual');tr.Position=Vector3.new(30,0,0)
 assert(core:Start())
-for i=1,6 do
- nearCross();tick(1/60);r.Position=Vector3.new(2000000,0,0);post();render();tick(1/60)
+for i=1,150 do
+ launch();r.Position=Vector3.new(2000000,0,0);post();recover()
 end
-assert(core.Cycles==6 and #core.Samples==120 and #core.FirstSamples==24)
+assert(core.Cycles==150 and #core.Samples==120 and #core.FirstSamples==24)
 core:Stop('Manual')
 assert(core:Start())
 local replacement,_,replacementRoot=rig(70)
@@ -114,4 +121,4 @@ player.Character=replacement
 local replacementFrame=replacementRoot.CFrame
 tick(1/60)
 assert(not core.Running and replacementRoot.CFrame==replacementFrame)
-print('straight_pass_test_spec OK: controlled crossing before far acceleration, repeat, recovery and diagnostics')
+print('straight_pass_test_spec OK: full velocity from A, fixed outgoing direction, repeat, recovery and diagnostics')
