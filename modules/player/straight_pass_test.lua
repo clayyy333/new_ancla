@@ -3,6 +3,7 @@ return function(context)
 	setfenv(1, context)
 	local TARGET_ID = 11773278300
 	local SPEED, FAR_DISTANCE, MAX_TIME = 900000000, 1000000, 0.6
+	local NEAR_SPEED, NEAR_STEP, NEAR_TIMEOUT = 240, 2, 5
 	local incompatible={"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno","CustomFlingCore"}
 	local core = {Running=false, Samples={}, Report="Sin prueba registrada."}
 	StraightPassTestCore = core
@@ -33,10 +34,11 @@ return function(context)
 		return ok and value or "unknown"
 	end
 	function core:BuildDiagnosticReport(result)
-		local lines={"LAUNCH DIAGNOSTIC V2 | client observations only; server cause/network ownership unknown",
+		local lines={"LAUNCH DIAGNOSTIC V3 | client observations only; server cause/network ownership unknown",
 			"Status: "..tostring(result or (self.Running and "ACTIVE" or "STOPPED")),
 			"Local: "..tostring(player.Name).." | UserId="..tostring(player.UserId).." | TargetId="..TARGET_ID,
 			"RequestedSpeed="..SPEED.." returnThreshold="..FAR_DISTANCE.." cycleTimeout="..MAX_TIME,
+			"NearSpeedMax="..NEAR_SPEED.." nearStepBudget="..NEAR_STEP.." nearTimeout="..NEAR_TIMEOUT.." geometricCrossings="..(self.Crossings or 0).." | crossing does not prove collision",
 			"Origin="..vector(self.DiagnosticOrigin).." vehicle="..tostring(self.DiagnosticVehicle or "none"),
 			"cycles="..(self.Cycles or 0).." returns="..(self.Returns or 0).." preEvents="..(self.PreEvents or 0).." postEvents="..(self.PostEvents or 0).." renderEvents="..(self.RenderEvents or 0),
 			string.format("maxPreDistance=%.3f maxPostDistance=%.3f maxRenderDistance=%.3f",self.MaxPreDistance or 0,self.MaxPostDistance or 0,self.MaxRenderDistance or 0),
@@ -142,13 +144,15 @@ return function(context)
 			end
 		end end
 		self.Checkpoint=r.CFrame;self.Character=player.Character;self.Humanoid=h
-		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.Root=r;self.Running=true
+		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.Crossings=0;self.Root=r;self.Running=true
 		self.LastStartFailure=nil;self.PreEvents=0;self.PostEvents=0;self.RenderEvents=0
 		self.MaxPreDistance=0;self.MaxPostDistance=0;self.MaxRenderDistance=0
 		self.DiagnosticOrigin=r.Position;self.DiagnosticVehicle=selectedVehicle and path(selectedVehicle) or "none";self.DiagnosticVehicleObject=selectedVehicle
 		local origin=r.Position
 		local elapsed,totalElapsed=0,0
 		local direction
+		local stage="APPROACH"
+		local crossCenter,crossedPlane,prePosition
 		local pendingReturn,renderSeen=false,false
 		local renderWait=0
 		local stepDt=0
@@ -191,6 +195,7 @@ return function(context)
 						self.Returns=self.Returns+1
 						record("RETURN_ORIGIN_AFTER_RENDER")
 						pendingReturn=false;renderSeen=false;direction=nil
+						stage="APPROACH";crossCenter=nil;crossedPlane=false
 					elseif renderWait>=0.25 then
 						self:Stop("No hubo render local; regreso de seguridad.")
 					end
@@ -205,7 +210,18 @@ return function(context)
 				end
 				elapsed=elapsed+dt
 				r.AssemblyAngularVelocity=Vector3.zero
-				r.AssemblyLinearVelocity=direction*SPEED
+				prePosition=r.Position
+				if stage~="FAR" then
+					local aim=tr.Position-r.Position
+					if not crossCenter and aim.Magnitude>0.001 then
+						direction=aim.Unit
+						if aim.Magnitude<=6 then crossCenter=tr.Position;crossedPlane=false;stage="CROSS";record("CROSS_BEGIN") end
+					end
+					-- Bound requested near travel per simulation step, not the far leg.
+					r.AssemblyLinearVelocity=direction*math.min(NEAR_SPEED,NEAR_STEP/math.max(dt,0.001))
+				else
+					r.AssemblyLinearVelocity=direction*SPEED
+				end
 				record("PRE_AFTER_WRITE")
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
@@ -217,6 +233,26 @@ return function(context)
 				self.MaxPostDistance=math.max(self.MaxPostDistance,(r.Position-origin).Magnitude)
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
 				record("POST_PHYSICS")
+				if stage~="FAR" then
+					if crossCenter then
+						if (tr.Position-crossCenter).Magnitude>2 then
+							crossCenter=nil;crossedPlane=false;stage="APPROACH";record("CROSS_TARGET_MOVED")
+						else
+							local offset=r.Position-crossCenter
+							local progress=offset:Dot(direction)
+							local lateral=(offset-direction*progress).Magnitude
+							local before=(prePosition-crossCenter):Dot(direction)
+							if before<=0 and progress>=0 and lateral<=2 then crossedPlane=true end
+							if crossedPlane and progress>=2 and lateral<=2 then
+								self.Crossings=self.Crossings+1
+								stage="FAR";elapsed=0
+								record("CROSS_GEOMETRIC_CONFIRMED")
+							end
+						end
+					end
+					if stage~="FAR" and elapsed>=NEAR_TIMEOUT then self:Stop("Cruce cercano no confirmado; no se inicia despegue fuerte.") end
+					return
+				end
 				if (r.Position-origin).Magnitude>=FAR_DISTANCE then
 					-- Stop further thrust, but leave the outgoing position for local render.
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
@@ -237,7 +273,7 @@ return function(context)
 				record("RENDER_OUTGOING_LOCAL")
 			elseif self.RenderEvents<=12 or self.RenderEvents%30==0 then record("RENDER_LOCAL") end
 		end)
-		refresh("Prueba activa: 900 millones, umbral 1 millon. Salida y regreso separados por render local; distancia real puede exceder el umbral. Pulsa para detener.")
+		refresh("Prueba activa: aproximacion controlada, cruce geometrico y luego despegue a 900 millones. Regreso al superar 1 millon; no garantiza colision. Pulsa para detener.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end
