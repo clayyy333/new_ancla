@@ -4,7 +4,7 @@ return function(context)
 	local C={Running=false,Stopping=false,Phase="IDLE",Rows={}}
 	NoMotos2Core=C
 	local speed=900000000
-	local source,root,checkpoint,force,target,connection,watch
+	local source,root,collider,checkpoint,force,target,connection,watch
 	local elapsed,nearUntil,direction,origin,completed
 	local farDistances={4487425,7554477,9193601,11000000,12572022,15000000,17003482,21098414}
 	local function finite(v)
@@ -28,6 +28,21 @@ return function(context)
 		if v:IsA("BasePart")then return v end
 		return v.PrimaryPart
 	end
+	local function contactPart(v,r)
+		if r.CanCollide then return r end
+		for _,p in ipairs(v:GetDescendants())do
+			if p:IsA("BasePart")and p.CanCollide and not p.Anchored and p.AssemblyRootPart==r.AssemblyRootPart then return p end
+		end
+	end
+	local function contactPosition(t)
+		local body=t.Body
+		local n=body.CFrame:VectorToWorldSpace(t.Face)
+		local localNormal=collider.CFrame:VectorToObjectSpace(n)
+		local extent=(math.abs(localNormal.X)*collider.Size.X+math.abs(localNormal.Y)*collider.Size.Y+math.abs(localNormal.Z)*collider.Size.Z)*0.5
+		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
+		local center=facePoint+n*math.max(0,extent-0.05)
+		return center-(collider.Position-root.Position),center
+	end
 	local function free(v)
 		for _,part in ipairs(v:GetDescendants())do
 			if (part:IsA("Seat")or part:IsA("VehicleSeat"))and (part.Occupant or part:FindFirstChild("SeatWeld"))then return false end
@@ -38,6 +53,7 @@ return function(context)
 	local function sourceSafe()
 		local cars=workspace:FindFirstChild("Cars")
 		if not source or source.Parent~=cars or not owned(source,player)or not root or not root.Parent or root.Anchored or vehicleRoot(source)~=root or not finite(root.Position)then return false end
+		if collider and (not collider.Parent or not collider:IsDescendantOf(source)or not collider.CanCollide or collider.Anchored or collider.AssemblyRootPart~=root.AssemblyRootPart)then return false end
 		local assembly=root.AssemblyRootPart
 		if not assembly or assembly.Anchored then return false end
 		for _,part in ipairs(source:GetDescendants())do
@@ -121,7 +137,8 @@ return function(context)
 			end
 		end
 		if not chosen then return false,"Necesitas un vehiculo propio para No motos 2."end
-		source=chosen;root=vehicleRoot(source)
+		source=chosen;root=vehicleRoot(source);collider=root and contactPart(source,root)
+		if not collider then return false,"Tu vehiculo no tiene una pieza colisionable en su ensamblaje principal."end
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil;direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
@@ -130,7 +147,13 @@ return function(context)
 			for _,v in ipairs(cars:GetChildren())do
 				local body=resolve(v)
 				if body and completed[v]~=body then
-					target={Vehicle=v,Body=body};origin=body.Position;nearUntil=os.clock()+0.04
+					local relative=body.CFrame:PointToObjectSpace(root.Position)
+					local face
+					if math.abs(relative.X)/math.max(body.Size.X,0.001)>math.abs(relative.Z)/math.max(body.Size.Z,0.001)then
+						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
+					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
+					target={Vehicle=v,Body=body,Face=face};self.TargetBody=body
+					origin=body.Position;nearUntil=os.clock()+0.04
 					self.Phase="NEAR";log("TARGET "..v:GetFullName());return
 				end
 			end
@@ -157,7 +180,8 @@ return function(context)
 				local body=target.Body
 				local function near()
 					direction=-direction
-					local p=(body.CFrame*CFrame.new(0,1.5*direction,0)).Position
+					local p,center=contactPosition(target)
+					target.LastContactPoint=center
 					root.CFrame=CFrame.new(p)*root.CFrame.Rotation
 					root.AssemblyLinearVelocity=Vector3.new(0,speed*direction,0)
 					root.AssemblyAngularVelocity=Vector3.new(speed,speed,speed)
@@ -171,9 +195,10 @@ return function(context)
 					root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed);self.Phase="RETURN_DIRECT"
 				elseif self.Phase=="RETURN_DIRECT"then near();self.Phase="VERIFY_RETURN"
 				elseif self.Phase=="VERIFY_RETURN"then
-					if (root.Position-body.Position).Magnitude<=4 then self.Phase="NEAR";nearUntil=os.clock()+0.04+math.random()*0.045
-					else self.Phase="RETURN_16"end
-				elseif self.Phase=="RETURN_16"then root.CFrame=body.CFrame*CFrame.new(0,1.5*direction,16);self.Phase="RETURN_NEAR"
+					local _,center=contactPosition(target)
+					if (collider.Position-center).Magnitude<=4 then self.Phase="NEAR";nearUntil=os.clock()+0.04+math.random()*0.045
+					else self.Phase="RETURN_CONTACT"end
+				elseif self.Phase=="RETURN_CONTACT"then near();self.Phase="RETURN_NEAR"
 				else near();self.Phase="NEAR";nearUntil=os.clock()+0.04 end
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
@@ -186,7 +211,7 @@ return function(context)
 		if self.Running then return self:Stop("Regreso de No motos 2 solicitado.")end
 		return checkpoint and home()or false,"No hay regreso seguro disponible."
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V1 | client observations only\nRunning="..tostring(self.Running).." Phase="..self.Phase.."\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V2 FACE CONTACT | client observations only; OBB alignment, not exact mesh collision geometry\nRunning="..tostring(self.Running).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; no vertical offset\n"..table.concat(self.Rows,"\n")end
 	function C:Destroy()self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end

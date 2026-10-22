@@ -203,6 +203,13 @@ if source2 then
  assert(not core:Start(owner),'mutual exclusion with original No motos')
  beat(.06)
  assert(c2.Phase=='FAR'and ownBody.AssemblyAngularVelocity.X==900000000,'car near phase uses own vehicle forces')
+ local targetBody=c2.TargetBody
+ assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
+ local separation=ownBody.Position-targetBody.Position
+ local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05
+ local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05
+ assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
+  or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'place collidable faces together, accounting for both sizes')
  beat(.01)
  assert(c2.Phase=='RETURN_DIRECT'and (ownBody.Position-homeFrame.Position).Magnitude>1000000,'car far phase')
  beat(.01)
@@ -211,6 +218,9 @@ if source2 then
  assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
  assert(ownBody.AssemblyLinearVelocity.Magnitude==0 and ownBody.AssemblyAngularVelocity.Magnitude==0)
+ ownBody.CanCollide=false
+ assert(not c2:Start(owner),'reject a source without collidable parts instead of targeting a non-collidable root')
+ ownBody.CanCollide=true
  assert(c2:Start(owner),'restart and rescan existing motorcycles')
  local other=instance('Part','SomeoneElse',workspace);ownBody.ConnectedParts={other}
  local before=ownBody.CFrame;beat(.01)
