@@ -131,6 +131,8 @@ end
 minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
+	pcall(function()if SeatDiagnosticCore then SeatDiagnosticCore:Destroy()end end)
+	pcall(function()if NumericDiagnosticCore then NumericDiagnosticCore:Destroy()end end)
 	pcall(function()if StraightPassTestCore then StraightPassTestCore:Destroy()end end)
 	pcall(function()if FoldingCleanupCore then FoldingCleanupCore:Destroy()end end)
 	pcall(function()if ValentineCleanupCore then ValentineCleanupCore:Destroy()end end)
