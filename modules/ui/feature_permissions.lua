@@ -4,6 +4,11 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
+	if NoMotos2Core then
+		local start=NoMotos2Core.Start
+		NoMotos2Core.Start=function(self,...)if blocked then return false,"Funcion no disponible."end;return start(self,...)end
+		cores[#cores+1]=NoMotos2Core
+	end
 	if DeploymentSafetyCore then
 		cores[#cores+1]=DeploymentSafetyCore
 		local original=DeploymentSafetyCore.Start

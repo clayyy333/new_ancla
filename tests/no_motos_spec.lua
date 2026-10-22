@@ -1,4 +1,4 @@
-local source=...
+local source,source2=...
 setfenv=function()end
 table.clear=table.clear or function(t)for k in pairs(t)do t[k]=nil end end
 local now=1;os.clock=function()return now end
@@ -191,5 +191,36 @@ root.ConnectedParts={};h.Sit=true
 assert(core:Start(owner)and not h.Sit)
 assert(core.Records[replacement]and not core.Records[replacement].Done,'existing bike rearmed after toggle')
 core:Destroy()
+if source2 then
+ assert(load(source2))()(_G)
+ local c2=NoMotos2Core
+ assert(not c2:Start(owner),'No motos 2 requires own source vehicle')
+ local own,ownBody=moto('OurCar',player.UserId,false,'rbxassetid://123');spawn(own)
+ CarFling={Running=false,GetCar=function()return own end}
+ local homeFrame=ownBody.CFrame
+ authorized=false;assert(not c2:Start(owner));authorized=true
+ assert(c2:Start(owner))
+ assert(not core:Start(owner),'mutual exclusion with original No motos')
+ beat(.06)
+ assert(c2.Phase=='FAR'and ownBody.AssemblyAngularVelocity.X==900000000,'car near phase uses own vehicle forces')
+ beat(.01)
+ assert(c2.Phase=='RETURN_DIRECT'and (ownBody.Position-homeFrame.Position).Magnitude>1000000,'car far phase')
+ beat(.01)
+ assert(c2.Phase=='VERIFY_RETURN','direct return to motorcycle')
+ local lastForce=created[#created]
+ assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
+ assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
+ assert(ownBody.AssemblyLinearVelocity.Magnitude==0 and ownBody.AssemblyAngularVelocity.Magnitude==0)
+ assert(c2:Start(owner),'restart and rescan existing motorcycles')
+ local other=instance('Part','SomeoneElse',workspace);ownBody.ConnectedParts={other}
+ local before=ownBody.CFrame;beat(.01)
+ assert(not c2.Running and ownBody.CFrame==before,'do not teleport assembly joined to outsiders')
+ ownBody.ConnectedParts={}
+ local occupant=instance('Humanoid','OtherHumanoid',owner)
+ own:FindFirstChild('MoverModel'):FindFirstChild('Body'):FindFirstChild('Seat').Occupant=occupant
+ assert(not c2:Start(owner),'reject own vehicle carrying another person')
+ c2:Destroy()
+ print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
+end
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end
 print('no_motos_spec OK: owner-only, selected owner, free motorcycle scope, torso alignment, efficient force defaults, cleanup and occupancy cancellation')

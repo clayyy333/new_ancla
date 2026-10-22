@@ -30,8 +30,10 @@ return function(context)
 	microToggle.LayoutOrder=4
 	local motoToggle=button(tr("Activar No motos","Enable No motorcycles"))
 	motoToggle.LayoutOrder=5
+	local moto2Toggle=button(tr("Activar No motos 2","Enable No motorcycles 2"))
+	moto2Toggle.LayoutOrder=6
 	local motoFeedback=Instance.new("TextLabel")
-	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=6
+	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=7
 	motoFeedback.BackgroundTransparency=1;motoFeedback.TextWrapped=true
 	motoFeedback.Font=Enum.Font.Gotham;motoFeedback.TextSize=12
 	motoFeedback.TextColor3=currentTheme.textDim;motoFeedback.ZIndex=8;motoFeedback.Parent=panel
@@ -39,7 +41,7 @@ return function(context)
 	RegisterTheme(motoFeedback,"TextColor3","textDim")
 	local lastMode
 	local back=button(tr("Forzar regreso","Force return"))
-	back.LayoutOrder=7
+	back.LayoutOrder=8
 	local copyMotos=button(tr("Copiar reporte de No motos","Copy No motorcycles report"))
 	copyMotos.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
@@ -61,12 +63,16 @@ return function(context)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
 		local motos=NoMotosCore.Running
+		local motos2=NoMotos2Core.Running
+		moto2Toggle.Text=motos2 and tr("Desactivar No motos 2","Disable No motorcycles 2")or tr("Activar No motos 2","Enable No motorcycles 2")
+		moto2Toggle.BackgroundColor3=motos2 and currentTheme.critical or currentTheme.tertiary
 		motoToggle.Text=NoMotosCore.Stopping and tr("Estabilizando No motos...","Stabilizing No motorcycles...") or (motos and tr("Desactivar No motos","Disable No motorcycles") or tr("Activar No motos","Enable No motorcycles"))
 		motoToggle.BackgroundColor3=motos and currentTheme.critical or currentTheme.tertiary
 		local c=ExperimentalFlingCore
 		local target=c:GetTarget()
 		if message then motoFeedback.Text=tostring(message)
 		elseif motos then motoFeedback.Text=tr("Vigilando motos de @","Monitoring motorcycles owned by @")..NoMotosCore.Owner.Name
+		elseif motos2 then motoFeedback.Text=tr("No motos 2: vehiculo propio contra motos de @","No motorcycles 2: own vehicle against motorcycles of @")..NoMotos2Core.Owner.Name
 		elseif not target then motoFeedback.Text=tr("Falta seleccionar al propietario de la moto en la lista superior.","Select the motorcycle owner in the list above.")end
 		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
 		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and not c.MicroMovementEnabled and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
@@ -80,9 +86,20 @@ return function(context)
 		end
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
+		if not message and motos2 then status.Text=tr("No motos 2 usa tu vehiculo seleccionado en Fling con auto; objetivo: Body de motos libres. Alejamiento y retorno del motor de auto.","No motorcycles 2 uses your vehicle selected in Car Fling; target: unoccupied motorcycle Body. Car-engine far travel and return.")end
 	end
-	status.LayoutOrder=8
-	copyDiagnostic.LayoutOrder=9;copyMotos.LayoutOrder=10;report.LayoutOrder=11
+	status.LayoutOrder=9
+	copyDiagnostic.LayoutOrder=10;copyMotos.LayoutOrder=11;report.LayoutOrder=12
+	moto2Toggle.Activated:Connect(function()
+		choices.Visible=false
+		if NoMotos2Core.Running then NoMotos2Core:Stop();return end
+		local called,ok,err=xpcall(function()return NoMotos2Core:Start(ExperimentalFlingCore:GetTarget())end,debug.traceback)
+		if not called then
+			pcall(function()NoMotos2Core:Stop()end)
+			report.Text=tostring(ok);report.Visible=true;UpdateExperimentalFlingPanel(tostring(ok))
+		elseif not ok then UpdateExperimentalFlingPanel(err)
+		else lastMode="motos2"end
+	end)
 	motoToggle.Activated:Connect(function()
 		choices.Visible=false
 		if NoMotosCore.Stopping then
@@ -106,7 +123,7 @@ return function(context)
 		end
 	end)
 	copyMotos.Activated:Connect(function()
-		local text=NoMotosCore:GetDiagnosticReport()
+		local text=lastMode=="motos2"and NoMotos2Core:GetDiagnosticReport()or NoMotosCore:GetDiagnosticReport()
 		local copy=setclipboard or toclipboard
 		local ok=type(copy)=="function" and pcall(copy,text)
 		report.Text=text;report.Visible=not ok
@@ -135,12 +152,14 @@ return function(context)
 		choices.CanvasPosition=Vector2.zero
 	end
 	selectTarget.Activated:Connect(function()
+		if NoMotos2Core.Running then return end
 		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping then return end
 		choices.Visible=not choices.Visible
 		if choices.Visible then refreshTargets() end
 	end)
 	local targetAdded=Players.PlayerAdded:Connect(function()if choices.Visible then refreshTargets() end end)
 	local targetRemoved=Players.PlayerRemoving:Connect(function(leaving)
+		if NoMotos2Core.Running and NoMotos2Core.Owner==leaving then NoMotos2Core:Stop("El propietario seleccionado salio.")end
 		if NoMotosCore.Running and NoMotosCore.Owner==leaving then NoMotosCore:Stop("El propietario seleccionado salio.")end
 		if ExperimentalFlingCore:GetTarget()==leaving then
 			if ExperimentalFlingCore.Running then ExperimentalFlingCore:Stop() end
@@ -150,6 +169,7 @@ return function(context)
 		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
+		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Stopping then return end
 		lastMode=nil
@@ -160,6 +180,7 @@ return function(context)
 		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	microToggle.Activated:Connect(function()
+		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Stopping then return end
 		lastMode=nil
@@ -170,12 +191,16 @@ return function(context)
 		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	back.Activated:Connect(function()
+		if lastMode=="motos2"then
+			local ok,err=NoMotos2Core:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso de No motos 2 solicitado.","No motorcycles 2 return requested.")or err);return
+		end
 		if lastMode=="motos"then
 			local ok,err=NoMotosCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso de No motos solicitado.","No motorcycles return requested.")or err);return
 		end
 		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
 	end)
 	gui.Destroying:Connect(function()
+		NoMotos2Core:Destroy()
 		NoMotosCore:Destroy()
 		targetAdded:Disconnect();targetRemoved:Disconnect()
 		local c=ExperimentalFlingCore

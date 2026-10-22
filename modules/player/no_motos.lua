@@ -166,6 +166,7 @@ return function(context)
 		return true
 	end
 	local function conflicts()
+		if NoMotos2Core and NoMotos2Core.Running then return "No motos 2"end
 		for _,name in ipairs({"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","CustomFlingCore","MobileAnchorCore","MobileAnchorV11Core","StaticPassThroughAnchorCore","VerticalControlController"})do
 			local other=context[name]
 			if other and (other.Running or other.Stopping)then return name end
