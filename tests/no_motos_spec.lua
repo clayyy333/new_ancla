@@ -106,9 +106,9 @@ assert(root.CFrame==contactFrame,'do not rewrite orientation/position during phy
 beat(.2);assert(core.Phase=='CONTACT','sustain contact beyond old 0.05 second timeout')
 local oldVelocity=root.AssemblyLinearVelocity
 RunService.PreSimulation:Fire()
-assert(root.AssemblyLinearVelocity.X==100000,'apply linear pulse before physics')
+assert(root.AssemblyLinearVelocity==oldVelocity,'spin must not inject a linear launch before physics')
 RunService.PostSimulation:Fire()
-assert(root.AssemblyLinearVelocity==oldVelocity,'restore linear pulse after physics')
+assert(root.AssemblyLinearVelocity==oldVelocity,'do not overwrite natural linear velocity after physics')
 body.CFrame=CFrame.new(80,10,0);RunService.PostSimulation:Fire()
 assert(core.Phase=='HOME'and core.Completed==1 and core.Records[vehicle].Done)
 assert(root.CFrame==checkpoint and root.AssemblyLinearVelocity.Magnitude==0)
@@ -154,7 +154,7 @@ assert(core.Records[replacement].Body==regenerated and not core.Records[replacem
 core.Records[replacement].Done=true
 replacement.Parent=nil;replacement.Parent=cars;cars.ChildAdded:Fire(replacement)
 assert(not core.Records[replacement].Done)
-assert(core:GetDiagnosticReport():find('NO MOTOS V1',1,true))
+assert(core:GetDiagnosticReport():find('NO MOTOS V2 SPIN ONLY',1,true))
 core:Destroy()
 assert(h.SeatedEnabled==false,'preserve previously disabled seated state on stop')
 -- Re-enabling without respawning starts a fresh pass, even for an existing bike.

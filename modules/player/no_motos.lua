@@ -1,12 +1,11 @@
 -- Independent efficient-short vehicle test. Never writes vehicle parts or calls remotes.
 return function(context)
 	setfenv(1,context)
-	local CONFIG={PulseSpeed=100000,SpinSpeed=60,P=1250,Height=1.5,HomeTime=0.05,StopTime=2,Displacement=20}
+	local CONFIG={SpinSpeed=60,P=1250,Height=1.5,HomeTime=0.05,StopTime=2,Displacement=20}
 	local core={Running=false,Stopping=false,Owner=nil,Rows={},Records={},Completed=0,Phase="IDLE"}
 	NoMotosCore=core
 	local runtime={}
 	local root,humanoid,character,checkpoint,spinner,current,homeUntil,scanElapsed
-	local pulseRoot,pulseVelocity
 	local savedPlatformStand,savedAutoRotate
 	local savedSeatedEnabled
 	local function restoreSeatState()
@@ -58,13 +57,7 @@ return function(context)
 		local a,b=weld.Part0,weld.Part1
 		return (a and a:IsDescendantOf(c))or (b and b:IsDescendantOf(c))or false
 	end
-	local function restorePulse()
-		local r,v=pulseRoot,pulseVelocity
-		pulseRoot=nil;pulseVelocity=nil
-		if r and r.Parent and v and r.AssemblyLinearVelocity.Magnitude>1000 then r.AssemblyLinearVelocity=v end
-	end
 	local function destroyFlinger()
-		restorePulse()
 		if spinner then spinner:Destroy();spinner=nil end
 		if humanoid and humanoid.Parent and savedAutoRotate~=nil then humanoid.AutoRotate=savedAutoRotate end
 	end
@@ -234,12 +227,10 @@ return function(context)
 		-- Prevent auto-seating before physics, without activating an anchor or editing seats/welds.
 		runtime[#runtime+1]=RunService.PreSimulation:Connect(function()
 			local ok=pcall(function()
-				restorePulse();preventSeat()
+				preventSeat()
 				if self.Running and self.Phase=="CONTACT"and current and eligible(current)
 					and player.Character==character and root.Parent and not localSeatWeld(humanoid,character)
 					and not externalConnection(root,character)then
-					pulseRoot=root;pulseVelocity=root.AssemblyLinearVelocity
-					root.AssemblyLinearVelocity=Vector3.new(CONFIG.PulseSpeed,CONFIG.PulseSpeed,CONFIG.PulseSpeed)
 					root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.SpinSpeed,0)
 				end
 			end)
@@ -279,7 +270,6 @@ return function(context)
 		end
 		runtime[#runtime+1]={Disconnect=function()disconnect(carsConnections)end}
 		runtime[#runtime+1]=RunService.PostSimulation:Connect(function()
-			restorePulse()
 			if not self.Running or self.Phase~="CONTACT"or not current then return end
 			local ok,err=xpcall(function()
 				if player.Character~=character or not root.Parent or externalConnection(root,character)then return end
@@ -354,9 +344,9 @@ return function(context)
 		return true
 	end
 	function core:GetDiagnosticReport()
-		return "NO MOTOS V1 | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
+		return "NO MOTOS V2 SPIN ONLY | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
 			.."\nLastStartFailure="..tostring(self.LastStartFailure or "none")
-			.."\nSustained contact until 20 studs displacement | Home=0.05s | AngularSpeedY=60 rad/s | linear pulses=100000 per axis PreSimulation/restored PostSimulation | no BodyVelocity stabilizer | one placement per contact | free motorcycles only | anti-seat local\n"..table.concat(self.Rows,"\n")
+			.."\nSustained contact until 20 studs displacement | Home=0.05s | AngularSpeedY=60 rad/s | NO linear pulses | no BodyVelocity stabilizer | one placement per contact | free motorcycles only | anti-seat local\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end
 	return true
