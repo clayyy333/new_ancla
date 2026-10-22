@@ -28,12 +28,13 @@ return function(context)
 	toggle.LayoutOrder=3
 	local microToggle=button(tr("Activar contacto sutil 0.5 studs","Enable subtle contact 0.5 studs"))
 	microToggle.LayoutOrder=4
-	local passToggle=button(tr("Disparo unico · dayzero777","Single launch · dayzero777"))
-	passToggle.LayoutOrder=5
+	local motoToggle=button(tr("Activar No motos","Enable No motorcycles"))
+	motoToggle.LayoutOrder=5
+	local lastMode
 	local back=button(tr("Forzar regreso","Force return"))
 	back.LayoutOrder=6
-	local copyPass=button(tr("Copiar reporte de despegue","Copy launch report"))
-	copyPass.LayoutOrder=9
+	local copyMotos=button(tr("Copiar reporte de No motos","Copy No motorcycles report"))
+	copyMotos.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
 	copyDiagnostic.LayoutOrder=7
 	local report=Instance.new("TextBox")
@@ -52,9 +53,9 @@ return function(context)
 	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
-		local passing=StraightPassTestCore and StraightPassTestCore.Running
-		passToggle.Text=passing and tr("Cancelar y volver al checkpoint","Cancel and return to checkpoint") or tr("Disparo unico · dayzero777","Single launch · dayzero777")
-		passToggle.BackgroundColor3=passing and currentTheme.critical or currentTheme.tertiary
+		local motos=NoMotosCore.Running
+		motoToggle.Text=NoMotosCore.Stopping and tr("Estabilizando No motos...","Stabilizing No motorcycles...") or (motos and tr("Desactivar No motos","Disable No motorcycles") or tr("Activar No motos","Enable No motorcycles"))
+		motoToggle.BackgroundColor3=motos and currentTheme.critical or currentTheme.tertiary
 		local c=ExperimentalFlingCore
 		local target=c:GetTarget()
 		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
@@ -68,21 +69,26 @@ return function(context)
 			status.Text=labels[c.PassengerState] or "…"
 		end
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
+		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
 	end
 	status.LayoutOrder=7
 	copyDiagnostic.LayoutOrder=8;report.LayoutOrder=10
-	passToggle.Activated:Connect(function()
+	motoToggle.Activated:Connect(function()
 		choices.Visible=false
-		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Prueba cancelada manualmente.")
-		else local ok,err=StraightPassTestCore:Start();if not ok then UpdateExperimentalFlingPanel(err) end end
+		if NoMotosCore.Stopping then return end
+		if NoMotosCore.Running then NoMotosCore:Stop()
+		else
+			local ok,err=NoMotosCore:Start(ExperimentalFlingCore:GetTarget())
+			if ok then lastMode="motos"else UpdateExperimentalFlingPanel(err)end
+		end
 	end)
-	copyPass.Activated:Connect(function()
-		local text=StraightPassTestCore:GetDiagnosticReport()
+	copyMotos.Activated:Connect(function()
+		local text=NoMotosCore:GetDiagnosticReport()
 		local copy=setclipboard or toclipboard
 		local ok=type(copy)=="function" and pcall(copy,text)
 		report.Text=text;report.Visible=not ok
 		if not ok then report:CaptureFocus();report.SelectionStart=1;report.CursorPosition=#text+1 end
-		UpdateExperimentalFlingPanel(ok and tr("Reporte de despegue copiado. Pegalo en el chat.","Launch report copied. Paste it in chat.") or tr("Selecciona y copia el reporte mostrado abajo.","Select and copy the report below."))
+		UpdateExperimentalFlingPanel(ok and tr("Reporte de No motos copiado.","No motorcycles report copied.") or tr("Selecciona y copia el reporte mostrado abajo.","Select and copy the report below."))
 	end)
 	local function refreshTargets()
 		for _,b in ipairs(choices:GetChildren())do if b:IsA("GuiButton") or b:IsA("TextLabel") then b:Destroy() end end
@@ -106,12 +112,13 @@ return function(context)
 		choices.CanvasPosition=Vector2.zero
 	end
 	selectTarget.Activated:Connect(function()
-		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping then return end
+		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping then return end
 		choices.Visible=not choices.Visible
 		if choices.Visible then refreshTargets() end
 	end)
 	local targetAdded=Players.PlayerAdded:Connect(function()if choices.Visible then refreshTargets() end end)
 	local targetRemoved=Players.PlayerRemoving:Connect(function(leaving)
+		if NoMotosCore.Running and NoMotosCore.Owner==leaving then NoMotosCore:Stop("El propietario seleccionado salio.")end
 		if ExperimentalFlingCore:GetTarget()==leaving then
 			if ExperimentalFlingCore.Running then ExperimentalFlingCore:Stop() end
 			ExperimentalFlingCore:SetTarget(nil)
@@ -120,7 +127,9 @@ return function(context)
 		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
-		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Cambio de flujo.") end
+		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
+		if NoMotosCore.Stopping then return end
+		lastMode=nil
 		choices.Visible=false
 		local c=ExperimentalFlingCore
 		if c.Stopping then return end
@@ -128,7 +137,9 @@ return function(context)
 		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	microToggle.Activated:Connect(function()
-		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Cambio de flujo.") end
+		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
+		if NoMotosCore.Stopping then return end
+		lastMode=nil
 		choices.Visible=false
 		local c=ExperimentalFlingCore
 		if c.Stopping then return end
@@ -136,11 +147,13 @@ return function(context)
 		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	back.Activated:Connect(function()
-		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Regreso solicitado.");return end
+		if lastMode=="motos"then
+			local ok,err=NoMotosCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso de No motos solicitado.","No motorcycles return requested.")or err);return
+		end
 		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
 	end)
 	gui.Destroying:Connect(function()
-		StraightPassTestCore:Destroy()
+		NoMotosCore:Destroy()
 		targetAdded:Disconnect();targetRemoved:Disconnect()
 		local c=ExperimentalFlingCore
 		c:StopPassengerMonitor();c:Stop()
