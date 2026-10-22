@@ -137,18 +137,18 @@ return function(context)
 		if AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.TestEnabled)then return "Ancla"end
 		if AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)then return "Ancla automatica"end
 	end
-	function C:Start(owner)
+	function C:Start(owner,detectedCar)
 		if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized()then return false,"Solo owners."end
 		if self.Running then return true end
 		if not owner or not owner:IsA("Player")or owner.Parent~=Players or owner==player then return false,"Selecciona al otro propietario de la moto."end
 		local other=conflict();if other then return false,"Desactiva primero: "..other end
 		local cars=workspace:FindFirstChild("Cars")
 		if not cars then return false,"Workspace.Cars no esta disponible."end
-		local chosen=CarFling and CarFling:GetCar()
+		local chosen=detectedCar or (CarFling and CarFling:GetCar())
 		if chosen and (chosen.Parent~=cars or not owned(chosen,player))then return false,"El auto seleccionado ya no es tuyo o no esta disponible."end
 		if not chosen then
 			for _,v in ipairs(cars:GetChildren())do
-				if owned(v,player)and vehicleRoot(v)then
+				if v.Parent==cars and owned(v,player)and vehicleRoot(v)then
 					if chosen then return false,"Tienes varios vehiculos: selecciona el tuyo en Fling con auto."end
 					chosen=v
 				end
@@ -229,15 +229,26 @@ return function(context)
 		autoConnection=RunService.Heartbeat:Connect(function(dt)
 			autoElapsed=autoElapsed+dt;if autoElapsed<0.25 then return end;autoElapsed=0
 			if not autoOwner or autoOwner.Parent~=Players then self:SetAutoEnabled(false);return end
-			local selected=CarFling and CarFling:GetCar()
+			-- Independent spawn discovery, like car2's syncSpawnedCar. Do not read or
+			-- mutate another fling panel's selection or require that panel to be opened.
+			local selected
+			local cars=workspace:FindFirstChild("Cars")
+			if cars then
+				for _,v in ipairs(cars:GetChildren())do
+					if v.Parent==cars and owned(v,player)then
+						local r=vehicleRoot(v)
+						if r and r.Parent and contactPart(v,r)then selected=v end
+					end
+				end
+			end
 			if self.Running and selected~=source then self:Stop("Cambio de auto seleccionado.")end
 			if not self.Running and selected then
-				local called,ok,err=xpcall(function()return self:Start(autoOwner)end,debug.traceback)
+				local called,ok,err=xpcall(function()return self:Start(autoOwner,selected)end,debug.traceback)
 				if not called then err=tostring(ok);ok=false;self:Stop("Error al activar automaticamente.")end
 				if not ok and err~=autoLastError then autoLastError=err;refresh(err)elseif ok then autoLastError=nil end
 			end
 		end)
-		refresh("Automatico activo: elige tu auto en Fling con auto. Objetivo: motos de @"..owner.Name)
+		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
 	function C:GetDiagnosticReport()return "NO MOTOS 2 V4 SUSTAINED CONTACT | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; angular Y=120 rad/s; position servo; no linear launch; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end

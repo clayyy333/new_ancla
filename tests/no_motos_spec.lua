@@ -242,19 +242,25 @@ if source2 then
  testSeat.Occupant=occupant
  local selected=nil
  CarFling.GetCar=function()return selected end
+ own.Parent=nil
  assert(c2:SetAutoEnabled(true,owner))
- beat(.3);assert(not c2.Running,'automatic mode waits for an explicit source selection')
- selected=own;beat(.3)
- assert(c2.Running and c2.TargetBody==testBody,'selecting a source starts automatically against occupied bike')
+ beat(.3);assert(not c2.Running,'automatic mode waits for an owned spawned source')
+ own.Parent=cars;beat(.3)
+ assert(c2.Running and c2.TargetBody==testBody,'spawning a source starts automatically without other-panel selection')
  testBody.Anchored=true;beat(.01)
  assert(c2.Running,'occupied-target test continues observing anchored target')
  local report=c2:GetDiagnosticReport()
  assert(report:find('Body.Anchored=true',1,true)and report:find('occupants=TestOwner',1,true),'record occupancy and anchoring transitions')
- selected=nil;beat(.3)
- assert(not c2.Running and ownBody.CFrame==homeFrame,'changing/removing source selection stops and returns source')
- selected=own;beat(.3);assert(c2.Running,'automatic mode reactivates on source selection')
+ own.Parent=nil;beat(.3)
+ assert(not c2.Running,'removing source stops the automatic run')
+ own.Parent=cars;beat(.3);assert(c2.Running,'automatic mode reactivates on source respawn')
+ local newOwn,newOwnBody=moto('OurCar',player.UserId,false,'rbxassetid://123');spawn(newOwn)
+ beat(.3);beat(.01)
+ assert(c2.Running and created[#created].Parent==newOwnBody,'same model name/new instance replaces source automatically')
+ assert(selected==nil,'do not modify original car fling selection')
  c2:SetAutoEnabled(false)
  assert(not c2.Running and not c2.AutoEnabled,'disable auto also stops active flow')
+ newOwn.Parent=nil
  testBody.Anchored=false;c2.TestOccupiedTargets=false
  assert(c2:Start(owner))
  assert(c2.Phase=='WAIT_MOTORCYCLE','switch restores previous occupied-target exclusion')
