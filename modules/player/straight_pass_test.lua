@@ -1,10 +1,9 @@
--- Independent waypoint route test. No remote calls or target writes.
+-- One-shot physical launch and return to activation checkpoint.
 return function(context)
 	setfenv(1, context)
 	local TARGET_ID = 11773278300
 	local SPEED, FAR_DISTANCE, MAX_TIME = 900000000, 1000000, 0.6
 	local OUTGOING_HOLD=0.05
-	local CONTACT_TIME=0.05
 	local HOME_TIMEOUT, HOME_STEPS = 1, 2
 	local incompatible={"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno","CustomFlingCore"}
 	local core = {Running=false, Samples={}, Report="Sin prueba registrada."}
@@ -36,13 +35,12 @@ return function(context)
 		return ok and value or "unknown"
 	end
 	function core:BuildDiagnosticReport(result)
-		local lines={"LAUNCH DIAGNOSTIC V8 | client observations only; server cause/network ownership unknown",
+		local lines={"LAUNCH DIAGNOSTIC V9 | client observations only; server cause/network ownership unknown",
 			"Status: "..tostring(result or (self.Running and "ACTIVE" or "STOPPED")),
 			"Local: "..tostring(player.Name).." | UserId="..tostring(player.UserId).." | TargetId="..TARGET_ID,
-			"CFrameTravelSpeed="..SPEED.." BDistanceFromA="..FAR_DISTANCE.." cycleTimeout="..MAX_TIME,
-			"Flow: A -> target waypoint -> physical contact pulse -> B -> A; physical velocities cleared only outside contact",
-			"ContactDuration="..CONTACT_TIME.." physicalContactSpeed="..SPEED.." contactPulses="..(self.ContactPulses or 0),
-			"outgoingHold="..OUTGOING_HOLD.." | outgoing render frames >= 2 | origin render required before relaunch",
+			"RequestedPhysicalSpeed="..SPEED.." returnDistanceThreshold="..FAR_DISTANCE.." flightTimeout="..MAX_TIME,
+			"Flow: activation checkpoint A -> physical launch toward target -> distance threshold -> A -> STOP; no loop or target waypoint",
+			"outgoingHold="..OUTGOING_HOLD.." | outgoing render frames >= 2 | origin verified before completion",
 			"HomeVerificationSteps="..HOME_STEPS.." homeTimeout="..HOME_TIMEOUT.." recoveries="..(self.Recoveries or 0),
 			"Origin="..vector(self.DiagnosticOrigin).." vehicle="..tostring(self.DiagnosticVehicle or "none"),
 			"cycles="..(self.Cycles or 0).." returns="..(self.Returns or 0).." preEvents="..(self.PreEvents or 0).." postEvents="..(self.PostEvents or 0).." renderEvents="..(self.RenderEvents or 0),
@@ -158,16 +156,14 @@ return function(context)
 		self.SavedPlatformStand=h.PlatformStand;self.SavedAutoRotate=h.AutoRotate
 		local stateOk,previousState=pcall(function()return h:GetState()end)
 		self.SavedHumanoidState=stateOk and previousState or nil
-		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.ContactPulses=0;self.Recoveries=0;self.Root=r;self.Running=true
+		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.Recoveries=0;self.Root=r;self.Running=true
 		self.LastStartFailure=nil;self.PreEvents=0;self.PostEvents=0;self.RenderEvents=0
 		self.MaxPreDistance=0;self.MaxPostDistance=0;self.MaxRenderDistance=0
 		self.DiagnosticOrigin=r.Position;self.DiagnosticVehicle=selectedVehicle and path(selectedVehicle) or "none";self.DiagnosticVehicleObject=selectedVehicle
 		local origin=r.Position
 		local elapsed,totalElapsed=0,0
-		local direction
-		local waypoints,waypointIndex,waypointReached,waypointRendered
-		local contactActive,contactDone=false,false
-		local contactElapsed=0
+		local direction=delta.Unit
+		local launched=false
 		local holdFrame=self.Checkpoint
 		local function applyFrame(frame)
 			holdFrame=frame
@@ -202,8 +198,7 @@ return function(context)
 			return true
 		end
 		local function beginReturn(label)
-			contactActive=false;contactDone=false;contactElapsed=0
-			pendingReturn=false;renderSeen=false;direction=nil
+			pendingReturn=false;renderSeen=false
 			waitingHome=true;homeRendered=false;homeWait=0;homeStable=0
 			applyFrame(self.Checkpoint)
 			self.Returns=self.Returns+1
@@ -227,7 +222,9 @@ return function(context)
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
 					applyFrame(self.Checkpoint)
 					homeWait=homeWait+dt
-					if homeRendered and homeStable>=HOME_STEPS then waitingHome=false;record("HOME_READY_FOR_NEXT_LAUNCH")
+					if homeRendered and homeStable>=HOME_STEPS then
+						record("HOME_VERIFIED_SINGLE_SHOT_COMPLETE")
+						self:Stop("Ejecucion unica completada.")
 					elseif homeWait>=HOME_TIMEOUT then self:Stop("No se estabilizo el regreso al origen; parada de seguridad.") end
 					return
 				end
@@ -242,65 +239,18 @@ return function(context)
 					end
 					return
 				end
-				if not direction then
-					local aim=tr.Position-origin
-					if aim.Magnitude<5 or aim.Magnitude>228 then self:Stop("Objetivo fuera del rango de prueba.");return end
-					direction=aim.Unit
-					-- Preserve our orientation; target and B are snapshotted per cycle.
-					waypoints={self.Checkpoint+aim,self.Checkpoint+direction*FAR_DISTANCE}
-					waypointIndex=1;waypointReached=false;waypointRendered=false
-					contactActive=false;contactDone=false;contactElapsed=0
-					elapsed=0
-					self.Cycles=self.Cycles+1
+				if not launched then
+					launched=true;self.Cycles=1
 					-- Keep ordinary walking/auto-rotation out of this physical experiment.
 					h.PlatformStand=true;h.AutoRotate=false
 					pcall(function()h:ChangeState(Enum.HumanoidStateType.Physics)end)
 					record("LAUNCH_FROM_A")
 				end
 				elapsed=elapsed+dt
-				if elapsed>=MAX_TIME then self:Stop("Tiempo del recorrido por posiciones agotado.");return end
-				if contactActive then
-					if contactElapsed>=CONTACT_TIME then
-						-- Contact may overshoot B by millions: finish at fixed B in one
-						-- controlled transition, not another long interpolated return leg.
-						contactActive=false;contactDone=true
-						record("CONTACT_END")
-						applyFrame(waypoints[2])
-						waypointIndex=2;waypointReached=true;waypointRendered=false;elapsed=0
-						record("B_FIXED_AFTER_CONTACT")
-						return
-					else
-						contactElapsed=contactElapsed+dt
-						r.AssemblyLinearVelocity=direction*SPEED
-						r.AssemblyAngularVelocity=Vector3.zero
-						record("CONTACT_PRE_PHYSICS")
-						return
-					end
-				end
-				if waypointReached then
-					applyFrame(holdFrame)
-					if not waypointRendered then return end
-					if waypointIndex==1 and not contactDone then
-						contactActive=true;contactElapsed=dt
-						self.ContactPulses=self.ContactPulses+1
-						r.AssemblyLinearVelocity=direction*SPEED
-						r.AssemblyAngularVelocity=Vector3.zero
-						record("CONTACT_BEGIN")
-						return
-					end
-					waypointIndex=waypointIndex+1;waypointReached=false;waypointRendered=false
-				end
-				local goal=waypoints[waypointIndex]
-				if not goal then self:Stop("Destino del recorrido no disponible.");return end
-				local offset=goal.Position-holdFrame.Position
-				local remaining=offset.Magnitude
-				local advance=math.min(remaining,SPEED*dt)
-				if remaining<=advance or remaining<0.001 then
-					applyFrame(goal);waypointReached=true
-					record(waypointIndex==1 and "TARGET_WAYPOINT_REACHED" or "B_WAYPOINT_REACHED")
-				else
-					applyFrame(holdFrame+offset.Unit*advance)
-				end
+				if elapsed>=MAX_TIME then beginReturn("FLIGHT_TIMEOUT_RETURN");return end
+				-- The only outgoing motion is physical velocity from A. No target stop.
+				r.AssemblyAngularVelocity=Vector3.zero
+				r.AssemblyLinearVelocity=direction*SPEED
 				record("PRE_AFTER_WRITE")
 			end)
 			if not ok then self:Stop("Error: "..tostring(err)) end
@@ -320,17 +270,11 @@ return function(context)
 					applyFrame(self.Checkpoint)
 					return
 				end
-				if contactActive then
-					-- Let the physics step act: no CFrame correction or velocity clearing here.
-					record("CONTACT_POST_PHYSICS")
-					return
-				end
-				-- Reject local physics drift from the selected waypoint route.
-				applyFrame(holdFrame)
-				if pendingReturn or waitingHome or not direction then return end
-				if waypointReached and waypointIndex==2 then
+				if pendingReturn then applyFrame(holdFrame);return end
+				if not launched then return end
+				if (r.Position-origin).Magnitude>=FAR_DISTANCE then
 					-- Stop further thrust, but leave the outgoing position for local render.
-					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
+					applyFrame(self.Checkpoint+(r.Position-origin))
 					pendingReturn=true;renderSeen=false;renderWait=0;outgoingFrames=0
 					record("WAIT_OUTGOING_RENDER")
 				end
@@ -346,11 +290,9 @@ return function(context)
 				if outgoingFrames<=2 then record("RENDER_OUTGOING_LOCAL") end
 			elseif waitingHome and not homeRendered and (r.Position-origin).Magnitude<=0.25 and r.AssemblyLinearVelocity.Magnitude<=1 then
 				homeRendered=true;record("RENDER_HOME_LOCAL")
-			elseif waypointReached and waypointIndex==1 and not contactActive then
-				waypointRendered=true;record("RENDER_TARGET_WAYPOINT")
 			elseif self.RenderEvents<=12 or self.RenderEvents%30==0 then record("RENDER_LOCAL") end
 		end)
-		refresh("Ruta: A -> target -> impulso fisico de 0.05 s hacia B -> B -> A. Limpieza fuera del contacto. No garantiza impacto ni replicacion.")
+		refresh("Disparo unico desde A hacia el HRP: velocidad fisica 900 millones. Regresa al checkpoint al terminar; no se repite. Pulsa otra vez para cancelar y regresar.")
 		return true
 	end
 	function core:Destroy() self:Stop("GUI cerrada.") end
