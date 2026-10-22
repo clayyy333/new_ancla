@@ -5,7 +5,7 @@ return function(context)
 	local core={Running=false,Stopping=false,Owner=nil,Rows={},Records={},Completed=0,Phase="IDLE"}
 	NoMotosCore=core
 	local runtime={}
-	local root,humanoid,character,checkpoint,flinger,current,contactStarted,homeUntil,scanElapsed
+	local root,humanoid,character,checkpoint,flinger,spinner,current,contactStarted,homeUntil,scanElapsed
 	local savedPlatformStand,savedAutoRotate
 	local savedSeatedEnabled
 	local function restoreSeatState()
@@ -50,8 +50,17 @@ return function(context)
 		end
 		return false
 	end
+	local function localSeatWeld(h,c)
+		local seat=h.SeatPart
+		local weld=seat and seat:FindFirstChild("SeatWeld")
+		if not weld or not (weld:IsA("JointInstance")or weld:IsA("Weld")or weld:IsA("WeldConstraint"))then return false end
+		local a,b=weld.Part0,weld.Part1
+		return (a and a:IsDescendantOf(c))or (b and b:IsDescendantOf(c))or false
+	end
 	local function destroyFlinger()
 		if flinger then flinger:Destroy();flinger=nil end
+		if spinner then spinner:Destroy();spinner=nil end
+		if humanoid and humanoid.Parent and savedAutoRotate~=nil then humanoid.AutoRotate=savedAutoRotate end
 	end
 	local function zero()
 		if root and root.Parent then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
@@ -197,12 +206,13 @@ return function(context)
 		if r.Anchored then return blocked("HumanoidRootPart.Anchored sigue en true.")end
 		local connected,connectionPath=externalConnection(r,c)
 		if connected then return blocked("Tu HRP sigue unido a: "..connectionPath..". Sal de esa union antes de activar.")end
-		if h.SeatPart then return blocked("Humanoid.SeatPart sigue apuntando a: "..h.SeatPart:GetFullName())end
+		if localSeatWeld(h,c)then return blocked("Tu personaje conserva un SeatWeld real en: "..h.SeatPart:GetFullName())end
 		-- Sit can remain true after leaving a seat even with no external physical joint.
 		-- Clear only that stale local request; never detach an actual vehicle assembly.
-		if h.Sit then
+		if h.Sit or h.SeatPart then
 			h.Sit=false
 			if h:GetState()==Enum.HumanoidStateType.Seated then h:ChangeState(Enum.HumanoidStateType.GettingUp)end
+			if h.SeatPart then log("STALE_SEAT_REFERENCE no external assembly or local SeatWeld; continuing")end
 		end
 		character,humanoid,root=c,h,r;checkpoint=r.CFrame
 		savedPlatformStand=h.PlatformStand;savedAutoRotate=h.AutoRotate
@@ -272,7 +282,7 @@ return function(context)
 				if owner.Parent~=Players then self:Stop("El propietario seleccionado salio.");return end
 				if conflicts()then self:Stop("Otro flujo fue activado.");return end
 				preventSeat()
-				if humanoid.Sit or humanoid.SeatPart or externalConnection(root,character)then
+				if humanoid.Sit or localSeatWeld(humanoid,character)or externalConnection(root,character)then
 					-- Do not move an externally welded assembly or disable monitoring future spawns.
 					destroyFlinger();current=nil
 					if self.Phase~="WAIT_RELEASE"then log("WAIT_RELEASE external seat/assembly")end
@@ -301,19 +311,22 @@ return function(context)
 					if not current then return end
 					current.ContactFrame=current.Body.CFrame
 					self.Phase="CONTACT";contactStarted=os.clock();self.Direction=1
+					-- Place once, then let physics rotate the character freely around world Y.
+					local desired=(current.ContactFrame*CFrame.new(0,-CONFIG.Height,0)).Position
+					local offset=torso.Position-root.Position
+					root.CFrame=CFrame.new(desired-offset)*root.CFrame.Rotation
+					zero();humanoid.AutoRotate=false
 					flinger=Instance.new("BodyVelocity");flinger.Name="NoMotosFlinger";flinger.P=CONFIG.P
 					flinger.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
-					flinger.Velocity=Vector3.new(CONFIG.Speed,CONFIG.Speed,CONFIG.Speed);flinger.Parent=root
-					log("CONTACT_BEGIN Body + "..torso.Name)
+					-- Resist translation instead of launching ourselves away with diagonal thrust.
+					flinger.Velocity=Vector3.zero;flinger.Parent=root
+					spinner=Instance.new("BodyAngularVelocity");spinner.Name="NoMotosSpinner"
+					spinner.P=CONFIG.P;spinner.MaxTorque=Vector3.new(0,math.huge,0)
+					spinner.AngularVelocity=Vector3.new(0,CONFIG.Speed,0);spinner.Parent=root
+					log("CONTACT_BEGIN SPIN_Y Body + "..torso.Name)
 				end
-				self.Direction=-self.Direction
-				-- Contact is fixed at entry: never chase a motorcycle after it leaves.
-				local desired=(current.ContactFrame*CFrame.new(0,CONFIG.Height*self.Direction,0)).Position
-				-- Translate HRP by the live torso offset, preserving our rotation.
-				local offset=torso.Position-root.Position
-				root.CFrame=CFrame.new(desired-offset)*root.CFrame.Rotation
-				root.AssemblyLinearVelocity=Vector3.new(0,CONFIG.Speed*self.Direction,0)
-				root.AssemblyAngularVelocity=Vector3.new(CONFIG.Speed,CONFIG.Speed,CONFIG.Speed)
+				-- No repeated CFrame/orientation writes and no tracking the departing bike.
+				root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.Speed,0)
 			end,debug.traceback)
 			if not ok then log("ERROR "..tostring(err));self:Stop("Error en No motos; fuerzas retiradas.")end
 		end)
@@ -332,7 +345,7 @@ return function(context)
 	function core:GetDiagnosticReport()
 		return "NO MOTOS V1 | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
 			.."\nLastStartFailure="..tostring(self.LastStartFailure or "none")
-			.."\nContact/Home=0.05s Speed=900000000 P=1250 | free motorcycles only | anti-seat local enabled while running | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
+			.."\nContact/Home=0.05s AngularSpeedY=900000000 P=1250 | linear target=0 | one placement per contact | free motorcycles only | anti-seat local enabled while running | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end
 	return true

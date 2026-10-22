@@ -92,17 +92,23 @@ local car=moto('NotMotorcycle',42,false,'rbxassetid://123');spawn(car)
 beat(.06)
 assert(core.Phase=='HOME'and #created==0,'ignore occupied, foreign and unconfirmed vehicle types')
 local vehicle,body,seat=moto('ReusedName',42);spawn(vehicle);beat(.06)
-assert(core.Phase=='CONTACT'and #created==1)
+assert(core.Phase=='CONTACT'and #created==2)
 local flinger=created[1]
-assert(flinger.ClassName=='BodyVelocity'and flinger.P==1250 and flinger.Velocity.X==900000000)
-assert(flinger.MaxForce.X==math.huge and root.AssemblyAngularVelocity.X==900000000)
+local spinner=created[2]
+assert(flinger.ClassName=='BodyVelocity'and flinger.P==1250 and flinger.Velocity.Magnitude==0)
+assert(flinger.MaxForce.X==math.huge and root.AssemblyAngularVelocity.X==0 and root.AssemblyAngularVelocity.Y==900000000 and root.AssemblyAngularVelocity.Z==0)
+assert(spinner.ClassName=='BodyAngularVelocity'and spinner.AngularVelocity.Y==900000000 and spinner.MaxTorque.X==0 and spinner.MaxTorque.Z==0)
+assert(not h.AutoRotate)
 assert(math.abs(torso.Position.Y-(body.Position.Y-1.5))<0.001 and torso.Position.X==body.Position.X,'align torso, not HRP, with Body offset')
 local contactX=torso.Position.X
+local contactFrame=root.CFrame
 body.CFrame=CFrame.new(55,10,0);beat(.01)
 assert(torso.Position.X==contactX,'contact must not chase the moving vehicle')
+assert(root.CFrame==contactFrame,'do not rewrite orientation/position during physical spin')
 body.CFrame=CFrame.new(80,10,0);RunService.PostSimulation:Fire()
 assert(core.Phase=='HOME'and core.Completed==1 and core.Records[vehicle].Done)
 assert(root.CFrame==checkpoint and flinger.Destroyed and root.AssemblyLinearVelocity.Magnitude==0)
+assert(spinner.Destroyed and h.AutoRotate,'remove spin actuator and restore AutoRotate at home')
 -- Occupancy arising during contact cancels the attempt, without touching its joints.
 local second,secondBody,secondSeat=moto('Second',42);spawn(second);beat(.06)
 assert(core.Phase=='CONTACT')
@@ -150,8 +156,17 @@ assert(h.SeatedEnabled==false,'preserve previously disabled seated state on stop
 -- Re-enabling without respawning starts a fresh pass, even for an existing bike.
 local staleSeat=instance('Seat','OldSeat',workspace)
 h.SeatPart=staleSeat
+h.Sit=true;h.State='Seated'
 local started,reason=core:Start(owner)
-assert(not started and reason:find('SeatPart',1,true),'report real seat blocker, not missing HRP')
+assert(started and not h.Sit and h.State=='GettingUp','stale SeatPart must not block activation')
+beat(.01)
+assert(core.Running and core.Phase~='WAIT_RELEASE','stale reference must not stall runtime either')
+core:Destroy()
+local actualWeld=instance('Weld','SeatWeld',staleSeat)
+actualWeld.Part0=staleSeat;actualWeld.Part1=root
+started,reason=core:Start(owner)
+assert(not started and reason:find('SeatWeld',1,true),'still block a real seat weld to our character')
+actualWeld:Destroy()
 h.SeatPart=nil
 root.ConnectedParts={extra}
 started,reason=core:Start(owner)
