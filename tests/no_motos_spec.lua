@@ -203,10 +203,11 @@ if source2 then
  assert(not core:Start(owner),'mutual exclusion with original No motos')
  beat(.06)
  assert(c2.Phase=='CONTACT','sustained contact starts without a far phase')
- local hold,spin=created[#created-1],created[#created]
- assert(hold.ClassName=='BodyPosition'and hold.Name=='NoMotos2ContactHold'and hold.Parent==ownBody)
- assert(spin.ClassName=='BodyAngularVelocity'and spin.AngularVelocity.Y==120 and spin.AngularVelocity.X==0 and spin.MaxTorque.Z==0)
- assert(ownBody.AssemblyLinearVelocity.Magnitude==0,'no diagonal or vertical self-launch')
+ local force=created[#created]
+ assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
+ assert(force.Velocity.X==900000000 and force.Velocity.Y==900000000 and force.Velocity.Z==900000000 and force.MaxForce.X==math.huge and force.P==1250)
+ assert(ownBody.AssemblyAngularVelocity.X==900000000 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==900000000)
+ assert(ownBody.AssemblyLinearVelocity.Y==-900000000,'original alternating vertical speed')
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
@@ -215,15 +216,17 @@ if source2 then
  assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
   or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'place collidable faces together, accounting for both sizes')
  local entryFrame=ownBody.CFrame
+ local firstDirection=ownBody.AssemblyLinearVelocity.Y
+ beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==-firstDirection,'alternate vertical velocity each contact step')
  beat(1);beat(1)
- assert(c2.Phase=='CONTACT'and ownBody.CFrame==entryFrame,'no far travel or repeated CFrame writes after entry')
- local priorGoal=hold.Position
+ assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<0.001,'sustained contact without far travel')
+ local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
- assert(hold.Position~=priorGoal and ownBody.CFrame==entryFrame,'position-only goal tracks contact without overwriting orientation')
+ assert((ownBody.Position-priorPosition).Magnitude>0.5,'maintain live face contact with the original car contact writes')
  local lastForce=created[#created]
- assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2ContactSpin','never put forces on target bike')
+ assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
- assert(hold.Destroyed,'remove position servo on stop')
+ assert(force.Destroyed,'remove force on stop')
  assert(ownBody.AssemblyLinearVelocity.Magnitude==0 and ownBody.AssemblyAngularVelocity.Magnitude==0)
  ownBody.CanCollide=false
  assert(not c2:Start(owner),'reject a source without collidable parts instead of targeting a non-collidable root')

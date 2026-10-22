@@ -6,9 +6,9 @@ return function(context)
 	local occupiedTest=false
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
-	local spinSpeed=120
-	local source,root,collider,checkpoint,force,spin,target,connection,watch
-	local elapsed,origin,completed
+	local speed=900000000
+	local source,root,collider,checkpoint,force,target,connection,watch
+	local elapsed,origin,completed,direction
 	local function finite(v)
 		return v and v.X==v.X and v.Y==v.Y and v.Z==v.Z and math.abs(v.X)<math.huge and math.abs(v.Y)<math.huge and math.abs(v.Z)<math.huge
 	end
@@ -106,7 +106,6 @@ return function(context)
 	end
 	local function clear()
 		if force then force:Destroy();force=nil end
-		if spin then spin:Destroy();spin=nil end
 	end
 	local function home()
 		clear()
@@ -160,6 +159,7 @@ return function(context)
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
 		occupiedTest=self.TestOccupiedTargets
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
+		direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
 		local function choose()
 			if target then return end
@@ -194,20 +194,18 @@ return function(context)
 				if not target and elapsed>=0.25 then elapsed=0;choose()end
 				if not target then return end
 				if not force then
-					local position=contactPosition(target)
-					-- A single entry placement; position-only servo leaves physical rotation free.
-					root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-					root.CFrame=CFrame.new(position)*root.CFrame.Rotation
-					force=Instance.new("BodyPosition");force.Name="NoMotos2ContactHold"
-					force.P=50000;force.D=2500;force.MaxForce=Vector3.new(1000000000,1000000000,1000000000)
-					force.Position=position;force.Parent=root
-					spin=Instance.new("BodyAngularVelocity");spin.Name="NoMotos2ContactSpin"
-					spin.P=1250;spin.MaxTorque=Vector3.new(0,1000000000,0)
-					spin.AngularVelocity=Vector3.new(0,spinSpeed,0);spin.Parent=root
-					log("SUSTAINED_CONTACT no far travel; angular Y="..spinSpeed)
+					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250
+					force.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
+					force.Velocity=Vector3.new(speed,speed,speed);force.Parent=root
+					log("SUSTAINED_CONTACT original car forces=900000000; no far travel")
 				end
 				local position,center=contactPosition(target)
-				force.Position=position;target.LastContactPoint=center
+				target.LastContactPoint=center
+				-- Restore the original contact writes, but never enter a FAR/return cycle.
+				root.CFrame=CFrame.new(position)*root.CFrame.Rotation
+				direction=-direction
+				root.AssemblyLinearVelocity=Vector3.new(0,speed*direction,0)
+				root.AssemblyAngularVelocity=Vector3.new(speed,speed,speed)
 				self.Phase="CONTACT"
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
@@ -251,7 +249,7 @@ return function(context)
 		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V4 SUSTAINED CONTACT | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; angular Y=120 rad/s; position servo; no linear launch; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V5 ORIGINAL FORCES NO FAR | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end
