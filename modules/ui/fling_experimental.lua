@@ -34,10 +34,6 @@ return function(context)
 	back.LayoutOrder=6
 	local copyPass=button(tr("Copiar reporte de despegue","Copy launch report"))
 	copyPass.LayoutOrder=9
-	local seatObserver=button(tr("Activar observador de asientos","Enable seat observer"));seatObserver.LayoutOrder=11
-	local numericObserver=button(tr("Activar detector numerico (NaN)","Enable numeric observer (NaN)"));numericObserver.LayoutOrder=12
-	local numericTest=button(tr("Probar detector NaN (solo datos locales)","Test NaN detector (local data only)"));numericTest.LayoutOrder=13
-	local copyObservers=button(tr("Copiar reporte de asientos + NaN","Copy seat + NaN report"));copyObservers.LayoutOrder=14
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
 	copyDiagnostic.LayoutOrder=7
 	local report=Instance.new("TextBox")
@@ -56,10 +52,6 @@ return function(context)
 	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
-		seatObserver.Text=SeatDiagnosticCore.Running and tr("Detener observador de asientos","Stop seat observer") or tr("Activar observador de asientos","Enable seat observer")
-		numericObserver.Text=NumericDiagnosticCore.Running and tr("Detener detector numerico (NaN)","Stop numeric observer (NaN)") or tr("Activar detector numerico (NaN)","Enable numeric observer (NaN)")
-		seatObserver.BackgroundColor3=SeatDiagnosticCore.Running and currentTheme.critical or currentTheme.tertiary
-		numericObserver.BackgroundColor3=NumericDiagnosticCore.Running and currentTheme.critical or currentTheme.tertiary
 		local passing=StraightPassTestCore and StraightPassTestCore.Running
 		passToggle.Text=passing and tr("Cancelar y volver al checkpoint","Cancel and return to checkpoint") or tr("Disparo unico · dayzero777","Single launch · dayzero777")
 		passToggle.BackgroundColor3=passing and currentTheme.critical or currentTheme.tertiary
@@ -78,29 +70,7 @@ return function(context)
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 	end
 	status.LayoutOrder=7
-	copyDiagnostic.LayoutOrder=8;report.LayoutOrder=15
-	seatObserver.Activated:Connect(function()
-		local ok,err=true,nil
-		if SeatDiagnosticCore.Running then SeatDiagnosticCore:Stop()else ok,err=SeatDiagnosticCore:Start()end
-		UpdateExperimentalFlingPanel(ok and tr("Observador de asientos actualizado; no modifica fisicas.","Seat observer updated; no physics changes.") or err)
-	end)
-	numericObserver.Activated:Connect(function()
-		local ok,err=true,nil
-		if NumericDiagnosticCore.Running then NumericDiagnosticCore:Stop()else ok,err=NumericDiagnosticCore:Start()end
-		UpdateExperimentalFlingPanel(ok and tr("Detector numerico actualizado; solo lectura.","Numeric observer updated; read-only.") or err)
-	end)
-	numericTest.Activated:Connect(function()
-		local ok,err=NumericDiagnosticCore:RunLocalTest()
-		UpdateExperimentalFlingPanel(ok and tr("Prueba local terminada. Copia el reporte de asientos + NaN.","Local test complete. Copy the seat + NaN report.") or err)
-	end)
-	copyObservers.Activated:Connect(function()
-		local text=SeatDiagnosticCore:GetReport().."\n\n"..NumericDiagnosticCore:GetReport()
-		local copy=setclipboard or toclipboard
-		local ok=type(copy)=="function" and pcall(copy,text)
-		report.Text=text;report.Visible=not ok
-		if not ok then report:CaptureFocus();report.SelectionStart=1;report.CursorPosition=#text+1 end
-		UpdateExperimentalFlingPanel(ok and tr("Reporte de asientos + NaN copiado.","Seat + NaN report copied.") or tr("Selecciona y copia el reporte de abajo.","Select and copy the report below."))
-	end)
+	copyDiagnostic.LayoutOrder=8;report.LayoutOrder=10
 	passToggle.Activated:Connect(function()
 		choices.Visible=false
 		if StraightPassTestCore.Running then StraightPassTestCore:Stop("Prueba cancelada manualmente.")
@@ -170,7 +140,6 @@ return function(context)
 		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
 	end)
 	gui.Destroying:Connect(function()
-		SeatDiagnosticCore:Destroy();NumericDiagnosticCore:Destroy()
 		StraightPassTestCore:Destroy()
 		targetAdded:Disconnect();targetRemoved:Disconnect()
 		local c=ExperimentalFlingCore
