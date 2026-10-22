@@ -57,7 +57,7 @@ function h:ChangeState(state)self.State=state end
 local root=instance('Part','HumanoidRootPart',char);root.CFrame=CFrame.new(10,5,0)
 root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
 local torso=instance('Part','UpperTorso',char);torso.TorsoRoot=root
-RunService={Heartbeat=signal(),PreSimulation=signal()}
+RunService={Heartbeat=signal(),PreSimulation=signal(),PostSimulation=signal()}
 local authorized=true
 ExperimentalFlingCore={IsAuthorized=function()return authorized end}
 local function beat(dt)now=now+dt;RunService.Heartbeat:Fire(dt)end
@@ -95,7 +95,10 @@ local flinger=created[1]
 assert(flinger.ClassName=='BodyVelocity'and flinger.P==1250 and flinger.Velocity.X==900000000)
 assert(flinger.MaxForce.X==math.huge and root.AssemblyAngularVelocity.X==900000000)
 assert(math.abs(torso.Position.Y-(body.Position.Y-1.5))<0.001 and torso.Position.X==body.Position.X,'align torso, not HRP, with Body offset')
-body.CFrame=CFrame.new(80,10,0);beat(.06)
+local contactX=torso.Position.X
+body.CFrame=CFrame.new(55,10,0);beat(.01)
+assert(torso.Position.X==contactX,'contact must not chase the moving vehicle')
+body.CFrame=CFrame.new(80,10,0);RunService.PostSimulation:Fire()
 assert(core.Phase=='HOME'and core.Completed==1 and core.Records[vehicle].Done)
 assert(root.CFrame==checkpoint and flinger.Destroyed and root.AssemblyLinearVelocity.Magnitude==0)
 -- Occupancy arising during contact cancels the attempt, without touching its joints.
@@ -119,10 +122,28 @@ assert(core:Start(owner));beat(.06)
 local extra=instance('Part','External',workspace);root.ConnectedParts={extra}
 local before=root.CFrame
 beat(.01)
-assert(not core.Running and not core.Stopping and root.CFrame==before and not root.Anchored)
-assert(h.SeatedEnabled==false,'preserve previously disabled seated state on abnormal stop')
+assert(core.Running and core.Phase=='WAIT_RELEASE'and root.CFrame==before and not root.Anchored)
 root.ConnectedParts={}
+beat(.01);assert(core.Running and core.Phase=='HOME','resume monitoring after external connection clears')
+-- A new instance with exactly the same name is independently eligible.
+vehicle.Parent=nil
+local replacement,replacementBody=moto('ReusedName',42);spawn(replacement)
+assert(core.Records[replacement]and not core.Records[replacement].Done)
+-- A regenerated Body inside the same vehicle must not inherit Done.
+core.Records[replacement].Done=true
+local mover=replacement:FindFirstChild('MoverModel')
+replacementBody.Parent=nil
+local regenerated=instance('Part','Body',mover)
+regenerated.CFrame=CFrame.new(50,10,0);regenerated.AssemblyRootPart=regenerated
+instance('Seat','Seat',regenerated)
+cars.DescendantAdded:Fire(regenerated)
+assert(core.Records[replacement].Body==regenerated and not core.Records[replacement].Done)
+-- Removing/reinserting the same root instance also rearms it.
+core.Records[replacement].Done=true
+replacement.Parent=nil;replacement.Parent=cars;cars.ChildAdded:Fire(replacement)
+assert(not core.Records[replacement].Done)
 assert(core:GetDiagnosticReport():find('NO MOTOS V1',1,true))
 core:Destroy()
+assert(h.SeatedEnabled==false,'preserve previously disabled seated state on stop')
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end
 print('no_motos_spec OK: owner-only, selected owner, free motorcycle scope, torso alignment, efficient force defaults, cleanup and occupancy cancellation')

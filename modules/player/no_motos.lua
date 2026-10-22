@@ -164,12 +164,14 @@ return function(context)
 	local function consider(vehicle)
 		if not core.Running then return end
 		local record=core.Records[vehicle]
-		if record and record.Done then return end
 		local target=resolve(vehicle)
 		if not target then return end
+		-- A reused container can receive a new physical Body on regeneration.
+		if record and record.Body~=target.Body then core.Records[vehicle]=nil;record=nil end
+		if record and record.Done then return end
 		if not record then
 			local ok,name=pcall(function()return vehicle:GetFullName()end)
-			core.Records[vehicle]={Attempts=0,Origin=target.Body.Position,Done=false,Name=ok and name or vehicle.Name}
+			core.Records[vehicle]={Body=target.Body,Attempts=0,Origin=target.Body.Position,Done=false,Name=ok and name or vehicle.Name}
 			log("FREE_MOTORCYCLE "..core.Records[vehicle].Name)
 		end
 	end
@@ -210,7 +212,11 @@ return function(context)
 			if cars~=boundCars then
 				disconnect(carsConnections);boundCars=cars
 				if cars then
-					carsConnections[#carsConnections+1]=cars.ChildAdded:Connect(consider)
+					carsConnections[#carsConnections+1]=cars.ChildAdded:Connect(function(vehicle)
+						-- Instances, not names, identify a spawn. Reinsertions are new spawns too.
+						self.Records[vehicle]=nil
+						consider(vehicle)
+					end)
 					carsConnections[#carsConnections+1]=cars.DescendantAdded:Connect(function(item)
 						local top=item
 						while top.Parent and top.Parent~=cars do top=top.Parent end
@@ -225,6 +231,17 @@ return function(context)
 			for vehicle in pairs(self.Records)do if vehicle.Parent~=cars then self.Records[vehicle]=nil end end
 		end
 		runtime[#runtime+1]={Disconnect=function()disconnect(carsConnections)end}
+		runtime[#runtime+1]=RunService.PostSimulation:Connect(function()
+			if not self.Running or self.Phase~="CONTACT"or not current then return end
+			local ok,err=xpcall(function()
+				if player.Character~=character or not root.Parent or externalConnection(root,character)then return end
+				if current.Body.Parent and finiteVector(current.Body.Position)
+					and (current.Body.Position-current.ContactFrame.Position).Magnitude>=CONFIG.Displacement then
+					recordAttempt()
+				end
+			end,debug.traceback)
+			if not ok then log("ERROR "..tostring(err));self:Stop("Error al finalizar contacto.")end
+		end)
 		runtime[#runtime+1]=RunService.Heartbeat:Connect(function(dt)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
@@ -233,7 +250,15 @@ return function(context)
 				if owner.Parent~=Players then self:Stop("El propietario seleccionado salio.");return end
 				if conflicts()then self:Stop("Otro flujo fue activado.");return end
 				preventSeat()
-				if humanoid.Sit or humanoid.SeatPart or externalConnection(root,character)then self:Stop("Se detecto una conexion con un vehiculo.");return end
+				if humanoid.Sit or humanoid.SeatPart or externalConnection(root,character)then
+					-- Do not move an externally welded assembly or disable monitoring future spawns.
+					destroyFlinger();current=nil
+					if self.Phase~="WAIT_RELEASE"then log("WAIT_RELEASE external seat/assembly")end
+					self.Phase="WAIT_RELEASE";return
+				end
+				if self.Phase=="WAIT_RELEASE"then
+					self.Phase="HOME";homeUntil=os.clock()+CONFIG.HomeTime;home()
+				end
 				scanElapsed=scanElapsed+dt
 				if scanElapsed>=0.25 then scanElapsed=0;scan()end
 				if self.Phase=="CONTACT"then
@@ -243,7 +268,8 @@ return function(context)
 						if not home()then self:Stop("No se pudo regresar de forma independiente.")end
 						return
 					end
-					if os.clock()-contactStarted>=CONFIG.ContactTime then recordAttempt();return end
+					if (current.Body.Position-current.ContactFrame.Position).Magnitude>=CONFIG.Displacement
+						or os.clock()-contactStarted>=CONFIG.ContactTime then recordAttempt();return end
 				else
 					if not home()then self:Stop("No se pudo mantener el checkpoint.");return end
 					if os.clock()<homeUntil then return end
@@ -251,6 +277,7 @@ return function(context)
 						if not record.Done then local target=resolve(vehicle);if target then current=target;break end end
 					end
 					if not current then return end
+					current.ContactFrame=current.Body.CFrame
 					self.Phase="CONTACT";contactStarted=os.clock();self.Direction=1
 					flinger=Instance.new("BodyVelocity");flinger.Name="NoMotosFlinger";flinger.P=CONFIG.P
 					flinger.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
@@ -258,7 +285,8 @@ return function(context)
 					log("CONTACT_BEGIN Body + "..torso.Name)
 				end
 				self.Direction=-self.Direction
-				local desired=(current.Body.CFrame*CFrame.new(0,CONFIG.Height*self.Direction,0)).Position
+				-- Contact is fixed at entry: never chase a motorcycle after it leaves.
+				local desired=(current.ContactFrame*CFrame.new(0,CONFIG.Height*self.Direction,0)).Position
 				-- Translate HRP by the live torso offset, preserving our rotation.
 				local offset=torso.Position-root.Position
 				root.CFrame=CFrame.new(desired-offset)*root.CFrame.Rotation
