@@ -48,10 +48,16 @@ player=instance('Player','Local',Players);player.UserId=1
 local owner=instance('Player','TestOwner',Players);owner.UserId=42
 local char=instance('Model','LocalRig',workspace);player.Character=char
 local h=instance('Humanoid','Humanoid',char)
+Enum={HumanoidStateType={Seated='Seated',GettingUp='GettingUp'}}
+h.Seated=signal();h.SeatedEnabled=true;h.State='Running'
+function h:GetStateEnabled()return self.SeatedEnabled end
+function h:SetStateEnabled(_,enabled)self.SeatedEnabled=enabled end
+function h:GetState()return self.State end
+function h:ChangeState(state)self.State=state end
 local root=instance('Part','HumanoidRootPart',char);root.CFrame=CFrame.new(10,5,0)
 root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
 local torso=instance('Part','UpperTorso',char);torso.TorsoRoot=root
-RunService={Heartbeat=signal()}
+RunService={Heartbeat=signal(),PreSimulation=signal()}
 local authorized=true
 ExperimentalFlingCore={IsAuthorized=function()return authorized end}
 local function beat(dt)now=now+dt;RunService.Heartbeat:Fire(dt)end
@@ -73,6 +79,11 @@ authorized=false;assert(not core:Start(owner));authorized=true
 assert(not core:Start(nil),'must choose owner')
 root.Anchored=true;assert(not core:Start(owner));root.Anchored=false
 assert(core:Start(owner))
+assert(h.SeatedEnabled==false,'disable sitting before any contact')
+h.Sit=true;h.State='Seated';h.Seated:Fire(true)
+assert(not h.Sit and h.State=='GettingUp','respond immediately to seated event')
+h.Sit=true;RunService.PreSimulation:Fire()
+assert(not h.Sit,'prevent sitting before simulation')
 local foreign=moto('SameName',99);spawn(foreign)
 local occupied=moto('Occupied',42,true);spawn(occupied)
 local car=moto('NotMotorcycle',42,false,'rbxassetid://123');spawn(car)
@@ -99,14 +110,17 @@ beat(.3);assert(not core.Records[disputed])
 secondSeat.Occupant=nil
 beat(.06);assert(core.Phase=='CONTACT')
 core:Stop();assert(core.Stopping and not core.Running and root.Anchored)
+assert(h.SeatedEnabled==true,'restore original seated setting on stop')
 beat(2.1);assert(not core.Stopping and not root.Anchored and root.CFrame==checkpoint)
 assert(root.AssemblyLinearVelocity.Magnitude==0 and h.AutoRotate==true and h.PlatformStand==false)
 -- A newly connected character/vehicle must not be teleported home as an assembly.
+h.SeatedEnabled=false
 assert(core:Start(owner));beat(.06)
 local extra=instance('Part','External',workspace);root.ConnectedParts={extra}
 local before=root.CFrame
 beat(.01)
 assert(not core.Running and not core.Stopping and root.CFrame==before and not root.Anchored)
+assert(h.SeatedEnabled==false,'preserve previously disabled seated state on abnormal stop')
 root.ConnectedParts={}
 assert(core:GetDiagnosticReport():find('NO MOTOS V1',1,true))
 core:Destroy()

@@ -7,6 +7,21 @@ return function(context)
 	local runtime={}
 	local root,humanoid,character,checkpoint,flinger,current,contactStarted,homeUntil,scanElapsed
 	local savedPlatformStand,savedAutoRotate
+	local savedSeatedEnabled
+	local function restoreSeatState()
+		if savedSeatedEnabled~=nil and humanoid and humanoid.Parent then
+			pcall(function()humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,savedSeatedEnabled)end)
+		end
+		savedSeatedEnabled=nil
+	end
+	local function preventSeat()
+		if not core.Running or not humanoid or not humanoid.Parent or player.Character~=character then return end
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+		if humanoid.Sit then humanoid.Sit=false end
+		if humanoid:GetState()==Enum.HumanoidStateType.Seated then
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function disconnect(list)for _,c in ipairs(list)do c:Disconnect()end;table.clear(list)end
 	local function finiteVector(v)
@@ -106,6 +121,7 @@ return function(context)
 		if self.Stopping then return true end
 		local wasRunning=self.Running
 		self.Running=false;disconnect(runtime);destroyFlinger();current=nil
+		restoreSeatState()
 		self.LastMessage=message or "No motos desactivado; regreso y limpieza."
 		if not wasRunning then return false end
 		log("STOP "..self.LastMessage)
@@ -167,7 +183,25 @@ return function(context)
 		if not r or r.Anchored or h.Sit or h.SeatPart or externalConnection(r,c)then return false,"Tu personaje debe estar disponible, sin ancla y fuera de vehiculos."end
 		character,humanoid,root=c,h,r;checkpoint=r.CFrame
 		savedPlatformStand=h.PlatformStand;savedAutoRotate=h.AutoRotate
+		local seatOK,seatState=pcall(function()
+			local previous=h:GetStateEnabled(Enum.HumanoidStateType.Seated)
+			h:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+			return previous
+		end)
+		if not seatOK then return false,"No se pudo activar la proteccion anti-asiento."end
+		savedSeatedEnabled=seatState
 		self.LastCheckpoint=checkpoint;self.Owner=owner;self.Records={};self.Rows={};self.Completed=0;self.Phase="HOME";self.Running=true
+		-- Prevent auto-seating before physics, without activating an anchor or editing seats/welds.
+		runtime[#runtime+1]=RunService.PreSimulation:Connect(function()
+			local ok=pcall(preventSeat)
+			if not ok then self:Stop("Fallo en la proteccion anti-asiento.")end
+		end)
+		runtime[#runtime+1]=h.Seated:Connect(function(active)
+			if active then
+				local ok=pcall(preventSeat)
+				if not ok then self:Stop("Fallo en la proteccion anti-asiento.")end
+			end
+		end)
 		homeUntil=os.clock()+CONFIG.HomeTime;scanElapsed=1
 		local boundCars
 		local carsConnections={}
@@ -198,6 +232,7 @@ return function(context)
 				if currentCharacter~=character or currentRoot~=root or currentHumanoid~=humanoid then self:Stop("Tu personaje cambio o murio.");return end
 				if owner.Parent~=Players then self:Stop("El propietario seleccionado salio.");return end
 				if conflicts()then self:Stop("Otro flujo fue activado.");return end
+				preventSeat()
 				if humanoid.Sit or humanoid.SeatPart or externalConnection(root,character)then self:Stop("Se detecto una conexion con un vehiculo.");return end
 				scanElapsed=scanElapsed+dt
 				if scanElapsed>=0.25 then scanElapsed=0;scan()end
@@ -246,7 +281,7 @@ return function(context)
 	end
 	function core:GetDiagnosticReport()
 		return "NO MOTOS V1 | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
-			.."\nContact/Home=0.05s Speed=900000000 P=1250 | free motorcycles only | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
+			.."\nContact/Home=0.05s Speed=900000000 P=1250 | free motorcycles only | anti-seat local enabled while running | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end
 	return true
