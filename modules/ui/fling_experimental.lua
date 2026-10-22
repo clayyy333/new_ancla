@@ -30,9 +30,16 @@ return function(context)
 	microToggle.LayoutOrder=4
 	local motoToggle=button(tr("Activar No motos","Enable No motorcycles"))
 	motoToggle.LayoutOrder=5
+	local motoFeedback=Instance.new("TextLabel")
+	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=6
+	motoFeedback.BackgroundTransparency=1;motoFeedback.TextWrapped=true
+	motoFeedback.Font=Enum.Font.Gotham;motoFeedback.TextSize=12
+	motoFeedback.TextColor3=currentTheme.textDim;motoFeedback.ZIndex=8;motoFeedback.Parent=panel
+	motoFeedback.Text=tr("Selecciona arriba al propietario de la moto antes de activar.","Select the motorcycle owner above before enabling.")
+	RegisterTheme(motoFeedback,"TextColor3","textDim")
 	local lastMode
 	local back=button(tr("Forzar regreso","Force return"))
-	back.LayoutOrder=6
+	back.LayoutOrder=7
 	local copyMotos=button(tr("Copiar reporte de No motos","Copy No motorcycles report"))
 	copyMotos.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
@@ -58,6 +65,9 @@ return function(context)
 		motoToggle.BackgroundColor3=motos and currentTheme.critical or currentTheme.tertiary
 		local c=ExperimentalFlingCore
 		local target=c:GetTarget()
+		if message then motoFeedback.Text=tostring(message)
+		elseif motos then motoFeedback.Text=tr("Vigilando motos de @","Monitoring motorcycles owned by @")..NoMotosCore.Owner.Name
+		elseif not target then motoFeedback.Text=tr("Falta seleccionar al propietario de la moto en la lista superior.","Select the motorcycle owner in the list above.")end
 		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
 		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and not c.MicroMovementEnabled and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
 		toggle.BackgroundColor3=c.Running and not c.MicroMovementEnabled and currentTheme.critical or currentTheme.tertiary
@@ -71,15 +81,28 @@ return function(context)
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
 	end
-	status.LayoutOrder=7
-	copyDiagnostic.LayoutOrder=8;report.LayoutOrder=10
+	status.LayoutOrder=8
+	copyDiagnostic.LayoutOrder=9;copyMotos.LayoutOrder=10;report.LayoutOrder=11
 	motoToggle.Activated:Connect(function()
 		choices.Visible=false
-		if NoMotosCore.Stopping then return end
+		if NoMotosCore.Stopping then
+			UpdateExperimentalFlingPanel(tr("Espera a que termine la estabilizacion.","Wait for stabilization to finish."));return
+		end
 		if NoMotosCore.Running then NoMotosCore:Stop()
 		else
-			local ok,err=NoMotosCore:Start(ExperimentalFlingCore:GetTarget())
-			if ok then lastMode="motos"else UpdateExperimentalFlingPanel(err)end
+			local target=ExperimentalFlingCore:GetTarget()
+			if not target then
+				UpdateExperimentalFlingPanel(tr("No motos necesita que selecciones arriba al propietario de esa moto.","Select that motorcycle's owner above before enabling No motorcycles."))
+				panel.CanvasPosition=Vector2.zero
+				return
+			end
+			local called,ok,err=xpcall(function()return NoMotosCore:Start(target)end,debug.traceback)
+			if not called then
+				local failure=tostring(ok)
+				pcall(function()NoMotosCore:Stop("Error al activar No motos.")end)
+				report.Text=failure;report.Visible=true
+				UpdateExperimentalFlingPanel(tr("Error al activar No motos; detalle en el reporte inferior: ","Could not enable No motorcycles; details below: ")..failure)
+			elseif ok then lastMode="motos"else UpdateExperimentalFlingPanel(err)end
 		end
 	end)
 	copyMotos.Activated:Connect(function()
