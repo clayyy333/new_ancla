@@ -1,11 +1,12 @@
 -- Independent efficient-short vehicle test. Never writes vehicle parts or calls remotes.
 return function(context)
 	setfenv(1,context)
-	local CONFIG={Speed=900000000,P=1250,Height=1.5,ContactTime=0.05,HomeTime=0.05,StopTime=2,Attempts=3,Displacement=20}
+	local CONFIG={PulseSpeed=100000,SpinSpeed=60,P=1250,Height=1.5,HomeTime=0.05,StopTime=2,Displacement=20}
 	local core={Running=false,Stopping=false,Owner=nil,Rows={},Records={},Completed=0,Phase="IDLE"}
 	NoMotosCore=core
 	local runtime={}
-	local root,humanoid,character,checkpoint,flinger,spinner,current,contactStarted,homeUntil,scanElapsed
+	local root,humanoid,character,checkpoint,spinner,current,homeUntil,scanElapsed
+	local pulseRoot,pulseVelocity
 	local savedPlatformStand,savedAutoRotate
 	local savedSeatedEnabled
 	local function restoreSeatState()
@@ -57,8 +58,13 @@ return function(context)
 		local a,b=weld.Part0,weld.Part1
 		return (a and a:IsDescendantOf(c))or (b and b:IsDescendantOf(c))or false
 	end
+	local function restorePulse()
+		local r,v=pulseRoot,pulseVelocity
+		pulseRoot=nil;pulseVelocity=nil
+		if r and r.Parent and v and r.AssemblyLinearVelocity.Magnitude>1000 then r.AssemblyLinearVelocity=v end
+	end
 	local function destroyFlinger()
-		if flinger then flinger:Destroy();flinger=nil end
+		restorePulse()
 		if spinner then spinner:Destroy();spinner=nil end
 		if humanoid and humanoid.Parent and savedAutoRotate~=nil then humanoid.AutoRotate=savedAutoRotate end
 	end
@@ -170,7 +176,7 @@ return function(context)
 		local record=core.Records[target.Vehicle]
 		local moved=finiteVector(target.Body.Position)and (target.Body.Position-record.Origin).Magnitude or 0
 		record.Attempts=record.Attempts+1;record.Displacement=moved
-		record.Done=moved>=CONFIG.Displacement or record.Attempts>=CONFIG.Attempts
+		record.Done=moved>=CONFIG.Displacement
 		if moved>=CONFIG.Displacement then core.Completed=core.Completed+1 end
 		log(string.format("RETURN attempts=%d displacement=%.2f done=%s",record.Attempts,moved,tostring(record.Done)))
 		current=nil;core.Phase="HOME";homeUntil=os.clock()+CONFIG.HomeTime
@@ -227,7 +233,16 @@ return function(context)
 		self.LastCheckpoint=checkpoint;self.Owner=owner;self.Records={};self.Rows={};self.Completed=0;self.Phase="HOME";self.Running=true
 		-- Prevent auto-seating before physics, without activating an anchor or editing seats/welds.
 		runtime[#runtime+1]=RunService.PreSimulation:Connect(function()
-			local ok=pcall(preventSeat)
+			local ok=pcall(function()
+				restorePulse();preventSeat()
+				if self.Running and self.Phase=="CONTACT"and current and eligible(current)
+					and player.Character==character and root.Parent and not localSeatWeld(humanoid,character)
+					and not externalConnection(root,character)then
+					pulseRoot=root;pulseVelocity=root.AssemblyLinearVelocity
+					root.AssemblyLinearVelocity=Vector3.new(CONFIG.PulseSpeed,CONFIG.PulseSpeed,CONFIG.PulseSpeed)
+					root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.SpinSpeed,0)
+				end
+			end)
 			if not ok then self:Stop("Fallo en la proteccion anti-asiento.")end
 		end)
 		runtime[#runtime+1]=h.Seated:Connect(function(active)
@@ -264,6 +279,7 @@ return function(context)
 		end
 		runtime[#runtime+1]={Disconnect=function()disconnect(carsConnections)end}
 		runtime[#runtime+1]=RunService.PostSimulation:Connect(function()
+			restorePulse()
 			if not self.Running or self.Phase~="CONTACT"or not current then return end
 			local ok,err=xpcall(function()
 				if player.Character~=character or not root.Parent or externalConnection(root,character)then return end
@@ -300,8 +316,7 @@ return function(context)
 						if not home()then self:Stop("No se pudo regresar de forma independiente.")end
 						return
 					end
-					if (current.Body.Position-current.ContactFrame.Position).Magnitude>=CONFIG.Displacement
-						or os.clock()-contactStarted>=CONFIG.ContactTime then recordAttempt();return end
+					if (current.Body.Position-current.ContactFrame.Position).Magnitude>=CONFIG.Displacement then recordAttempt();return end
 				else
 					if not home()then self:Stop("No se pudo mantener el checkpoint.");return end
 					if os.clock()<homeUntil then return end
@@ -310,23 +325,19 @@ return function(context)
 					end
 					if not current then return end
 					current.ContactFrame=current.Body.CFrame
-					self.Phase="CONTACT";contactStarted=os.clock();self.Direction=1
+					self.Phase="CONTACT"
 					-- Place once, then let physics rotate the character freely around world Y.
 					local desired=(current.ContactFrame*CFrame.new(0,-CONFIG.Height,0)).Position
 					local offset=torso.Position-root.Position
 					root.CFrame=CFrame.new(desired-offset)*root.CFrame.Rotation
 					zero();humanoid.AutoRotate=false
-					flinger=Instance.new("BodyVelocity");flinger.Name="NoMotosFlinger";flinger.P=CONFIG.P
-					flinger.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
-					-- Resist translation instead of launching ourselves away with diagonal thrust.
-					flinger.Velocity=Vector3.zero;flinger.Parent=root
 					spinner=Instance.new("BodyAngularVelocity");spinner.Name="NoMotosSpinner"
 					spinner.P=CONFIG.P;spinner.MaxTorque=Vector3.new(0,math.huge,0)
-					spinner.AngularVelocity=Vector3.new(0,CONFIG.Speed,0);spinner.Parent=root
+					spinner.AngularVelocity=Vector3.new(0,CONFIG.SpinSpeed,0);spinner.Parent=root
 					log("CONTACT_BEGIN SPIN_Y Body + "..torso.Name)
 				end
 				-- No repeated CFrame/orientation writes and no tracking the departing bike.
-				root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.Speed,0)
+				root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.SpinSpeed,0)
 			end,debug.traceback)
 			if not ok then log("ERROR "..tostring(err));self:Stop("Error en No motos; fuerzas retiradas.")end
 		end)
@@ -345,7 +356,7 @@ return function(context)
 	function core:GetDiagnosticReport()
 		return "NO MOTOS V1 | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
 			.."\nLastStartFailure="..tostring(self.LastStartFailure or "none")
-			.."\nContact/Home=0.05s AngularSpeedY=900000000 P=1250 | linear target=0 | one placement per contact | free motorcycles only | anti-seat local enabled while running | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
+			.."\nSustained contact until 20 studs displacement | Home=0.05s | AngularSpeedY=60 rad/s | linear pulses=100000 per axis PreSimulation/restored PostSimulation | no BodyVelocity stabilizer | one placement per contact | free motorcycles only | anti-seat local\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end
 	return true

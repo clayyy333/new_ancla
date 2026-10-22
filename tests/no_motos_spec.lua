@@ -92,12 +92,10 @@ local car=moto('NotMotorcycle',42,false,'rbxassetid://123');spawn(car)
 beat(.06)
 assert(core.Phase=='HOME'and #created==0,'ignore occupied, foreign and unconfirmed vehicle types')
 local vehicle,body,seat=moto('ReusedName',42);spawn(vehicle);beat(.06)
-assert(core.Phase=='CONTACT'and #created==2)
-local flinger=created[1]
-local spinner=created[2]
-assert(flinger.ClassName=='BodyVelocity'and flinger.P==1250 and flinger.Velocity.Magnitude==0)
-assert(flinger.MaxForce.X==math.huge and root.AssemblyAngularVelocity.X==0 and root.AssemblyAngularVelocity.Y==900000000 and root.AssemblyAngularVelocity.Z==0)
-assert(spinner.ClassName=='BodyAngularVelocity'and spinner.AngularVelocity.Y==900000000 and spinner.MaxTorque.X==0 and spinner.MaxTorque.Z==0)
+assert(core.Phase=='CONTACT'and #created==1)
+local spinner=created[1]
+assert(root.AssemblyAngularVelocity.X==0 and root.AssemblyAngularVelocity.Y==60 and root.AssemblyAngularVelocity.Z==0)
+assert(spinner.ClassName=='BodyAngularVelocity'and spinner.AngularVelocity.Y==60 and spinner.MaxTorque.X==0 and spinner.MaxTorque.Z==0)
 assert(not h.AutoRotate)
 assert(math.abs(torso.Position.Y-(body.Position.Y-1.5))<0.001 and torso.Position.X==body.Position.X,'align torso, not HRP, with Body offset')
 local contactX=torso.Position.X
@@ -105,9 +103,15 @@ local contactFrame=root.CFrame
 body.CFrame=CFrame.new(55,10,0);beat(.01)
 assert(torso.Position.X==contactX,'contact must not chase the moving vehicle')
 assert(root.CFrame==contactFrame,'do not rewrite orientation/position during physical spin')
+beat(.2);assert(core.Phase=='CONTACT','sustain contact beyond old 0.05 second timeout')
+local oldVelocity=root.AssemblyLinearVelocity
+RunService.PreSimulation:Fire()
+assert(root.AssemblyLinearVelocity.X==100000,'apply linear pulse before physics')
+RunService.PostSimulation:Fire()
+assert(root.AssemblyLinearVelocity==oldVelocity,'restore linear pulse after physics')
 body.CFrame=CFrame.new(80,10,0);RunService.PostSimulation:Fire()
 assert(core.Phase=='HOME'and core.Completed==1 and core.Records[vehicle].Done)
-assert(root.CFrame==checkpoint and flinger.Destroyed and root.AssemblyLinearVelocity.Magnitude==0)
+assert(root.CFrame==checkpoint and root.AssemblyLinearVelocity.Magnitude==0)
 assert(spinner.Destroyed and h.AutoRotate,'remove spin actuator and restore AutoRotate at home')
 -- Occupancy arising during contact cancels the attempt, without touching its joints.
 local second,secondBody,secondSeat=moto('Second',42);spawn(second);beat(.06)
