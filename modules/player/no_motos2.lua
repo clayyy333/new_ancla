@@ -1,12 +1,14 @@
 -- Independent car-fling adaptation: our vehicle -> unoccupied motorcycle Body.
 return function(context)
 	setfenv(1,context)
-	local C={Running=false,Stopping=false,Phase="IDLE",Rows={}}
+	local C={Running=false,Stopping=false,Phase="IDLE",Rows={},AutoEnabled=false,TestOccupiedTargets=true}
+	-- Temporary test switch: false restores the previous free/unanchored-target filter.
+	local occupiedTest=false
+	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
-	local speed=900000000
-	local source,root,collider,checkpoint,force,target,connection,watch
-	local elapsed,nearUntil,direction,origin,completed
-	local farDistances={4487425,7554477,9193601,11000000,12572022,15000000,17003482,21098414}
+	local spinSpeed=120
+	local source,root,collider,checkpoint,force,spin,target,connection,watch
+	local elapsed,origin,completed
 	local function finite(v)
 		return v and v.X==v.X and v.Y==v.Y and v.Z==v.Z and math.abs(v.X)<math.huge and math.abs(v.Y)<math.huge and math.abs(v.Z)<math.huge
 	end
@@ -68,10 +70,10 @@ return function(context)
 	end
 	local function resolve(v)
 		local cars=workspace:FindFirstChild("Cars")
-		if v==source or v.Parent~=cars or not owned(v,C.Owner)or not free(v)then return end
+		if v==source or v.Parent~=cars or not owned(v,C.Owner)or (not occupiedTest and not free(v))then return end
 		local mover=v:FindFirstChild("MoverModel")
 		local body=mover and mover:FindFirstChild("Body")
-		if not body or not body:IsA("BasePart")or not body.CanCollide or body.Anchored or not finite(body.Position)then return end
+		if not body or not body:IsA("BasePart")or not body.CanCollide or (not occupiedTest and body.Anchored)or not finite(body.Position)then return end
 		local motorcycle=false
 		for _,key in ipairs({"Animation","RunAnim"})do
 			if tostring(v:GetAttribute(key)):match("%d+")=="13112445577"then motorcycle=true end
@@ -85,10 +87,26 @@ return function(context)
 			motorcycle=count==2
 		end
 		local assembly=body.AssemblyRootPart
-		if motorcycle and assembly and not assembly.Anchored and (assembly==v or assembly:IsDescendantOf(v))then return body end
+		if motorcycle and assembly and (occupiedTest or (not assembly.Anchored and (assembly==v or assembly:IsDescendantOf(v))))then return body end
+	end
+	local function observe(t)
+		local body=t.Body
+		local assembly=body.AssemblyRootPart
+		local occupants={}
+		for _,seat in ipairs(t.Vehicle:GetDescendants())do
+			if (seat:IsA("Seat")or seat:IsA("VehicleSeat"))and seat.Occupant then
+				occupants[#occupants+1]=seat.Occupant.Parent and seat.Occupant.Parent.Name or "unknown"
+			end
+		end
+		table.sort(occupants)
+		local state="occupants="..table.concat(occupants,",").." DriverId="..tostring(t.Vehicle:GetAttribute("DriverId"))
+			.." Body.Anchored="..tostring(body.Anchored).." Assembly.Anchored="..tostring(assembly and assembly.Anchored)
+			.." AssemblyRoot="..tostring(assembly and assembly:GetFullName())
+		if state~=t.Observed then t.Observed=state;log(string.format("t=%.3f TARGET_STATE %s",os.clock(),state))end
 	end
 	local function clear()
 		if force then force:Destroy();force=nil end
+		if spin then spin:Destroy();spin=nil end
 	end
 	local function home()
 		clear()
@@ -140,7 +158,8 @@ return function(context)
 		source=chosen;root=vehicleRoot(source);collider=root and contactPart(source,root)
 		if not collider then return false,"Tu vehiculo no tiene una pieza colisionable en su ensamblaje principal."end
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
-		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil;direction=1
+		occupiedTest=self.TestOccupiedTargets
+		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
 		local function choose()
 			if target then return end
@@ -153,8 +172,8 @@ return function(context)
 						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
 					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
 					target={Vehicle=v,Body=body,Face=face};self.TargetBody=body
-					origin=body.Position;nearUntil=os.clock()+0.04
-					self.Phase="NEAR";log("TARGET "..v:GetFullName());return
+					origin=body.Position
+					self.Phase="CONTACT";log("TARGET "..v:GetFullName());observe(target);return
 				end
 			end
 		end
@@ -164,6 +183,7 @@ return function(context)
 				if not self.Running then return end
 				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not sourceSafe()or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
 				if target then
+					observe(target)
 					if resolve(target.Vehicle)~=target.Body then
 						log("CONTACT_CANCELLED");target=nil;home();self.Phase="WAIT_MOTORCYCLE"
 					elseif (target.Body.Position-origin).Magnitude>=20 then
@@ -174,44 +194,53 @@ return function(context)
 				if not target and elapsed>=0.25 then elapsed=0;choose()end
 				if not target then return end
 				if not force then
-					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250
-					force.MaxForce=Vector3.new(math.huge,math.huge,math.huge);force.Velocity=Vector3.new(speed,speed,speed);force.Parent=root
+					local position=contactPosition(target)
+					-- A single entry placement; position-only servo leaves physical rotation free.
+					root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+					root.CFrame=CFrame.new(position)*root.CFrame.Rotation
+					force=Instance.new("BodyPosition");force.Name="NoMotos2ContactHold"
+					force.P=50000;force.D=2500;force.MaxForce=Vector3.new(1000000000,1000000000,1000000000)
+					force.Position=position;force.Parent=root
+					spin=Instance.new("BodyAngularVelocity");spin.Name="NoMotos2ContactSpin"
+					spin.P=1250;spin.MaxTorque=Vector3.new(0,1000000000,0)
+					spin.AngularVelocity=Vector3.new(0,spinSpeed,0);spin.Parent=root
+					log("SUSTAINED_CONTACT no far travel; angular Y="..spinSpeed)
 				end
-				local body=target.Body
-				local function near()
-					direction=-direction
-					local p,center=contactPosition(target)
-					target.LastContactPoint=center
-					root.CFrame=CFrame.new(p)*root.CFrame.Rotation
-					root.AssemblyLinearVelocity=Vector3.new(0,speed*direction,0)
-					root.AssemblyAngularVelocity=Vector3.new(speed,speed,speed)
-				end
-				if self.Phase=="NEAR"then
-					near();if os.clock()>=nearUntil then self.Phase="FAR"end
-				elseif self.Phase=="FAR"then
-					local far=farDistances[math.random(1,#farDistances)]
-					local sx=math.random(0,1)==0 and -1 or 1;local sz=math.random(0,1)==0 and -1 or 1
-					root.CFrame=CFrame.new(body.Position+Vector3.new(far*sx,far*0.15*direction,far*sz))
-					root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed);self.Phase="RETURN_DIRECT"
-				elseif self.Phase=="RETURN_DIRECT"then near();self.Phase="VERIFY_RETURN"
-				elseif self.Phase=="VERIFY_RETURN"then
-					local _,center=contactPosition(target)
-					if (collider.Position-center).Magnitude<=4 then self.Phase="NEAR";nearUntil=os.clock()+0.04+math.random()*0.045
-					else self.Phase="RETURN_CONTACT"end
-				elseif self.Phase=="RETURN_CONTACT"then near();self.Phase="RETURN_NEAR"
-				else near();self.Phase="NEAR";nearUntil=os.clock()+0.04 end
+				local position,center=contactPosition(target)
+				force.Position=position;target.LastContactPoint=center
+				self.Phase="CONTACT"
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
 		end)
 		choose();log("START source="..source:GetFullName())
-		refresh("No motos 2: tu vehiculo contra motos libres de @"..owner.Name..". Flujo de auto con alejamiento y regreso.")
+		refresh("No motos 2: tu vehiculo contra motos de @"..owner.Name..(occupiedTest and ". PRUEBA temporal: incluye ocupadas; anclaje registrado en reporte."or ". Solo motos libres."))
 		return true
 	end
 	function C:ForceReturn()
 		if self.Running then return self:Stop("Regreso de No motos 2 solicitado.")end
 		return checkpoint and home()or false,"No hay regreso seguro disponible."
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V2 FACE CONTACT | client observations only; OBB alignment, not exact mesh collision geometry\nRunning="..tostring(self.Running).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; no vertical offset\n"..table.concat(self.Rows,"\n")end
-	function C:Destroy()self:Stop("No motos 2: GUI cerrada.")end
+	function C:SetAutoEnabled(enabled,owner)
+		if enabled and (not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized())then return false,"Solo owners."end
+		if enabled and (not owner or owner.Parent~=Players or owner==player)then return false,"Selecciona primero al propietario objetivo."end
+		if autoConnection then autoConnection:Disconnect();autoConnection=nil end
+		self.AutoEnabled=enabled and true or false;autoOwner=owner;autoElapsed=0.25;autoLastError=nil
+		if not self.AutoEnabled then self:Stop("Activacion automatica desactivada.");refresh("Activacion automatica de No motos 2 desactivada.");return true end
+		autoConnection=RunService.Heartbeat:Connect(function(dt)
+			autoElapsed=autoElapsed+dt;if autoElapsed<0.25 then return end;autoElapsed=0
+			if not autoOwner or autoOwner.Parent~=Players then self:SetAutoEnabled(false);return end
+			local selected=CarFling and CarFling:GetCar()
+			if self.Running and selected~=source then self:Stop("Cambio de auto seleccionado.")end
+			if not self.Running and selected then
+				local called,ok,err=xpcall(function()return self:Start(autoOwner)end,debug.traceback)
+				if not called then err=tostring(ok);ok=false;self:Stop("Error al activar automaticamente.")end
+				if not ok and err~=autoLastError then autoLastError=err;refresh(err)elseif ok then autoLastError=nil end
+			end
+		end)
+		refresh("Automatico activo: elige tu auto en Fling con auto. Objetivo: motos de @"..owner.Name)
+		return true
+	end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V4 SUSTAINED CONTACT | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; angular Y=120 rad/s; position servo; no linear launch; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end

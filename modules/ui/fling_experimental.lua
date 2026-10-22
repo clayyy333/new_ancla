@@ -32,8 +32,10 @@ return function(context)
 	motoToggle.LayoutOrder=5
 	local moto2Toggle=button(tr("Activar No motos 2","Enable No motorcycles 2"))
 	moto2Toggle.LayoutOrder=6
+	local moto2Auto=button(tr("Activacion automatica No motos 2: OFF","No motorcycles 2 automatic activation: OFF"))
+	moto2Auto.LayoutOrder=7
 	local motoFeedback=Instance.new("TextLabel")
-	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=7
+	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=8
 	motoFeedback.BackgroundTransparency=1;motoFeedback.TextWrapped=true
 	motoFeedback.Font=Enum.Font.Gotham;motoFeedback.TextSize=12
 	motoFeedback.TextColor3=currentTheme.textDim;motoFeedback.ZIndex=8;motoFeedback.Parent=panel
@@ -41,7 +43,7 @@ return function(context)
 	RegisterTheme(motoFeedback,"TextColor3","textDim")
 	local lastMode
 	local back=button(tr("Forzar regreso","Force return"))
-	back.LayoutOrder=8
+	back.LayoutOrder=9
 	local copyMotos=button(tr("Copiar reporte de No motos","Copy No motorcycles report"))
 	copyMotos.LayoutOrder=9
 	local copyDiagnostic=button(tr("Copiar diagnóstico","Copy diagnostic"))
@@ -64,6 +66,8 @@ return function(context)
 	UpdateExperimentalFlingPanel=function(message)
 		local motos=NoMotosCore.Running
 		local motos2=NoMotos2Core.Running
+		moto2Auto.Text=NoMotos2Core.AutoEnabled and tr("Activacion automatica No motos 2: ON","No motorcycles 2 automatic activation: ON")or tr("Activacion automatica No motos 2: OFF","No motorcycles 2 automatic activation: OFF")
+		moto2Auto.BackgroundColor3=NoMotos2Core.AutoEnabled and currentTheme.critical or currentTheme.tertiary
 		moto2Toggle.Text=motos2 and tr("Desactivar No motos 2","Disable No motorcycles 2")or tr("Activar No motos 2","Enable No motorcycles 2")
 		moto2Toggle.BackgroundColor3=motos2 and currentTheme.critical or currentTheme.tertiary
 		motoToggle.Text=NoMotosCore.Stopping and tr("Estabilizando No motos...","Stabilizing No motorcycles...") or (motos and tr("Desactivar No motos","Disable No motorcycles") or tr("Activar No motos","Enable No motorcycles"))
@@ -86,12 +90,18 @@ return function(context)
 		end
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
-		if not message and motos2 then status.Text=tr("No motos 2 usa tu vehiculo seleccionado en Fling con auto; objetivo: Body de motos libres. Alejamiento y retorno del motor de auto.","No motorcycles 2 uses your vehicle selected in Car Fling; target: unoccupied motorcycle Body. Car-engine far travel and return.")end
+		if not message and motos2 then status.Text=tr("No motos 2: prueba temporal con motos ocupadas; copia el reporte para ver ocupante y anclaje observado.","No motorcycles 2: temporary occupied-bike test; copy report for observed occupant and anchoring.")end
 	end
-	status.LayoutOrder=9
-	copyDiagnostic.LayoutOrder=10;copyMotos.LayoutOrder=11;report.LayoutOrder=12
+	status.LayoutOrder=10
+	copyDiagnostic.LayoutOrder=11;copyMotos.LayoutOrder=12;report.LayoutOrder=13
+	moto2Auto.Activated:Connect(function()
+		local ok,err=NoMotos2Core:SetAutoEnabled(not NoMotos2Core.AutoEnabled,ExperimentalFlingCore:GetTarget())
+		if ok and NoMotos2Core.AutoEnabled then lastMode="motos2"end
+		if not ok then UpdateExperimentalFlingPanel(err)end
+	end)
 	moto2Toggle.Activated:Connect(function()
 		choices.Visible=false
+		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop();return end
 		local called,ok,err=xpcall(function()return NoMotos2Core:Start(ExperimentalFlingCore:GetTarget())end,debug.traceback)
 		if not called then
@@ -141,7 +151,10 @@ return function(context)
 			b.AutoButtonColor=false
 			Instance.new("UIPadding",b).PaddingLeft=UDim.new(0,12)
 			b.Activated:Connect(function()
-				if p.Parent==Players and ExperimentalFlingCore:SetTarget(p) then choices.Visible=false;UpdateExperimentalFlingPanel() end
+				if p.Parent==Players and ExperimentalFlingCore:SetTarget(p) then
+					choices.Visible=false
+					if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(true,p)else UpdateExperimentalFlingPanel()end
+				end
 			end)
 		end end
 		if count==0 then
@@ -159,6 +172,7 @@ return function(context)
 	end)
 	local targetAdded=Players.PlayerAdded:Connect(function()if choices.Visible then refreshTargets() end end)
 	local targetRemoved=Players.PlayerRemoving:Connect(function(leaving)
+		if NoMotos2Core.AutoEnabled and ExperimentalFlingCore:GetTarget()==leaving then NoMotos2Core:SetAutoEnabled(false)end
 		if NoMotos2Core.Running and NoMotos2Core.Owner==leaving then NoMotos2Core:Stop("El propietario seleccionado salio.")end
 		if NoMotosCore.Running and NoMotosCore.Owner==leaving then NoMotosCore:Stop("El propietario seleccionado salio.")end
 		if ExperimentalFlingCore:GetTarget()==leaving then
@@ -169,6 +183,7 @@ return function(context)
 		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
+		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Stopping then return end
@@ -180,6 +195,7 @@ return function(context)
 		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	microToggle.Activated:Connect(function()
+		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Stopping then return end
@@ -192,6 +208,7 @@ return function(context)
 	end)
 	back.Activated:Connect(function()
 		if lastMode=="motos2"then
+			if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 			local ok,err=NoMotos2Core:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso de No motos 2 solicitado.","No motorcycles 2 return requested.")or err);return
 		end
 		if lastMode=="motos"then

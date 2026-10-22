@@ -7,6 +7,8 @@ return function(context)
 	if NoMotos2Core then
 		local start=NoMotos2Core.Start
 		NoMotos2Core.Start=function(self,...)if blocked then return false,"Funcion no disponible."end;return start(self,...)end
+		local auto=NoMotos2Core.SetAutoEnabled
+		NoMotos2Core.SetAutoEnabled=function(self,value,...)if blocked and value then return false,"Funcion no disponible."end;return auto(self,value,...)end
 		cores[#cores+1]=NoMotos2Core
 	end
 	if DeploymentSafetyCore then
