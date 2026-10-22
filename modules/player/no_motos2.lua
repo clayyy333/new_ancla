@@ -161,23 +161,40 @@ return function(context)
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
 		direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
+		local latestSpawn,generations=nil,{}
 		local function choose()
-			if target then return end
+			local selected,selectedBody
 			for _,v in ipairs(cars:GetChildren())do
 				local body=resolve(v)
 				if body and completed[v]~=body then
+					selected,selectedBody=v,body
+				end
+			end
+			if latestSpawn then
+				local body=resolve(latestSpawn)
+				if body and completed[latestSpawn]~=body then selected,selectedBody=latestSpawn,body end
+			end
+			if selected then
+				local v,body=selected,selectedBody
+				if target and target.Vehicle==v and target.Body==body and target.Generation==(generations[v]or 0)then return end
+				clear()
 					local relative=body.CFrame:PointToObjectSpace(root.Position)
 					local face
 					if math.abs(relative.X)/math.max(body.Size.X,0.001)>math.abs(relative.Z)/math.max(body.Size.Z,0.001)then
 						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
 					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
-					target={Vehicle=v,Body=body,Face=face};self.TargetBody=body
+					target={Vehicle=v,Body=body,Face=face,Generation=generations[v]or 0};self.TargetBody=body
 					origin=body.Position
 					self.Phase="CONTACT";log("TARGET "..v:GetFullName());observe(target);return
-				end
 			end
 		end
-		watch=cars.DescendantAdded:Connect(function()elapsed=1 end)
+		local descendants=cars.DescendantAdded:Connect(function()elapsed=1 end)
+		local children=cars.ChildAdded:Connect(function(v)
+			completed[v]=nil;generations[v]=(generations[v]or 0)+1
+			if owned(v,owner)then latestSpawn=v end
+			elapsed=1
+		end)
+		watch={Disconnect=function()descendants:Disconnect();children:Disconnect()end}
 		connection=RunService.Heartbeat:Connect(function(dt)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
@@ -191,7 +208,11 @@ return function(context)
 					end
 				end
 				elapsed=elapsed+dt
-				if not target and elapsed>=0.25 then elapsed=0;choose()end
+				if elapsed>=0.25 then
+					elapsed=0
+					for v in pairs(completed)do if v.Parent~=cars then completed[v]=nil;generations[v]=nil end end
+					choose()
+				end
 				if not target then return end
 				if not force then
 					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250

@@ -254,6 +254,16 @@ if source2 then
  assert(c2.Running,'occupied-target test continues observing anchored target')
  local report=c2:GetDiagnosticReport()
  assert(report:find('Body.Anchored=true',1,true)and report:find('occupants=TestOwner',1,true),'record occupancy and anchoring transitions')
+ local respawnedBike,respawnedBody=moto('OccupiedTest',owner.UserId);spawn(respawnedBike)
+ beat(.01)
+ assert(c2.TargetBody==respawnedBody,'switch to new spawn while previous target still exists')
+ respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
+ respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike);beat(.01)
+ assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','reinserted same Body must not remain permanently completed')
+ local regenMover=respawnedBike:FindFirstChild('MoverModel');respawnedBody.Parent=nil
+ local regenBody=instance('Part','Body',regenMover);regenBody.AssemblyRootPart=regenBody;regenBody.CFrame=CFrame.new(50,10,0)
+ instance('Seat','Seat',regenBody);cars.DescendantAdded:Fire(regenBody);beat(.01)
+ assert(c2.TargetBody==regenBody,'resolve regenerated physical Body in reused vehicle container')
  own.Parent=nil;beat(.3)
  assert(not c2.Running,'removing source stops the automatic run')
  own.Parent=cars;beat(.3);assert(c2.Running,'automatic mode reactivates on source respawn')
@@ -265,6 +275,7 @@ if source2 then
  assert(not c2.Running and not c2.AutoEnabled,'disable auto also stops active flow')
  newOwn.Parent=nil
  testBody.Anchored=false;c2.TestOccupiedTargets=false
+ respawnedBike.Parent=nil
  assert(c2:Start(owner))
  assert(c2.Phase=='WAIT_MOTORCYCLE','switch restores previous occupied-target exclusion')
  c2:Destroy()
