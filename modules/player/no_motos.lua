@@ -37,11 +37,17 @@ return function(context)
 		local r=c and c:FindFirstChild("HumanoidRootPart")
 		local torso=c and (c:FindFirstChild("UpperTorso")or c:FindFirstChild("Torso"))
 		if h and h.Health>0 and r and torso then return c,h,r,torso end
+		local reason=not c and "Character no disponible"or not h and "Humanoid no disponible"
+			or h.Health<=0 and "Humanoid sin vida"or not r and "HumanoidRootPart no disponible"
+			or "UpperTorso/Torso no disponible"
+		return nil,nil,nil,nil,reason
 	end
 	local function externalConnection(r,c)
 		local ok,parts=pcall(function()return r:GetConnectedParts(true)end)
-		if not ok then return true end -- Cannot safely validate the assembly.
-		for _,part in ipairs(parts)do if part~=r and not part:IsDescendantOf(c)then return true end end
+		if not ok then return true,"GetConnectedParts fallo: "..tostring(parts)end
+		for _,part in ipairs(parts)do
+			if part~=r and not part:IsDescendantOf(c)then return true,part:GetFullName()end
+		end
 		return false
 	end
 	local function destroyFlinger()
@@ -181,8 +187,23 @@ return function(context)
 		if self.Running then return true end
 		if not owner or not owner:IsA("Player")or owner.Parent~=Players then return false,"Selecciona el propietario de las motos en la lista de usuarios."end
 		local conflict=conflicts();if conflict then return false,"Desactiva primero: "..conflict end
-		local c,h,r=rig()
-		if not r or r.Anchored or h.Sit or h.SeatPart or externalConnection(r,c)then return false,"Tu personaje debe estar disponible, sin ancla y fuera de vehiculos."end
+		local function blocked(reason)
+			self.LastStartFailure=reason
+			log("START_BLOCKED "..reason)
+			return false,reason
+		end
+		local c,h,r,_,rigFailure=rig()
+		if not r then return blocked(rigFailure)end
+		if r.Anchored then return blocked("HumanoidRootPart.Anchored sigue en true.")end
+		local connected,connectionPath=externalConnection(r,c)
+		if connected then return blocked("Tu HRP sigue unido a: "..connectionPath..". Sal de esa union antes de activar.")end
+		if h.SeatPart then return blocked("Humanoid.SeatPart sigue apuntando a: "..h.SeatPart:GetFullName())end
+		-- Sit can remain true after leaving a seat even with no external physical joint.
+		-- Clear only that stale local request; never detach an actual vehicle assembly.
+		if h.Sit then
+			h.Sit=false
+			if h:GetState()==Enum.HumanoidStateType.Seated then h:ChangeState(Enum.HumanoidStateType.GettingUp)end
+		end
 		character,humanoid,root=c,h,r;checkpoint=r.CFrame
 		savedPlatformStand=h.PlatformStand;savedAutoRotate=h.AutoRotate
 		local seatOK,seatState=pcall(function()
@@ -192,6 +213,7 @@ return function(context)
 		end)
 		if not seatOK then return false,"No se pudo activar la proteccion anti-asiento."end
 		savedSeatedEnabled=seatState
+		self.LastStartFailure=nil
 		self.LastCheckpoint=checkpoint;self.Owner=owner;self.Records={};self.Rows={};self.Completed=0;self.Phase="HOME";self.Running=true
 		-- Prevent auto-seating before physics, without activating an anchor or editing seats/welds.
 		runtime[#runtime+1]=RunService.PreSimulation:Connect(function()
@@ -309,6 +331,7 @@ return function(context)
 	end
 	function core:GetDiagnosticReport()
 		return "NO MOTOS V1 | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
+			.."\nLastStartFailure="..tostring(self.LastStartFailure or "none")
 			.."\nContact/Home=0.05s Speed=900000000 P=1250 | free motorcycles only | anti-seat local enabled while running | 3 attempts or 20 studs\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end

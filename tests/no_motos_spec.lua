@@ -78,7 +78,9 @@ local checkpoint=root.CFrame
 authorized=false;assert(not core:Start(owner));authorized=true
 assert(not core:Start(nil),'must choose owner')
 root.Anchored=true;assert(not core:Start(owner));root.Anchored=false
+h.Sit=true
 assert(core:Start(owner))
+assert(not h.Sit,'stale Sit without seat or external weld must not require respawn')
 assert(h.SeatedEnabled==false,'disable sitting before any contact')
 h.Sit=true;h.State='Seated';h.Seated:Fire(true)
 assert(not h.Sit and h.State=='GettingUp','respond immediately to seated event')
@@ -145,5 +147,18 @@ assert(not core.Records[replacement].Done)
 assert(core:GetDiagnosticReport():find('NO MOTOS V1',1,true))
 core:Destroy()
 assert(h.SeatedEnabled==false,'preserve previously disabled seated state on stop')
+-- Re-enabling without respawning starts a fresh pass, even for an existing bike.
+local staleSeat=instance('Seat','OldSeat',workspace)
+h.SeatPart=staleSeat
+local started,reason=core:Start(owner)
+assert(not started and reason:find('SeatPart',1,true),'report real seat blocker, not missing HRP')
+h.SeatPart=nil
+root.ConnectedParts={extra}
+started,reason=core:Start(owner)
+assert(not started and reason:find('Workspace.External',1,true),'name the actual connected part')
+root.ConnectedParts={};h.Sit=true
+assert(core:Start(owner)and not h.Sit)
+assert(core.Records[replacement]and not core.Records[replacement].Done,'existing bike rearmed after toggle')
+core:Destroy()
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end
 print('no_motos_spec OK: owner-only, selected owner, free motorcycle scope, torso alignment, efficient force defaults, cleanup and occupancy cancellation')
