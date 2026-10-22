@@ -1,11 +1,18 @@
 -- Independent efficient-short vehicle test. Never writes vehicle parts or calls remotes.
 return function(context)
 	setfenv(1,context)
-	local CONFIG={SpinSpeed=60,P=1250,Height=1.5,HomeTime=0.05,StopTime=2,Displacement=20}
+	local CONFIG={SpinSpeed=60,ContactSpeed=500,P=1250,Overlap=0.1,HomeTime=0.05,StopTime=2,Displacement=20}
 	local core={Running=false,Stopping=false,Owner=nil,Rows={},Records={},Completed=0,Phase="IDLE"}
 	NoMotosCore=core
 	local runtime={}
 	local root,humanoid,character,checkpoint,spinner,current,homeUntil,scanElapsed
+	local pulseRoot,pulsePrevious,pulseWritten,contactTorso,previousTorsoCollision
+	local function restorePulse()
+		local r,previous,written=pulseRoot,pulsePrevious,pulseWritten
+		pulseRoot=nil;pulsePrevious=nil;pulseWritten=nil
+		-- Only undo our still-unchanged write; preserve a solver/collision response.
+		if r and r.Parent and (r.AssemblyLinearVelocity-written).Magnitude<0.001 then r.AssemblyLinearVelocity=previous end
+	end
 	local savedPlatformStand,savedAutoRotate
 	local savedSeatedEnabled
 	local function restoreSeatState()
@@ -58,7 +65,10 @@ return function(context)
 		return (a and a:IsDescendantOf(c))or (b and b:IsDescendantOf(c))or false
 	end
 	local function destroyFlinger()
+		restorePulse()
 		if spinner then spinner:Destroy();spinner=nil end
+		if contactTorso and contactTorso.Parent then contactTorso.CanCollide=previousTorsoCollision end
+		contactTorso=nil;previousTorsoCollision=nil
 		if humanoid and humanoid.Parent and savedAutoRotate~=nil then humanoid.AutoRotate=savedAutoRotate end
 	end
 	local function zero()
@@ -227,11 +237,19 @@ return function(context)
 		-- Prevent auto-seating before physics, without activating an anchor or editing seats/welds.
 		runtime[#runtime+1]=RunService.PreSimulation:Connect(function()
 			local ok=pcall(function()
+				restorePulse()
 				preventSeat()
 				if self.Running and self.Phase=="CONTACT"and current and eligible(current)
 					and player.Character==character and root.Parent and not localSeatWeld(humanoid,character)
 					and not externalConnection(root,character)then
 					root.AssemblyAngularVelocity=Vector3.new(0,CONFIG.SpinSpeed,0)
+					if current.PulsePending then
+						current.PulsePending=false
+						pulseRoot=root;pulsePrevious=root.AssemblyLinearVelocity
+						pulseWritten=current.PushDirection*CONFIG.ContactSpeed
+						root.AssemblyLinearVelocity=pulseWritten
+						log("CONTACT_PULSE speed=500 one simulation step")
+					end
 				end
 			end)
 			if not ok then self:Stop("Fallo en la proteccion anti-asiento.")end
@@ -270,6 +288,7 @@ return function(context)
 		end
 		runtime[#runtime+1]={Disconnect=function()disconnect(carsConnections)end}
 		runtime[#runtime+1]=RunService.PostSimulation:Connect(function()
+			restorePulse()
 			if not self.Running or self.Phase~="CONTACT"or not current then return end
 			local ok,err=xpcall(function()
 				if player.Character~=character or not root.Parent or externalConnection(root,character)then return end
@@ -317,9 +336,18 @@ return function(context)
 					current.ContactFrame=current.Body.CFrame
 					self.Phase="CONTACT"
 					-- Place once, then let physics rotate the character freely around world Y.
-					local desired=(current.ContactFrame*CFrame.new(0,-CONFIG.Height,0)).Position
+					-- Align torso against the front/rear OBB face instead of overlapping Body's center.
+					local relative=current.ContactFrame:PointToObjectSpace(root.Position)
+					local side=relative.Z>0 and 1 or -1
+					local normal=current.ContactFrame:VectorToWorldSpace(Vector3.new(0,0,side))
+					local torsoNormal=torso.CFrame:VectorToObjectSpace(normal)
+					local radius=(math.abs(torsoNormal.X)*torso.Size.X+math.abs(torsoNormal.Y)*torso.Size.Y+math.abs(torsoNormal.Z)*torso.Size.Z)*0.5
+					local surface=current.ContactFrame:PointToWorldSpace(Vector3.new(0,0,side*current.Body.Size.Z*0.5))
+					local desired=surface+normal*math.max(0,radius-CONFIG.Overlap)
+					current.PushDirection=normal*-1;current.PulsePending=true
 					local offset=torso.Position-root.Position
 					root.CFrame=CFrame.new(desired-offset)*root.CFrame.Rotation
+					contactTorso=torso;previousTorsoCollision=torso.CanCollide;torso.CanCollide=true
 					zero();humanoid.AutoRotate=false
 					spinner=Instance.new("BodyAngularVelocity");spinner.Name="NoMotosSpinner"
 					spinner.P=CONFIG.P;spinner.MaxTorque=Vector3.new(0,math.huge,0)
@@ -344,9 +372,9 @@ return function(context)
 		return true
 	end
 	function core:GetDiagnosticReport()
-		return "NO MOTOS V2 SPIN ONLY | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
+		return "NO MOTOS V3 DIRECTED CONTACT | local observations only; displacement does not prove replication\nOwner="..tostring(self.Owner and self.Owner.UserId).." Running="..tostring(self.Running).." Phase="..self.Phase.." Completed="..self.Completed
 			.."\nLastStartFailure="..tostring(self.LastStartFailure or "none")
-			.."\nSustained contact until 20 studs displacement | Home=0.05s | AngularSpeedY=60 rad/s | NO linear pulses | no BodyVelocity stabilizer | one placement per contact | free motorcycles only | anti-seat local\n"..table.concat(self.Rows,"\n")
+			.."\nSustained contact until 20 studs displacement | Home=0.05s | AngularSpeedY=60 rad/s | directed pulse=500 once/contact | torso collision enabled during contact | front/rear OBB alignment overlap=0.1 | free motorcycles only | anti-seat local\n"..table.concat(self.Rows,"\n")
 	end
 	function core:Destroy()self:Stop("GUI cerrada.");if self.Stopping then self:FinishStop()end end
 	return true

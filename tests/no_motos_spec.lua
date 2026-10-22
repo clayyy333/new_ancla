@@ -20,9 +20,15 @@ local fm={}
 CFrame={new=function(x,y,z)return setmetatable({Position=type(x)=='table'and x or Vector3.new(x or 0,y or 0,z or 0)},fm)end}
 fm.__mul=function(a,b)return CFrame.new(a.Position+b.Position)end
 fm.__index=function(_,k)if k=='Rotation'then return CFrame.new()end end
+function fm:PointToObjectSpace(v)return v-self.Position end
+function fm:PointToWorldSpace(v)return v+self.Position end
+function fm:VectorToObjectSpace(v)return v end
+function fm:VectorToWorldSpace(v)return v end
+local frameIndex=fm.__index
+fm.__index=function(a,k)return fm[k]or frameIndex(a,k)end
 local created={}
 local function instance(class,name,parent)
- local data={ClassName=class,Name=name or class,Parent=parent,items={},attributes={},ChildAdded=signal(),DescendantAdded=signal(),Position=Vector3.zero,CFrame=CFrame.new(),CanCollide=true,Anchored=false,Health=100,AutoRotate=true,PlatformStand=false}
+ local data={ClassName=class,Name=name or class,Parent=parent,items={},attributes={},ChildAdded=signal(),DescendantAdded=signal(),Size=Vector3.new(2,2,2),Position=Vector3.zero,CFrame=CFrame.new(),CanCollide=true,Anchored=false,Health=100,AutoRotate=true,PlatformStand=false}
  local item=setmetatable({}, {__index=function(_,key)
   if key=='Position'then return data.TorsoRoot and data.TorsoRoot.Position+Vector3.new(0,2,0)or data.Position end
   return data[key]
@@ -91,13 +97,16 @@ local occupied=moto('Occupied',42,true);spawn(occupied)
 local car=moto('NotMotorcycle',42,false,'rbxassetid://123');spawn(car)
 beat(.06)
 assert(core.Phase=='HOME'and #created==0,'ignore occupied, foreign and unconfirmed vehicle types')
+torso.CanCollide=false
 local vehicle,body,seat=moto('ReusedName',42);spawn(vehicle);beat(.06)
 assert(core.Phase=='CONTACT'and #created==1)
 local spinner=created[1]
 assert(root.AssemblyAngularVelocity.X==0 and root.AssemblyAngularVelocity.Y==60 and root.AssemblyAngularVelocity.Z==0)
 assert(spinner.ClassName=='BodyAngularVelocity'and spinner.AngularVelocity.Y==60 and spinner.MaxTorque.X==0 and spinner.MaxTorque.Z==0)
 assert(not h.AutoRotate)
-assert(math.abs(torso.Position.Y-(body.Position.Y-1.5))<0.001 and torso.Position.X==body.Position.X,'align torso, not HRP, with Body offset')
+assert(torso.Position.Y==body.Position.Y and torso.Position.X==body.Position.X,'align torso with Body face height')
+assert(math.abs(torso.Position.Z-(body.Position.Z-body.Size.Z*0.5-torso.Size.Z*0.5+0.1))<0.001,'align torso surface with front/rear Body face')
+assert(torso.CanCollide,'enable physical torso collision only during contact')
 local contactX=torso.Position.X
 local contactFrame=root.CFrame
 body.CFrame=CFrame.new(55,10,0);beat(.01)
@@ -106,13 +115,16 @@ assert(root.CFrame==contactFrame,'do not rewrite orientation/position during phy
 beat(.2);assert(core.Phase=='CONTACT','sustain contact beyond old 0.05 second timeout')
 local oldVelocity=root.AssemblyLinearVelocity
 RunService.PreSimulation:Fire()
-assert(root.AssemblyLinearVelocity==oldVelocity,'spin must not inject a linear launch before physics')
+assert(root.AssemblyLinearVelocity.Z==500 and root.AssemblyLinearVelocity.X==0 and root.AssemblyLinearVelocity.Y==0,'one directed pulse into Body, not diagonal')
 RunService.PostSimulation:Fire()
 assert(root.AssemblyLinearVelocity==oldVelocity,'do not overwrite natural linear velocity after physics')
+RunService.PreSimulation:Fire()
+assert(root.AssemblyLinearVelocity==oldVelocity,'do not repeat pulse every frame')
 body.CFrame=CFrame.new(80,10,0);RunService.PostSimulation:Fire()
 assert(core.Phase=='HOME'and core.Completed==1 and core.Records[vehicle].Done)
 assert(root.CFrame==checkpoint and root.AssemblyLinearVelocity.Magnitude==0)
 assert(spinner.Destroyed and h.AutoRotate,'remove spin actuator and restore AutoRotate at home')
+assert(torso.CanCollide==false,'restore exact original torso collision setting')
 -- Occupancy arising during contact cancels the attempt, without touching its joints.
 local second,secondBody,secondSeat=moto('Second',42);spawn(second);beat(.06)
 assert(core.Phase=='CONTACT')
@@ -154,7 +166,7 @@ assert(core.Records[replacement].Body==regenerated and not core.Records[replacem
 core.Records[replacement].Done=true
 replacement.Parent=nil;replacement.Parent=cars;cars.ChildAdded:Fire(replacement)
 assert(not core.Records[replacement].Done)
-assert(core:GetDiagnosticReport():find('NO MOTOS V2 SPIN ONLY',1,true))
+assert(core:GetDiagnosticReport():find('NO MOTOS V3 DIRECTED CONTACT',1,true))
 core:Destroy()
 assert(h.SeatedEnabled==false,'preserve previously disabled seated state on stop')
 -- Re-enabling without respawning starts a fresh pass, even for an existing bike.
