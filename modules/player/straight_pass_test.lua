@@ -5,6 +5,7 @@ return function(context)
 	local SPEED, FAR_DISTANCE, MAX_TIME = 900000000, 1000000, 0.6
 	local OUTGOING_HOLD=0.05
 	local CONTACT_TIME=0.05
+	local HOME_TIMEOUT, HOME_STEPS = 1, 2
 	local incompatible={"ExperimentalFlingCore","Fling2Core","Fling2EfficientCore","CarFling","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno","CustomFlingCore"}
 	local core = {Running=false, Samples={}, Report="Sin prueba registrada."}
 	StraightPassTestCore = core
@@ -35,13 +36,14 @@ return function(context)
 		return ok and value or "unknown"
 	end
 	function core:BuildDiagnosticReport(result)
-		local lines={"LAUNCH DIAGNOSTIC V7 | client observations only; server cause/network ownership unknown",
+		local lines={"LAUNCH DIAGNOSTIC V8 | client observations only; server cause/network ownership unknown",
 			"Status: "..tostring(result or (self.Running and "ACTIVE" or "STOPPED")),
 			"Local: "..tostring(player.Name).." | UserId="..tostring(player.UserId).." | TargetId="..TARGET_ID,
 			"CFrameTravelSpeed="..SPEED.." BDistanceFromA="..FAR_DISTANCE.." cycleTimeout="..MAX_TIME,
 			"Flow: A -> target waypoint -> physical contact pulse -> B -> A; physical velocities cleared only outside contact",
 			"ContactDuration="..CONTACT_TIME.." physicalContactSpeed="..SPEED.." contactPulses="..(self.ContactPulses or 0),
 			"outgoingHold="..OUTGOING_HOLD.." | outgoing render frames >= 2 | origin render required before relaunch",
+			"HomeVerificationSteps="..HOME_STEPS.." homeTimeout="..HOME_TIMEOUT.." recoveries="..(self.Recoveries or 0),
 			"Origin="..vector(self.DiagnosticOrigin).." vehicle="..tostring(self.DiagnosticVehicle or "none"),
 			"cycles="..(self.Cycles or 0).." returns="..(self.Returns or 0).." preEvents="..(self.PreEvents or 0).." postEvents="..(self.PostEvents or 0).." renderEvents="..(self.RenderEvents or 0),
 			string.format("maxPreDistance=%.3f maxPostDistance=%.3f maxRenderDistance=%.3f",self.MaxPreDistance or 0,self.MaxPostDistance or 0,self.MaxRenderDistance or 0),
@@ -156,7 +158,7 @@ return function(context)
 		self.SavedPlatformStand=h.PlatformStand;self.SavedAutoRotate=h.AutoRotate
 		local stateOk,previousState=pcall(function()return h:GetState()end)
 		self.SavedHumanoidState=stateOk and previousState or nil
-		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.ContactPulses=0;self.Root=r;self.Running=true
+		self.Samples={};self.FirstSamples={};self.Cycles=0;self.Returns=0;self.ContactPulses=0;self.Recoveries=0;self.Root=r;self.Running=true
 		self.LastStartFailure=nil;self.PreEvents=0;self.PostEvents=0;self.RenderEvents=0
 		self.MaxPreDistance=0;self.MaxPostDistance=0;self.MaxRenderDistance=0
 		self.DiagnosticOrigin=r.Position;self.DiagnosticVehicle=selectedVehicle and path(selectedVehicle) or "none";self.DiagnosticVehicleObject=selectedVehicle
@@ -176,6 +178,7 @@ return function(context)
 		local outgoingFrames=0
 		local waitingHome,homeRendered=false,false
 		local homeWait=0
+		local homeStable=0
 		local renderWait=0
 		local stepDt=0
 		local function record(label)
@@ -198,6 +201,14 @@ return function(context)
 			end
 			return true
 		end
+		local function beginReturn(label)
+			contactActive=false;contactDone=false;contactElapsed=0
+			pendingReturn=false;renderSeen=false;direction=nil
+			waitingHome=true;homeRendered=false;homeWait=0;homeStable=0
+			applyFrame(self.Checkpoint)
+			self.Returns=self.Returns+1
+			record(label)
+		end
 		record("START")
 		self.Connection=RunService.PreSimulation:Connect(function(dt)
 			local ok,err=pcall(function()
@@ -206,14 +217,18 @@ return function(context)
 				self.MaxPreDistance=math.max(self.MaxPreDistance,(r.Position-origin).Magnitude)
 				record("PRE_BEFORE_WRITE")
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
-				if dt>0.1 then self:Stop("Paso de fisica demasiado largo.");return end
+				if dt>0.1 and not waitingHome then
+					self.Recoveries=self.Recoveries+1
+					beginReturn("FRAME_DELAY_RECOVERY")
+					return
+				end
 				totalElapsed=totalElapsed+dt
 				if waitingHome then
 					r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=Vector3.zero
 					applyFrame(self.Checkpoint)
 					homeWait=homeWait+dt
-					if homeRendered then waitingHome=false;record("HOME_READY_FOR_NEXT_LAUNCH")
-					elseif homeWait>=0.25 then self:Stop("No hubo render del origen; parada de seguridad.") end
+					if homeRendered and homeStable>=HOME_STEPS then waitingHome=false;record("HOME_READY_FOR_NEXT_LAUNCH")
+					elseif homeWait>=HOME_TIMEOUT then self:Stop("No se estabilizo el regreso al origen; parada de seguridad.") end
 					return
 				end
 				if pendingReturn then
@@ -221,11 +236,7 @@ return function(context)
 					renderWait=renderWait+dt
 					if renderSeen and outgoingFrames>=2 and renderWait>=OUTGOING_HOLD then
 						-- Return on a later simulation step, never inside the render callback.
-						applyFrame(self.Checkpoint)
-						self.Returns=self.Returns+1
-						record("RETURN_ORIGIN_AFTER_RENDER")
-						pendingReturn=false;renderSeen=false;direction=nil
-						waitingHome=true;homeRendered=false;homeWait=0
+						beginReturn("RETURN_ORIGIN_AFTER_RENDER")
 					elseif renderWait>=0.25 then
 						self:Stop("No hubo render local; regreso de seguridad.")
 					end
@@ -250,10 +261,14 @@ return function(context)
 				if elapsed>=MAX_TIME then self:Stop("Tiempo del recorrido por posiciones agotado.");return end
 				if contactActive then
 					if contactElapsed>=CONTACT_TIME then
-						-- Resume from the observed physical position, not a snap back onto target.
+						-- Contact may overshoot B by millions: finish at fixed B in one
+						-- controlled transition, not another long interpolated return leg.
 						contactActive=false;contactDone=true
-						applyFrame(self.Checkpoint+(r.Position-origin))
 						record("CONTACT_END")
+						applyFrame(waypoints[2])
+						waypointIndex=2;waypointReached=true;waypointRendered=false;elapsed=0
+						record("B_FIXED_AFTER_CONTACT")
+						return
 					else
 						contactElapsed=contactElapsed+dt
 						r.AssemblyLinearVelocity=direction*SPEED
@@ -297,6 +312,14 @@ return function(context)
 				self.MaxPostDistance=math.max(self.MaxPostDistance,(r.Position-origin).Magnitude)
 				local valid,reason=validate();if not valid then self:Stop(reason);return end
 				record("POST_PHYSICS")
+				if waitingHome then
+					local stable=(r.Position-origin).Magnitude<=0.25 and r.AssemblyLinearVelocity.Magnitude<=1
+					homeStable=stable and (homeStable+1) or 0
+					record(stable and "HOME_VERIFY_STABLE" or "HOME_VERIFY_CORRECTION")
+					if not stable then homeRendered=false end
+					applyFrame(self.Checkpoint)
+					return
+				end
 				if contactActive then
 					-- Let the physics step act: no CFrame correction or velocity clearing here.
 					record("CONTACT_POST_PHYSICS")
@@ -321,7 +344,7 @@ return function(context)
 			if pendingReturn then
 				outgoingFrames=outgoingFrames+1;renderSeen=true
 				if outgoingFrames<=2 then record("RENDER_OUTGOING_LOCAL") end
-			elseif waitingHome and not homeRendered then
+			elseif waitingHome and not homeRendered and (r.Position-origin).Magnitude<=0.25 and r.AssemblyLinearVelocity.Magnitude<=1 then
 				homeRendered=true;record("RENDER_HOME_LOCAL")
 			elseif waypointReached and waypointIndex==1 and not contactActive then
 				waypointRendered=true;record("RENDER_TARGET_WAYPOINT")
