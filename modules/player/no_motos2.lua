@@ -63,12 +63,8 @@ return function(context)
 		end
 	end
 	local function contactPosition(t)
-		local body=t.Body
-		local n=body.CFrame:VectorToWorldSpace(t.Face)
-		local localNormal=collider.CFrame:VectorToObjectSpace(n)
-		local extent=(math.abs(localNormal.X)*collider.Size.X+math.abs(localNormal.Y)*collider.Size.Y+math.abs(localNormal.Z)*collider.Size.Z)*0.5
-		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
-		local center=facePoint+n*math.max(0,extent-0.05)
+		-- Center the source collider on the target part; no exterior-face spacing.
+		local center=t.Body.Position
 		return center-(collider.Position-root.Position),center
 	end
 	local function free(v)
@@ -250,12 +246,7 @@ return function(context)
 				local v,body=selected,selectedBody
 				if target and target.Vehicle==v and target.Body==body and target.Generation==(generations[v]or 0)then return end
 				clear()
-					local relative=body.CFrame:PointToObjectSpace(root.Position)
-					local face
-					if math.abs(relative.X)/math.max(body.Size.X,0.001)>math.abs(relative.Z)/math.max(body.Size.Z,0.001)then
-						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
-					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
-					target={Vehicle=v,Body=body,Face=face,Generation=generations[v]or 0};self.TargetBody=body
+					target={Vehicle=v,Body=body,Generation=generations[v]or 0};self.TargetBody=body
 					self.LastArrivalObserved=false;self.LastContactError=nil
 					origin=body.Position
 					self.Phase="CONTACT";log("TARGET "..v:GetFullName().." CONTACT_PART="..body:GetFullName());observe(target);return
@@ -408,11 +399,11 @@ return function(context)
 		return true
 	end
 	function C:GetDiagnosticReport()
-		return "NO MOTOS 2 V9 HEARTBEAT CONTACT | client observations only; not server authority"
+		return "NO MOTOS 2 V10 CENTER CONTACT | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05; no name/model/price/motorcycle filter; force=900000000; NO FAR TRAVEL"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=center-to-center; no lateral/vertical spacing; no name/model/price/motorcycle filter; force=900000000; NO FAR TRAVEL"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 	end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end

@@ -220,10 +220,7 @@ if source2 then
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
- local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05
- local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05
- assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
-  or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'place collidable faces together, accounting for both sizes')
+ assert(separation.Magnitude<0.001,'center contact without lateral exterior-face spacing')
  local entryFrame=ownBody.CFrame
  local firstDirection=ownBody.AssemblyLinearVelocity.Y
  beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==-firstDirection,'alternate vertical velocity each contact step')
