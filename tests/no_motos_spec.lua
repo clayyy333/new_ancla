@@ -222,7 +222,9 @@ if source2 then
  assert(c2.Phase=='CONTACT','sustained contact starts without a far phase')
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
- assert(math.abs(force.Velocity.Magnitude-180)<0.001 and force.MaxForce.X<math.huge and force.P==1250)
+ assert(math.abs(force.Velocity.Magnitude-225)<0.001 and force.MaxForce.X<math.huge and force.P==1250)
+ assert(force.Velocity.Y<0,'impact has downward bias')
+ assert(math.abs(force.Velocity.Y+225*0.6/math.sqrt(1.36))<0.001,'normalize diagonal so total speed stays 225')
  assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==40 and ownBody.AssemblyAngularVelocity.Z==0)
  assert(ownBody.AssemblyLinearVelocity.Magnitude==0,'arrival clears old speed; BodyVelocity is the only linear driver')
  local targetBody=c2.TargetBody

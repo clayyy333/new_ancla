@@ -6,7 +6,7 @@ return function(context)
 	local occupiedTest=false
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
-	local speed=180
+	local speed=225
 	local angularSpeed=40
 	local impactDuration=0.12
 	local source,root,collider,checkpoint,force,target,connection,verification,watch
@@ -368,7 +368,9 @@ return function(context)
 				if target.ImpactRemaining<=0 then
 					local position,center=contactPosition(target)
 					local normal=target.Body.CFrame:VectorToWorldSpace(target.Face)
-					target.ImpactDirection=-normal
+					-- Downward-biased contact, normalized to preserve the total speed.
+					local impact=-normal+Vector3.new(0,-0.6,0)
+					target.ImpactDirection=impact*(1/impact.Magnitude)
 					target.LastContactPoint=center
 					root.AssemblyLinearVelocity=Vector3.zero
 					root.AssemblyAngularVelocity=Vector3.zero
@@ -381,10 +383,10 @@ return function(context)
 					-- Bound force by source mass; no infinite force or diagonal driver.
 					local mass=root.AssemblyMass
 					if not mass or mass~=mass or mass<=0 or mass==math.huge then mass=1 end
-					local limit=math.min(mass*12000,100000000)
+					local limit=math.min(mass*15000,100000000)
 					force.MaxForce=Vector3.new(limit,limit,limit)
 					force.Parent=root
-					log("DIRECTED_IMPACT speed=180 angularY=40 duration=0.12; arrival separated from physics")
+					log("DIRECTED_IMPACT speed=225 downwardBias=0.6 angularY=40 duration=0.12; arrival separated from physics")
 				end
 				force.Velocity=target.ImpactDirection*speed
 				root.AssemblyAngularVelocity=Vector3.new(0,angularSpeed,0)
@@ -514,13 +516,13 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V14 DIRECTED IMPACT | client observations only; not server authority"
+		return "NO MOTOS 2 V15 DOWNWARD IMPACT | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=face arrival +0.5 studs; impact window=0.12s; linear speed=180; angularY=40; mass-scaled finite MaxForce; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=face arrival +0.5 studs; impact window=0.12s; linear speed=225; downwardBias=0.6; angularY=40; MaxForce=min(mass*15000,100000000); Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
