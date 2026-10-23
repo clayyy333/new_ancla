@@ -257,6 +257,8 @@ return function(context)
 		self.LastArrivalObserved=false;self.LastContactError=nil
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
 		local generations,spawnOrder,spawnSerial={},{},0
+		local observedCharacter=owner.Character
+		local observedHRP=observedCharacter and observedCharacter:FindFirstChild("HumanoidRootPart")
 		local readiness,referenceReadiness={},{}
 		local function watchReference(value)
 			if value and value:IsA("ObjectValue")and value.Name=="VehicleOwner"and not referenceReadiness[value]then
@@ -329,6 +331,17 @@ return function(context)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
 				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not source or source.Parent~=cars or not owned(source,player)or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
+				local character=owner.Character
+				local hrp=character and character:FindFirstChild("HumanoidRootPart")
+				if character~=observedCharacter or hrp~=observedHRP then
+					observedCharacter,observedHRP=character,hrp
+					-- A character/root replacement starts a fresh target-selection epoch.
+					-- Do not carry completed-contact records across the owner's respawn.
+					clear();target=nil;self.TargetBody=nil;completed={};elapsed=1
+					self.LastArrivalObserved=false;self.LastContactError=nil
+					self.Phase="WAIT_MOTORCYCLE"
+					log("TARGET_CHARACTER_REBOUND completed records cleared; reacquiring vehicle by owner")
+				end
 				local ready,unsafe=refreshSource()
 				if not ready then
 					if unsafe then self:Stop("No motos 2: tu vehiculo esta anclado o unido a otro personaje.")end
@@ -496,7 +509,7 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V18 Y-AXIS SPIN | client observations only; not server authority"
+		return "NO MOTOS 2 V19 TARGET RESPAWN REBIND | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"

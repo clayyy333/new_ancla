@@ -298,6 +298,24 @@ if source2 then
  local reusedSpawnFrame=respawnedBody.CFrame
  respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
  assert(c2.TargetBody~=respawnedBody,'do not keep pursuing displaced vehicle')
+ -- Character/HRP replacement must rearm reused vehicles even if they do not
+ -- return to the old origin and no Cars.ChildAdded event is emitted.
+ local newCharacter=instance('Model','RespawnedOwner',workspace)
+ owner.Character=newCharacter
+ local newHRP=instance('Part','HumanoidRootPart',newCharacter)
+ beat(.01)
+ assert(c2.Running and c2.AutoEnabled and c2.TargetBody==respawnedBody,'owner respawn clears completed records without toggling')
+ respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
+ assert(c2.TargetBody~=respawnedBody)
+ newHRP.Parent=nil
+ local replacementHRP=instance('Part','HumanoidRootPart',newCharacter)
+ beat(.01)
+ assert(c2.TargetBody==respawnedBody,'HRP replacement within the same character also rearms selection')
+ local newBike,newBody=moto('AfterOwnerRespawn',owner.UserId);spawn(newBike);beat(.01)
+ assert(c2.TargetBody==newBody,'new owner vehicle takes priority after character rebind')
+ newBike.Parent=nil;beat(.3)
+ reusedSpawnFrame=respawnedBody.CFrame
+ respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
  respawnedBody.CFrame=reusedSpawnFrame;beat(.3)
  assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','rearm same Part returned to its spawn without ChildAdded')
  respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike);beat(.01)
