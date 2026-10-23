@@ -65,6 +65,16 @@ return function(context)
 			if best.Root==v or best.Root:IsDescendantOf(v)then return best.Root end
 			return best.Member
 		end
+		-- Arrival needs a physical reference, not a collision surface. Preserve
+		-- collision-aware selection above for the eventual contact adjustment.
+		if body and body:IsA("BasePart")and body.AssemblyRootPart then return body end
+		for _,g in ipairs(order)do
+			if not best or g.Count>best.Count then best=g end
+		end
+		if best then
+			if best.Root==v or best.Root:IsDescendantOf(v)then return best.Root end
+			return best.Member
+		end
 	end
 	local function contactPart(v,r)
 		if r.CanCollide then return r end
@@ -76,11 +86,12 @@ return function(context)
 		-- Restore the sustained-contact positioning from the V5 implementation.
 		local body=t.Body
 		local n=body.CFrame:VectorToWorldSpace(t.Face)
-		local localNormal=collider.CFrame:VectorToObjectSpace(n)
-		local extent=(math.abs(localNormal.X)*collider.Size.X+math.abs(localNormal.Y)*collider.Size.Y+math.abs(localNormal.Z)*collider.Size.Z)*0.5
+		local reference=collider or root
+		local localNormal=reference.CFrame:VectorToObjectSpace(n)
+		local extent=(math.abs(localNormal.X)*reference.Size.X+math.abs(localNormal.Y)*reference.Size.Y+math.abs(localNormal.Z)*reference.Size.Z)*0.5
 		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
 		local center=facePoint+n*(math.max(0,extent-0.05)+(t.ContactOffset or 0))
-		return center-(collider.Position-root.Position),center
+		return center-(reference.Position-root.Position),center
 	end
 	local function free(v)
 		for _,part in ipairs(v:GetDescendants())do
@@ -177,7 +188,7 @@ return function(context)
 	local function refreshSource()
 		local nextRoot=vehicleRoot(source)
 		local nextCollider=nextRoot and contactPart(source,nextRoot)
-		if not nextRoot or not nextCollider then
+		if not nextRoot then
 			local oldSafe=sourceSafe()
 			clear()
 			if oldSafe then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
@@ -194,10 +205,10 @@ return function(context)
 				if ok then checkpoint=checkpoint*relative end
 			end
 			root,collider=nextRoot,nextCollider
-			log("SOURCE_REBOUND root="..root:GetFullName().." collider="..collider:GetFullName())
+			log("SOURCE_REBOUND root="..root:GetFullName().." collider="..tostring(collider and collider:GetFullName()))
 		end
 		if not sourceSafe()then return false,true end
-		C.SourceState="ready"
+		C.SourceState=collider and "ready"or "arrival ready; awaiting source collider"
 		return true,false
 	end
 	local function home()
@@ -251,9 +262,9 @@ return function(context)
 		end
 		if not chosen then return false,"Necesitas un vehiculo propio para No motos 2."end
 		source=chosen;root=vehicleRoot(source);collider=root and contactPart(source,root)
-		if not collider then return false,"Tu vehiculo no tiene una pieza colisionable en su ensamblaje principal."end
+		if not root then return false,"Tu vehiculo todavia no tiene una referencia fisica disponible."end
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
-		self.SourceState="ready"
+		self.SourceState=collider and "ready"or "arrival ready; awaiting source collider"
 		occupiedTest=self.TestOccupiedTargets
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
 		self.LastArrivalObserved=false;self.LastContactError=nil
@@ -373,6 +384,13 @@ return function(context)
 					choose()
 				end
 				if not target then return end
+				if not collider then
+					clear()
+					local position=contactPosition(target)
+					root.CFrame=CFrame.new(position)*root.CFrame.Rotation
+					self.Phase="ARRIVAL_WAIT_CONTACT"
+					return
+				end
 				if not force then
 					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250
 					force.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
@@ -399,7 +417,7 @@ return function(context)
 		verification=RunService.PostSimulation:Connect(function()
 			if not self.Running or not target or not force then return end
 			local ok,err=xpcall(function()
-				if not root.Parent or not collider.Parent or not target.Body.Parent or player.Character==nil then return end
+				if not root.Parent or not collider or not collider.Parent or not target.Body.Parent or player.Character==nil then return end
 				local _,expected=contactPosition(target)
 				local distance=(collider.Position-expected).Magnitude
 				if distance~=distance or distance==math.huge then
@@ -469,7 +487,7 @@ return function(context)
 				end
 			end
 			local selectedRoot=selected and vehicleRoot(selected)
-			local sourceReady=selectedRoot and selectedRoot.Parent and contactPart(selected,selectedRoot)
+			local sourceReady=selectedRoot and selectedRoot.Parent
 			if not selected or not sourceReady then
 				local message=ownedCount>0 and "Automatico: tu vehiculo esta detectado, esperando ensamblaje y pieza colisionable."
 					or ("Automatico: no se detecta un vehiculo de @"..player.Name.." (UserId="..player.UserId..").")
@@ -518,7 +536,7 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V20 SHORT CONTACT TRAVEL | client observations only; not server authority"
+		return "NO MOTOS 2 V21 EARLY ARRIVAL | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"

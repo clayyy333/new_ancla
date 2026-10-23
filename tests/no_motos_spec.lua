@@ -267,8 +267,16 @@ if source2 then
  AnchorCore=nil;AutoAnchorCore=nil;MobileAnchorCore=nil;MobileAnchorV11Core=nil
  StaticPassThroughAnchorCore=nil;VerticalControlController=nil;DeploymentAnchorMotorCore=nil;EmergencyAnchorController=nil
  ownBody.CanCollide=false
- assert(not c2:Start(owner),'reject a source without collidable parts instead of targeting a non-collidable root')
+ local beforeArrival=ownBody.Position
+ local beforeCreated=#created
+ assert(c2:Start(owner),'start arrival before source collider is available')
+ beat(.01)
+ assert(c2.Running and c2.Phase=='ARRIVAL_WAIT_CONTACT'and (ownBody.Position-beforeArrival).Magnitude>0,'move source toward existing target using physical reference')
+ assert(#created==beforeCreated,'do not apply contact forces until collision reference is ready')
  ownBody.CanCollide=true
+ beat(.01)
+ assert(c2.Phase=='CONTACT'and created[#created].Parent==ownBody,'automatically adjust contact when collider appears')
+ c2:Stop()
  assert(c2:Start(owner),'restart and rescan existing motorcycles')
  local other=instance('Part','SomeoneElse',workspace);ownBody.ConnectedParts={other}
  local before=ownBody.CFrame;beat(.01)
