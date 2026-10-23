@@ -208,6 +208,19 @@ if source2 then
  local own,ownBody=moto('OurCar',player.UserId,false,'rbxassetid://123');spawn(own)
  CarFling={Running=false,GetCar=function()return own end}
  local homeFrame=ownBody.CFrame
+ local ownReference=instance('ObjectValue','VehicleOwner',own)
+ ownReference.Value=player;own.attributes.VehicleOwner=owner.UserId
+ assert(c2:Start(owner),'source Player reference overrides stale numeric attribute')
+ beat(.01);assert(c2.Running,'runtime ownership check also prioritizes Player reference')
+ c2:Stop()
+ ownReference.Value=owner;own.attributes.VehicleOwner=player.UserId
+ assert(not c2:Start(owner),'foreign Player reference must not be overridden by local numeric attribute')
+ ownReference.Value=nil
+ assert(c2:Start(owner),'empty owner reference falls back to matching numeric attribute')
+ c2:Stop()
+ own.attributes.VehicleOwner=nil
+ assert(not c2:Start(owner),'missing reference and attribute must not claim ownership')
+ own.attributes.VehicleOwner=player.UserId
  authorized=false;assert(not c2:Start(owner));authorized=true
  AnchorCore={AnclaEnabled=true,TestEnabled=true,AntiSeatEnabled=true,HeartbeatEnabled=true}
  AutoAnchorCore={Mode='NORMAL',Busy=true}

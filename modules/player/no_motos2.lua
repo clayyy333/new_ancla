@@ -20,10 +20,12 @@ return function(context)
 		if #C.Rows>100 then table.remove(C.Rows,1)end
 	end
 	local function owned(v,p)
-		local id=tonumber(v:GetAttribute("VehicleOwner"))
 		local value=v:FindFirstChild("VehicleOwner")
 		local owner=value and value:IsA("ObjectValue")and value.Value
-		return (not id or id==p.UserId)and (not owner or owner==p)and (id==p.UserId or owner==p)
+		-- Match the vehicle selector: a populated Player reference is authoritative
+		-- for selection; only fall back to the attribute while that reference is empty.
+		if owner then return owner:IsA("Player")and owner.UserId==p.UserId end
+		return tonumber(v:GetAttribute("VehicleOwner"))==p.UserId
 	end
 	local function targetOwned(v,p)
 		-- Resolve target ownership directly, like the original vehicle selector:
