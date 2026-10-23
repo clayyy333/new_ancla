@@ -382,6 +382,9 @@ if source2 then
  directRef.Value=anotherOwner;directRef:GetPropertyChangedSignal('Value'):Fire()
  directVehicle.attributes.VehicleOwner=owner.UserId;beat(.001)
  assert(c2.TargetBody~=directBody,'never target another Player reference just because attribute matches')
+ local ownerTrace=c2:GetDiagnosticReport()
+ assert(ownerTrace:find('RAW OWNERSHIP SNAPSHOT:',1,true)and ownerTrace:find('matchesTARGET=',1,true))
+ assert(ownerTrace:find('OwnerValue=Players.AnotherOwner class=Player UserId=77',1,true),'raw trace includes actual Player owner ID, not only filtered vehicles')
  c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end

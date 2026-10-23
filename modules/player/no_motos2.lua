@@ -407,12 +407,45 @@ return function(context)
 		return true
 	end
 	function C:GetDiagnosticReport()
-		return "NO MOTOS 2 V10 CENTER CONTACT | client observations only; not server authority"
+		local function identity(p)return p and (p.Name.."/"..p.UserId)or "nil"end
+		local selected=ExperimentalFlingCore and ExperimentalFlingCore.GetTarget and ExperimentalFlingCore:GetTarget()
+		local details={"UI target="..identity(selected).." | active owner="..identity(self.Owner).." | automatic owner="..identity(autoOwner)
+			.."\nContext local="..identity(player).." | Players.LocalPlayer="..identity(Players.LocalPlayer)}
+		local cars=workspace:FindFirstChild("Cars")
+		local children=cars and cars:GetChildren()or {}
+		details[#details+1]="Workspace.Cars children="..#children.."; snapshot on copy only; no physics writes"
+		local localMatches,targetMatches=0,0
+		local wanted=autoOwner or self.Owner or selected
+		for _,v in ipairs(children)do
+			local ok,line=pcall(function()
+				local ref=v:FindFirstChild("VehicleOwner")
+				local value=ref and ref:IsA("ObjectValue")and ref.Value
+				local valueInfo=value and (value:GetFullName().." class="..value.ClassName)or "nil"
+				if value and value:IsA("Player")then valueInfo=valueInfo.." UserId="..value.UserId end
+				local mine=owned(v,player)
+				local theirs=wanted and targetOwned(v,wanted)or false
+				if mine then localMatches=localMatches+1 end
+				if theirs then targetMatches=targetMatches+1 end
+				local physical=""
+				if mine then
+					local r=vehicleRoot(v);local c=r and contactPart(v,r)
+					physical=" sourceRoot="..tostring(r and r:GetFullName()).." sourceCollider="..tostring(c and c:GetFullName())
+				end
+				return v:GetFullName().." class="..v.ClassName.." VehicleOwnerAttr="..tostring(v:GetAttribute("VehicleOwner"))
+					.." OwnerChildClass="..tostring(ref and ref.ClassName).." OwnerValue="..valueInfo
+					.." matchesLOCAL="..tostring(mine).." matchesTARGET="..tostring(theirs)..physical
+			end)
+			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
+		end
+		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
+		return "NO MOTOS 2 V11 OWNER TRACE | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
+			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
 			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=center-to-center; no lateral/vertical spacing; no name/model/price/motorcycle filter; force=900000000; NO FAR TRAVEL"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
+			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
