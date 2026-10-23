@@ -242,7 +242,14 @@ if source2 then
  local firstDirection=ownBody.AssemblyLinearVelocity.Y
  beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==firstDirection,'no alternating vertical velocity')
  beat(1);beat(1)
- assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<0.001,'sustained contact without far travel')
+ assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<=0.501,'short bounded contact without far travel')
+ local offsets={}
+ for i=1,12 do
+  beat(.01)
+  offsets[c2.ContactOffset]=true
+  assert((ownBody.Position-entryFrame.Position).Magnitude<=0.501,'short travel stays within 0.5 studs of contact')
+ end
+ assert(offsets[0]and offsets[0.5],'alternate surface contact and outward separation')
  local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
  assert((ownBody.Position-priorPosition).Magnitude>0.5,'restore sustained live face placement')

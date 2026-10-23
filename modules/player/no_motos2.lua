@@ -7,6 +7,8 @@ return function(context)
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
 	local speed=900000000
+	local contactTravel=0.5
+	local contactStepDuration=0.05
 	local source,root,collider,checkpoint,force,target,connection,verification,watch
 	local elapsed,origin,completed
 	local function finite(v)
@@ -77,7 +79,7 @@ return function(context)
 		local localNormal=collider.CFrame:VectorToObjectSpace(n)
 		local extent=(math.abs(localNormal.X)*collider.Size.X+math.abs(localNormal.Y)*collider.Size.Y+math.abs(localNormal.Z)*collider.Size.Z)*0.5
 		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
-		local center=facePoint+n*math.max(0,extent-0.05)
+		local center=facePoint+n*(math.max(0,extent-0.05)+(t.ContactOffset or 0))
 		return center-(collider.Position-root.Position),center
 	end
 	local function free(v)
@@ -378,6 +380,13 @@ return function(context)
 					force.Parent=root
 					log("SUSTAINED_CONTACT speedXYZ=900000000 angularY=900000000 angularXZ=0; alternating vertical write removed; no far travel")
 				end
+				-- Alternate contact and a short outward separation along the selected
+				-- face normal. Bounded timing: no waits or catch-up loops on slow frames.
+				if target.ContactClock==nil then target.ContactClock=0 else
+					target.ContactClock=(target.ContactClock+dt)%(contactStepDuration*2)
+				end
+				target.ContactOffset=target.ContactClock>=contactStepDuration and contactTravel or 0
+				self.ContactOffset=target.ContactOffset
 				local position,center=contactPosition(target)
 				target.LastContactPoint=center
 				root.CFrame=CFrame.new(position)*root.CFrame.Rotation
@@ -509,13 +518,13 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V19 TARGET RESPAWN REBIND | client observations only; not server authority"
+		return "NO MOTOS 2 V20 SHORT CONTACT TRAVEL | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=V5 face placement overlap=0.05; linearXYZ=900000000; angularY=900000000; angularXZ=0; MaxForce=infinite; alternating vertical override=removed; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=V5 face placement overlap=0.05; outwardTravel=0.5; stepDuration=0.05; ContactOffset="..tostring(self.ContactOffset).."; linearXYZ=900000000; angularY=900000000; angularXZ=0; MaxForce=infinite; alternating vertical override=removed; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
