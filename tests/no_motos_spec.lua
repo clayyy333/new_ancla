@@ -222,16 +222,16 @@ if source2 then
  assert(c2.Phase=='CONTACT','sustained contact starts without a far phase')
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
- assert(math.abs(force.Velocity.Magnitude-225)<0.001 and force.MaxForce.X<math.huge and force.P==1250)
- assert(force.Velocity.Y==0,'level target has no added downward bias')
- assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==40 and ownBody.AssemblyAngularVelocity.Z==0)
- assert(ownBody.AssemblyLinearVelocity.Magnitude==0,'arrival clears old speed; BodyVelocity is the only linear driver')
+ assert(force.Velocity.X==900000000 and force.Velocity.Y==900000000 and force.Velocity.Z==900000000 and force.MaxForce.X==math.huge and force.P==1250)
+ assert(ownBody.AssemblyAngularVelocity.X==900000000 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==900000000)
+ ownBody.AssemblyLinearVelocity=Vector3.new(12,34,56)
+ beat(.01)
+ assert(ownBody.AssemblyLinearVelocity.X==12 and ownBody.AssemblyLinearVelocity.Y==34 and ownBody.AssemblyLinearVelocity.Z==56,'contact must not overwrite simulated linear velocity')
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
- assert(force.Velocity.X*separation.X+force.Velocity.Z*separation.Z<0,'push toward target face rather than away')
- local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05+0.5
- local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05+0.5
+ local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05
+ local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05
  assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
   or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'restore V5 sustained-contact placement')
  local largerCollider=instance('Part','Collider',targetBody)
@@ -245,9 +245,7 @@ if source2 then
  assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<0.001,'sustained contact without far travel')
  local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
- assert((ownBody.Position-priorPosition).Magnitude<0.001,'do not teleport during the physical impact window')
- beat(.13)
- assert((ownBody.Position-priorPosition).Magnitude>0.5,'refresh arrival after impact window')
+ assert((ownBody.Position-priorPosition).Magnitude>0.5,'restore sustained live face placement')
  local lastForce=created[#created]
  assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
@@ -400,8 +398,8 @@ if source2 then
  ownPhysicalRoot.CFrame=CFrame.new(ownPhysicalRoot.Position+Vector3.new(5,0,0))
  RunService.PostSimulation:Fire(.001)
  assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
- RunService.Heartbeat:Fire(.13);RunService.PostSimulation:Fire(.001)
- assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'refresh arrival after impact window, not continuously')
+ RunService.Heartbeat:Fire(.001);RunService.PostSimulation:Fire(.001)
+ assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'restore sustained placement after drift')
  local directVehicle,directBody=moto('DirectOwnerReference',999)
  local directRef=instance('ObjectValue','VehicleOwner',directVehicle);directRef.Value=owner
  spawn(directVehicle);beat(.001)
