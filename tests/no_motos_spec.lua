@@ -238,7 +238,7 @@ if source2 then
  assert(c2.Phase=='CONTACT','sustained contact starts without a far phase')
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
- assert(force.Velocity.X==900000000 and force.Velocity.Y==900000000 and force.Velocity.Z==900000000 and force.MaxForce.X==math.huge and force.P==1250)
+ assert(force.Velocity.Magnitude==0 and force.MaxForce.X==math.huge and force.P==1250,'stationary target center needs no diagonal linear drive')
  assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==0,'spin only on vertical axis, preserving requested Y speed')
  ownBody.AssemblyLinearVelocity=Vector3.new(12,34,56)
  beat(.01)
@@ -262,7 +262,7 @@ if source2 then
  end
  local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
- assert((ownBody.Position-priorPosition).Magnitude>0.5,'restore sustained live face placement')
+ assert((ownBody.Position-priorPosition).Magnitude==0 and force.Velocity.Z>0,'target movement changes velocity, never teleports source')
  local lastForce=created[#created]
  assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
@@ -281,11 +281,11 @@ if source2 then
  local beforeCreated=#created
  assert(c2:Start(owner),'start arrival before source collider is available')
  beat(.01)
- assert(c2.Running and c2.Phase=='ARRIVAL_WAIT_CONTACT'and (ownBody.Position-beforeArrival).Magnitude>0,'move source toward existing target using physical reference')
- assert(#created==beforeCreated,'do not apply contact forces until collision reference is ready')
+ assert(c2.Running and c2.Phase=='ARRIVAL_WAIT_CONTACT'and (ownBody.Position-beforeArrival).Magnitude==0,'prepare physical arrival without teleporting source')
+ assert(#created==beforeCreated+1 and created[#created].Velocity.Magnitude>0,'arrival velocity is available before collision reference')
  ownBody.CanCollide=true
  beat(.01)
- assert(c2.Phase=='CONTACT'and created[#created].Parent==ownBody,'automatically adjust contact when collider appears')
+ assert((c2.Phase=='APPROACH'or c2.Phase=='CONTACT')and created[#created].Parent==ownBody,'automatically adjust contact when collider appears')
  c2:Stop()
  assert(c2:Start(owner),'restart and rescan existing motorcycles')
  local other=instance('Part','SomeoneElse',workspace);ownBody.ConnectedParts={other}
@@ -319,7 +319,7 @@ if source2 then
  -- Respawn can arrive while the old contact is active, at a different position.
  respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike)
  respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(40,0,0));beat(.01)
- assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','do not mark a fresh generation completed using the previous origin')
+ assert(c2.TargetBody==respawnedBody and c2.Phase=='APPROACH','do not mark a fresh generation completed using the previous origin')
  local reusedSpawnFrame=respawnedBody.CFrame
  respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
  assert(c2.TargetBody~=respawnedBody,'do not keep pursuing displaced vehicle')
@@ -342,9 +342,9 @@ if source2 then
  reusedSpawnFrame=respawnedBody.CFrame
  respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
  respawnedBody.CFrame=reusedSpawnFrame;beat(.3)
- assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','rearm same Part returned to its spawn without ChildAdded')
+ assert(c2.TargetBody==respawnedBody and c2.Running,'rearm same Part returned to its spawn without ChildAdded')
  respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike);beat(.01)
- assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','reinserted same Body must not remain permanently completed')
+ assert(c2.TargetBody==respawnedBody and c2.Running,'reinserted same Body must not remain permanently completed')
  local regenMover=respawnedBike:FindFirstChild('MoverModel');respawnedBody.Parent=nil
  local regenBody=instance('Part','Body',regenMover);regenBody.AssemblyRootPart=regenBody;regenBody.CFrame=CFrame.new(50,10,0)
  instance('Seat','Seat',regenBody);cars.DescendantAdded:Fire(regenBody);beat(.01)
@@ -381,7 +381,7 @@ if source2 then
  local unrelatedWheel=instance('Part','Wheel',structure)
  unrelatedWheel.AssemblyRootPart=unrelatedWheel;unrelatedWheel.Size=Vector3.new(10,10,10)
  cars.DescendantAdded:Fire(colliderA);beat(.01)
- assert(c2.TargetBody==colliderA and c2.Phase=='CONTACT','choose largest collidable part of main assembly, not independent wheel or noncollidable root')
+ assert(c2.TargetBody==colliderA and c2.Running,'choose largest collidable part of main assembly, not independent wheel or noncollidable root')
  assert(c2:GetDiagnosticReport():find('CONTACT_PART=',1,true),'report chosen target collision part')
  c2:Destroy()
  -- Non-collidable conventional Body is also valid when its assembly has colliders.
@@ -440,9 +440,9 @@ if source2 then
  RunService.PreSimulation:Fire(.001)
  ownPhysicalRoot.CFrame=CFrame.new(ownPhysicalRoot.Position+Vector3.new(5,0,0))
  RunService.PostSimulation:Fire(.001)
- assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
+ assert(c2.Phase=='APPROACH'and not c2.LastArrivalObserved and c2.LastContactError>4)
  RunService.Heartbeat:Fire(.001);RunService.PostSimulation:Fire(.001)
- assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'restore sustained placement after drift')
+ assert(c2.Phase=='APPROACH'and not c2.LastArrivalObserved and created[#created].Velocity.Magnitude>0,'correct drift by velocity, not instant placement')
  local directVehicle,directBody=moto('DirectOwnerReference',999)
  local directRef=instance('ObjectValue','VehicleOwner',directVehicle);directRef.Value=owner
  spawn(directVehicle);beat(.001)
@@ -473,7 +473,7 @@ if source2 then
  local replacementSourceRoot=instance('Part','Body',loadingMover)
  replacementSourceRoot.AssemblyRootPart=replacementSourceRoot;replacementSourceRoot.CFrame=CFrame.new(50,10,0)
  cars.DescendantAdded:Fire(replacementSourceRoot);beat(.001)
- assert(c2.Running and created[#created].Parent==replacementSourceRoot and c2.Phase=='CONTACT','resume contact on replacement physics without clicking again')
+ assert(c2.Running and created[#created].Parent==replacementSourceRoot and (c2.Phase=='APPROACH'or c2.Phase=='CONTACT'),'resume approach on replacement physics without clicking again')
  local replacementForce=created[#created]
  replacementSourceRoot.CanCollide=false
  local sourceCollider=instance('Part','NewCollider',replacementSourceRoot)
@@ -494,7 +494,30 @@ if source2 then
  spawn(directSource)
  assert(c2:Start(owner,directSource));beat(.01)
  assert(c2.Running and created[#created].Parent==directSource,'BasePart container wins over internal Body for source writes')
- assert((directSourceBody.Position-c2.TargetBody.Position).Magnitude<0.001,'preserve center contact using offset collider on original source reference')
+ local physicalDriver=created[#created]
+ local previousError=(directSourceBody.Position-c2.TargetBody.Position).Magnitude
+ for i=1,60 do
+  -- Idealized velocity integration: verifies controller direction/convergence,
+  -- not Roblox collision, spin integration or network replication.
+  local nextPosition=directSource.Position+physicalDriver.Velocity*.01
+  directSource.CFrame=CFrame.new(nextPosition)
+  local observedFrame=directSource.CFrame
+  beat(.01)
+  assert(directSource.CFrame==observedFrame,'controller must never teleport during approach or hold')
+  local distance=(directSourceBody.Position-c2.TargetBody.Position).Magnitude
+  assert(distance<=previousError+.001,'velocity correction converges without overshooting')
+  previousError=distance
+ end
+ assert(previousError<.01,'velocity controller reaches target center with offset source collider')
+ local trackedBody=c2.TargetBody
+ trackedBody.AssemblyLinearVelocity=Vector3.new(3,0,0)
+ beat(.01)
+ assert(math.abs(physicalDriver.Velocity.X-3)<.01,'hold follows target velocity instead of applying a fixed diagonal push')
+ trackedBody.AssemblyLinearVelocity=Vector3.zero
+ trackedBody.CFrame=CFrame.new(trackedBody.Position+Vector3.new(.3,0,0))
+ local beforeSlowFrame=directSource.CFrame
+ beat(.2)
+ assert(directSource.CFrame==beforeSlowFrame and physicalDriver.Velocity.X>0 and physicalDriver.Velocity.X*.2<.301,'long frames bound correction without teleport or overshoot')
  assert(directSource.AssemblyAngularVelocity.Y==900000000,'spin applies to original top-level source reference')
  c2:Destroy()
  local primarySource=instance('Model','PrimaryPartCar');primarySource.attributes.VehicleOwner=player.UserId

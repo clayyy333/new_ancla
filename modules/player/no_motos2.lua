@@ -7,6 +7,7 @@ return function(context)
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
 	local speed=900000000
+	local positionGain=30
 	local source,root,collider,checkpoint,force,target,connection,verification,watch
 	local elapsed,origin,completed
 	local function finite(v)
@@ -187,6 +188,10 @@ return function(context)
 		root.CFrame=checkpoint
 		return true
 	end
+	local function releaseMotion()
+		clear()
+		if sourceSafe()then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
+	end
 	function C:Stop(message)
 		local active=self.Running
 		self.Running=false
@@ -332,12 +337,12 @@ return function(context)
 				if target then
 					observe(target)
 					if target.Generation~=(generations[target.Vehicle]or 0)then
-						log("TARGET_RESPAWN generation changed");target=nil;self.TargetBody=nil;home();self.Phase="WAIT_MOTORCYCLE";elapsed=1
+						log("TARGET_RESPAWN generation changed");target=nil;self.TargetBody=nil;releaseMotion();self.Phase="WAIT_MOTORCYCLE";elapsed=1
 					elseif resolve(target.Vehicle)~=target.Body then
-						log("CONTACT_CANCELLED");target=nil;home();self.Phase="WAIT_MOTORCYCLE"
+						log("CONTACT_CANCELLED");target=nil;self.TargetBody=nil;releaseMotion();self.Phase="WAIT_MOTORCYCLE"
 					elseif (target.Body.Position-origin).Magnitude>=20 then
 						completed[target.Vehicle]={Part=target.Body,Origin=origin,Position=target.Body.Position,Assembly=target.Body.AssemblyRootPart}
-						log("DISPLACED >=20 studs");target=nil;self.TargetBody=nil;home();self.Phase="WAIT_MOTORCYCLE"
+						log("DISPLACED >=20 studs");target=nil;self.TargetBody=nil;releaseMotion();self.Phase="WAIT_MOTORCYCLE"
 					end
 				end
 				elapsed=elapsed+dt
@@ -353,26 +358,30 @@ return function(context)
 					choose()
 				end
 				if not target then return end
-				if not collider then
-					clear()
-					local position=contactPosition(target)
-					root.CFrame=CFrame.new(position)*root.CFrame.Rotation
-					self.Phase="ARRIVAL_WAIT_CONTACT"
-					return
-				end
 				if not force then
 					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250
 					force.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
-					force.Velocity=Vector3.new(speed,speed,speed)
+					force.Velocity=Vector3.zero
 					force.Parent=root
-					log("SUSTAINED_CONTACT speedXYZ=900000000 angularY=900000000 angularXZ=0; alternating vertical write removed; no far travel")
+					log("VELOCITY_APPROACH positionGain=30 linearLimit=900000000 angularY=900000000; no contact CFrame writes")
 				end
 				local position,center=contactPosition(target)
 				target.LastContactPoint=center
-				root.CFrame=CFrame.new(position)*root.CFrame.Rotation
-				-- BodyVelocity is the only linear driver during contact.
-				root.AssemblyAngularVelocity=Vector3.new(0,speed,0)
-				self.Phase="CONTACT"
+				local positionError=position-root.Position
+				-- Slow near the target, follow its motion, and bound the correction to
+				-- a fraction of the remaining distance per observed physics step.
+				local gain=math.min(positionGain,0.8/math.max(dt,1/240))
+				local correction=positionError*gain
+				if correction.Magnitude>speed then correction=correction*(speed/correction.Magnitude)end
+				local follow=target.Body.AssemblyLinearVelocity
+				if not finite(follow)then follow=Vector3.zero end
+				local velocity=follow+correction
+				if not finite(velocity)then error("Invalid approach velocity")end
+				if velocity.Magnitude>speed then velocity=velocity*(speed/velocity.Magnitude)end
+				force.Velocity=velocity
+				root.AssemblyAngularVelocity=collider and Vector3.new(0,speed,0)or Vector3.zero
+				self.LastCommandedSpeed=velocity.Magnitude
+				self.Phase=not collider and "ARRIVAL_WAIT_CONTACT"or (positionError.Magnitude<=1 and "CONTACT"or "APPROACH")
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
 		end)
@@ -386,7 +395,7 @@ return function(context)
 					self.LastArrivalObserved=false;self.Phase="RECOVERING";return
 				end
 				self.LastContactError=distance;self.LastArrivalObserved=distance<=1
-				local phase=self.LastArrivalObserved and "CONTACT"or "RECOVERING"
+				local phase=self.LastArrivalObserved and "CONTACT"or "APPROACH"
 				if phase~=target.VerifiedPhase then
 					target.VerifiedPhase=phase
 					log(string.format("POST_SIMULATION %s geometry_error=%.3f (not collision proof)",phase,distance))
@@ -498,13 +507,13 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V23 ORIGINAL SOURCE REFERENCE | client observations only; not server authority"
+		return "NO MOTOS 2 V24 PHYSICAL APPROACH | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=source collider center to target part center; outwardTravel=0; linearXYZ=900000000; angularY=900000000; angularXZ=0; MaxForce=infinite; alternating vertical override=removed; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=center velocity tracking; positionGain=30; commandedSpeed="..tostring(self.LastCommandedSpeed).."; linearLimit=900000000 (not constant speed); angularY=900000000; angularXZ=0; MaxForce=infinite; contactCFrameWrites=0; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
