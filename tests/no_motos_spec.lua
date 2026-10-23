@@ -208,6 +208,13 @@ if source2 then
  CarFling={Running=false,GetCar=function()return own end}
  local homeFrame=ownBody.CFrame
  authorized=false;assert(not c2:Start(owner));authorized=true
+ AnchorCore={AnclaEnabled=true,TestEnabled=true,AntiSeatEnabled=true,HeartbeatEnabled=true}
+ AutoAnchorCore={Mode='NORMAL',Busy=true}
+ MobileAnchorCore={Running=true};MobileAnchorV11Core={Running=true}
+ StaticPassThroughAnchorCore={Running=true};VerticalControlController={Running=true}
+ DeploymentAnchorMotorCore={Running=true};EmergencyAnchorController={Running=true}
+ root.Anchored=true
+ local anchoredCharacterFrame=root.CFrame
  assert(c2:Start(owner))
  assert(not core:Start(owner),'mutual exclusion with original No motos')
  beat(.06)
@@ -234,6 +241,14 @@ if source2 then
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
  assert(force.Destroyed,'remove force on stop')
  assert(ownBody.AssemblyLinearVelocity.Magnitude==0 and ownBody.AssemblyAngularVelocity.Magnitude==0)
+ assert(root.Anchored and root.CFrame==anchoredCharacterFrame and AnchorCore.AnclaEnabled and MobileAnchorCore.Running,'do not disable or move independent anchored character')
+ ownBody.ConnectedParts={root}
+ assert(not c2:Start(owner),'block an actual connection from car to anchored local character')
+ root.Anchored=false
+ assert(not c2:Start(owner),'also block local connection to character controlled by an active non-Anchored anchor')
+ ownBody.ConnectedParts={}
+ AnchorCore=nil;AutoAnchorCore=nil;MobileAnchorCore=nil;MobileAnchorV11Core=nil
+ StaticPassThroughAnchorCore=nil;VerticalControlController=nil;DeploymentAnchorMotorCore=nil;EmergencyAnchorController=nil
  ownBody.CanCollide=false
  assert(not c2:Start(owner),'reject a source without collidable parts instead of targeting a non-collidable root')
  ownBody.CanCollide=true

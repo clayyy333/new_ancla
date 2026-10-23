@@ -82,6 +82,13 @@ return function(context)
 		local weld=v:FindFirstChild("WeldToPlayer")
 		return not (weld and weld:IsA("WeldConstraint")and weld.Enabled and weld.Part0 and weld.Part1)
 	end
+	local function characterAnchorActive()
+		for _,name in ipairs({"AnchorCore","MobileAnchorCore","MobileAnchorV11Core","StaticPassThroughAnchorCore","VerticalControlController","DeploymentAnchorMotorCore","EmergencyAnchorController"})do
+			local a=context[name]
+			if a and (a.Running or a.Stopping or a.AnclaEnabled or a.TestEnabled or a.AntiSeatEnabled or a.HeartbeatEnabled)then return true end
+		end
+		return AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)or false
+	end
 	local function sourceSafe()
 		local cars=workspace:FindFirstChild("Cars")
 		if not source or source.Parent~=cars or not owned(source,player)or not root or not root.Parent or root.Anchored or vehicleRoot(source)~=root or not finite(root.Position)then return false end
@@ -94,7 +101,11 @@ return function(context)
 		local ok,parts=pcall(function()return root:GetConnectedParts(true)end)
 		if not ok then return false end
 		for _,p in ipairs(parts)do
-			if p~=source and not p:IsDescendantOf(source)and not (player.Character and p:IsDescendantOf(player.Character))then return false end
+			if p~=source and not p:IsDescendantOf(source)then
+				if not (player.Character and p:IsDescendantOf(player.Character))then return false end
+				-- Character anchors are compatible only when physically independent of our car.
+				if p.Anchored or characterAnchorActive()then return false end
+			end
 		end
 		return true
 	end
@@ -172,12 +183,10 @@ return function(context)
 		return active
 	end
 	local function conflict()
-		for _,name in ipairs({"NoMotosCore","ExperimentalFlingCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","Fling2Core","Fling2EfficientCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CustomFlingCore","MobileAnchorCore","MobileAnchorV11Core","StaticPassThroughAnchorCore","VerticalControlController"})do
+		for _,name in ipairs({"NoMotosCore","ExperimentalFlingCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","Fling2Core","Fling2EfficientCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CustomFlingCore"})do
 			local other=context[name]
 			if other and (other.Running or other.Stopping)then return name end
 		end
-		if AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.TestEnabled)then return "Ancla"end
-		if AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)then return "Ancla automatica"end
 	end
 	function C:Start(owner,detectedCar)
 		if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized()then return false,"Solo owners."end
