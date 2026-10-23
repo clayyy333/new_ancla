@@ -26,9 +26,35 @@ return function(context)
 	local function vehicleRoot(v)
 		local mover=v:FindFirstChild("MoverModel")
 		local body=mover and mover:FindFirstChild("Body")
-		if body and body:IsA("BasePart")then return body end
-		if v:IsA("BasePart")then return v end
-		return v.PrimaryPart
+		local parts=v:GetDescendants()
+		if v:IsA("BasePart")then parts[#parts+1]=v end
+		local groups,order={},{}
+		for _,p in ipairs(parts)do
+			if p:IsA("BasePart")and (p==v or p:IsDescendantOf(v))then
+				local assembly=p.AssemblyRootPart
+				if assembly then
+					local g=groups[assembly]
+					if not g then g={Root=assembly,Member=p,Count=0,Volume=0};groups[assembly]=g;order[#order+1]=g end
+					g.Count=g.Count+1
+					if p.CanCollide and finite(p.Position)and finite(p.Size)then
+						g.Volume=g.Volume+p.Size.X*p.Size.Y*p.Size.Z;g.Collidable=true
+					end
+				end
+			end
+		end
+		-- Keep the previously working Body when its assembly can actually collide.
+		if body and body:IsA("BasePart")and body.AssemblyRootPart then
+			local g=groups[body.AssemblyRootPart]
+			if g and g.Collidable then return body end
+		end
+		local best
+		for _,g in ipairs(order)do
+			if g.Collidable and (not best or g.Count>best.Count or (g.Count==best.Count and g.Volume>best.Volume))then best=g end
+		end
+		if best then
+			if best.Root==v or best.Root:IsDescendantOf(v)then return best.Root end
+			return best.Member
+		end
 	end
 	local function contactPart(v,r)
 		if r.CanCollide then return r end
@@ -55,7 +81,7 @@ return function(context)
 	local function sourceSafe()
 		local cars=workspace:FindFirstChild("Cars")
 		if not source or source.Parent~=cars or not owned(source,player)or not root or not root.Parent or root.Anchored or vehicleRoot(source)~=root or not finite(root.Position)then return false end
-		if collider and (not collider.Parent or not collider:IsDescendantOf(source)or not collider.CanCollide or collider.Anchored or collider.AssemblyRootPart~=root.AssemblyRootPart)then return false end
+		if collider and (not collider.Parent or (collider~=source and not collider:IsDescendantOf(source))or not collider.CanCollide or collider.Anchored or collider.AssemblyRootPart~=root.AssemblyRootPart)then return false end
 		local assembly=root.AssemblyRootPart
 		if not assembly or assembly.Anchored then return false end
 		for _,part in ipairs(source:GetDescendants())do
@@ -146,8 +172,12 @@ return function(context)
 	end
 	function C:Start(owner,detectedCar)
 		if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized()then return false,"Solo owners."end
-		if self.Running then return true end
 		if not owner or not owner:IsA("Player")or owner.Parent~=Players or owner==player then return false,"Selecciona al otro propietario de la moto."end
+		if self.Running then
+			if self.Owner==owner then return true end
+			detectedCar=detectedCar or source
+			self:Stop("Cambio de propietario objetivo.")
+		end
 		local other=conflict();if other then return false,"Desactiva primero: "..other end
 		local cars=workspace:FindFirstChild("Cars")
 		if not cars then return false,"Workspace.Cars no esta disponible."end
@@ -247,28 +277,55 @@ return function(context)
 		if self.Running then return self:Stop("Regreso de No motos 2 solicitado.")end
 		return checkpoint and home()or false,"No hay regreso seguro disponible."
 	end
+	function C:SetTargetOwner(owner)
+		if not owner or not owner:IsA("Player")or owner.Parent~=Players or owner==player then return false,"Selecciona otro usuario del servidor."end
+		local changed=self.Owner~=owner or (self.AutoEnabled and autoOwner~=owner)
+		if not changed then return true end
+		local resume=self.Running and not self.AutoEnabled
+		local previousSource=source
+		if self.Running then self:Stop("Cambio de propietario objetivo.")end
+		self.Owner=owner;self.TargetBody=nil
+		if self.AutoEnabled then
+			autoOwner=owner;self.AutoOwnerId=owner.UserId;autoElapsed=0.25;autoLastError=nil
+			refresh("Automatico: objetivo actualizado a @"..owner.Name.."; buscando sus vehiculos.")
+		elseif resume then return self:Start(owner,previousSource)end
+		return true
+	end
 	function C:SetAutoEnabled(enabled,owner)
 		if enabled and (not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized())then return false,"Solo owners."end
 		if enabled and (not owner or owner.Parent~=Players or owner==player)then return false,"Selecciona primero al propietario objetivo."end
+		if enabled and self.Running and self.Owner~=owner then self:Stop("Cambio de propietario objetivo.")end
+		if enabled then
+			if self.Owner~=owner then self.TargetBody=nil end
+			self.Owner=owner
+		end
 		if autoConnection then autoConnection:Disconnect();autoConnection=nil end
 		self.AutoEnabled=enabled and true or false;autoOwner=owner;autoElapsed=0.25;autoLastError=nil
+		self.AutoOwnerId=owner and owner.UserId;self.AutoStatus=enabled and "WAIT_SOURCE"or "OFF"
 		if not self.AutoEnabled then self:Stop("Activacion automatica desactivada.");refresh("Activacion automatica de No motos 2 desactivada.");return true end
 		autoConnection=RunService.Heartbeat:Connect(function(dt)
 			autoElapsed=autoElapsed+dt;if autoElapsed<0.25 then return end;autoElapsed=0
 			if not autoOwner or autoOwner.Parent~=Players then self:SetAutoEnabled(false);return end
 			-- Independent spawn discovery, like car2's syncSpawnedCar. Do not read or
 			-- mutate another fling panel's selection or require that panel to be opened.
-			local selected
+			local selected,ownedCount=nil,0
 			local cars=workspace:FindFirstChild("Cars")
 			if cars then
 				for _,v in ipairs(cars:GetChildren())do
 					if v.Parent==cars and owned(v,player)then
+						ownedCount=ownedCount+1
 						local r=vehicleRoot(v)
 						if r and r.Parent and contactPart(v,r)then selected=v end
 					end
 				end
 			end
-			if self.Running and selected~=source then self:Stop("Cambio de auto seleccionado.")end
+			if not selected then
+				local message=ownedCount>0 and "Automatico: tu vehiculo esta detectado, esperando ensamblaje y pieza colisionable."
+					or ("Automatico: no se detecta un vehiculo de @"..player.Name.." (UserId="..player.UserId..").")
+				self.AutoStatus=message
+				if autoLastError~=message then autoLastError=message;refresh(message)end
+			else self.AutoStatus="SOURCE_DETECTED "..selected:GetFullName()end
+			if self.Running and (selected~=source or self.Owner~=autoOwner)then self:Stop("Cambio de auto o propietario objetivo.")end
 			if not self.Running and selected then
 				local called,ok,err=xpcall(function()return self:Start(autoOwner,selected)end,debug.traceback)
 				if not called then err=tostring(ok);ok=false;self:Stop("Error al activar automaticamente.")end
@@ -278,7 +335,7 @@ return function(context)
 		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V6 GENERIC VEHICLE CONTACT | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V7 GENERIC SOURCE AND TARGET | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus).."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end

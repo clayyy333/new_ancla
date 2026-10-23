@@ -309,6 +309,30 @@ if source2 then
  assert(c2:Start(owner));beat(.01)
  assert(c2.TargetBody==conventionalCollider,'do not reject a vehicle simply because Body.CanCollide is false')
  c2:Destroy()
+ -- Source discovery must be generic too, not only the target resolver.
+ for _,v in ipairs(cars:GetChildren())do if v.attributes.VehicleOwner==player.UserId then v.Parent=nil end end
+ local genericOwn=instance('Part','DifferentOwnCar');genericOwn.attributes.VehicleOwner=player.UserId;genericOwn.CanCollide=false;spawn(genericOwn)
+ assert(c2:SetAutoEnabled(true,owner));beat(.3)
+ assert(not c2.Running and c2.AutoStatus:find('esperando ensamblaje',1,true),'show why an incomplete owned source cannot start')
+ local ownStructure=instance('Model','CustomPhysics',genericOwn)
+ local ownPhysicalRoot=instance('Part','MetalRoot',ownStructure);ownPhysicalRoot.CanCollide=false;ownPhysicalRoot.AssemblyRootPart=ownPhysicalRoot
+ local ownCollider=instance('Part','Collider',ownStructure);ownCollider.AssemblyRootPart=ownPhysicalRoot
+ cars.DescendantAdded:Fire(ownCollider);beat(.3);beat(.01)
+ assert(c2.Running and created[#created].Parent==ownPhysicalRoot,'auto detects source lacking MoverModel.Body and a collidable top-level root')
+ local anotherOwner=instance('Player','AnotherOwner',Players);anotherOwner.UserId=77
+ local anotherVehicle,anotherBody=moto('OtherUsersVehicle',anotherOwner.UserId,false,'rbxassetid://456');spawn(anotherVehicle)
+ local previousForce=created[#created]
+ assert(c2:SetTargetOwner(anotherOwner))
+ assert(c2.AutoEnabled and not c2.Running and previousForce.Destroyed,'retarget keeps auto enabled and removes previous contact forces')
+ beat(.3);beat(.01)
+ assert(c2.Running and c2.Owner==anotherOwner and c2.AutoOwnerId==77 and c2.TargetBody==anotherBody,'automatic flow uses newly selected owner, not original account')
+ assert(c2:SetAutoEnabled(true,owner));beat(.3);beat(.01)
+ assert(c2.Running and c2.Owner==owner and c2.TargetBody==conventionalCollider,'re-enabling auto for another owner also replaces active target')
+ c2:SetAutoEnabled(false)
+ assert(c2:Start(anotherOwner,genericOwn));beat(.01)
+ assert(c2:Start(owner));beat(.01)
+ assert(c2.Owner==owner and c2.TargetBody==conventionalCollider,'manual active start must not silently retain old owner either')
+ c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end

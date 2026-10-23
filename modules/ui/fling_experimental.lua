@@ -153,7 +153,8 @@ return function(context)
 			b.Activated:Connect(function()
 				if p.Parent==Players and ExperimentalFlingCore:SetTarget(p) then
 					choices.Visible=false
-					if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(true,p)else UpdateExperimentalFlingPanel()end
+					local ok,err=NoMotos2Core:SetTargetOwner(p)
+					UpdateExperimentalFlingPanel(ok and nil or err)
 				end
 			end)
 		end end
@@ -165,7 +166,6 @@ return function(context)
 		choices.CanvasPosition=Vector2.zero
 	end
 	selectTarget.Activated:Connect(function()
-		if NoMotos2Core.Running then return end
 		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping then return end
 		choices.Visible=not choices.Visible
 		if choices.Visible then refreshTargets() end
