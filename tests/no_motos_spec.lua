@@ -373,8 +373,8 @@ if source2 then
  ownPhysicalRoot.CFrame=CFrame.new(ownPhysicalRoot.Position+Vector3.new(5,0,0))
  RunService.PostSimulation:Fire(.001)
  assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
- RunService.PreSimulation:Fire(.001);RunService.PostSimulation:Fire(.001)
- assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'correct drift in the next physics step, with no delay or far travel')
+ RunService.Heartbeat:Fire(.001);RunService.PostSimulation:Fire(.001)
+ assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'correct drift on the restored Heartbeat path, with no delay or far travel')
  c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end

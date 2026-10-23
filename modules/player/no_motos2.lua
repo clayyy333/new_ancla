@@ -96,7 +96,10 @@ return function(context)
 	end
 	local function resolve(v)
 		local cars=workspace:FindFirstChild("Cars")
-		if v==source or v.Parent~=cars or not owned(v,C.Owner)or (not occupiedTest and not free(v))then return end
+		if v==source then return nil,"source vehicle"end
+		if v.Parent~=cars then return nil,"not in Workspace.Cars"end
+		if not owned(v,C.Owner)then return nil,"owner mismatch"end
+		if not occupiedTest and not free(v)then return nil,"occupied; free-only mode"end
 		-- Rank actual assemblies, not model names, animations, seats or Body paths.
 		-- Main assembly heuristic: most vehicle parts; largest collision volume breaks ties.
 		local parts=v:GetDescendants()
@@ -121,7 +124,8 @@ return function(context)
 		for _,g in ipairs(order)do
 			if g.Part and (not best or g.Count>best.Count or (g.Count==best.Count and g.Volume>best.Volume))then best=g end
 		end
-		if best then return best.Part end -- Incomplete spawns remain eligible for the next scan.
+		if best then return best.Part end
+		return nil,"waiting for collidable part with valid assembly" -- Retried; not permanently excluded.
 	end
 	local function observe(t)
 		local body=t.Body
@@ -227,13 +231,21 @@ return function(context)
 		end
 		local function choose()
 			local selected,selectedBody,selectedOrder=nil,nil,-1
+			local snapshot={}
 			for _,v in ipairs(cars:GetChildren())do
 				if not spawnOrder[v]then remember(v)end
-				local body=resolve(v)
+				local body,reason=resolve(v)
+				if v~=source and owned(v,owner)then
+					local reference=v:FindFirstChild("VehicleOwner")
+					local refOwner=reference and reference:IsA("ObjectValue")and reference.Value
+					snapshot[#snapshot+1]=v.Name.." ownerAttr="..tostring(v:GetAttribute("VehicleOwner"))
+						.." ownerRef="..tostring(refOwner and refOwner.Name).." result="..tostring(body and body:GetFullName()or reason)
+				end
 				if body and available(v,body)and spawnOrder[v]>selectedOrder then
 					selected,selectedBody,selectedOrder=v,body,spawnOrder[v]
 				end
 			end
+			self.TargetScan=#snapshot>0 and table.concat(snapshot,"\n")or "No vehicle matched the selected owner in Workspace.Cars."
 			if selected then
 				local v,body=selected,selectedBody
 				if target and target.Vehicle==v and target.Body==body and target.Generation==(generations[v]or 0)then return end
@@ -261,7 +273,8 @@ return function(context)
 			for _,c in pairs(readiness)do c:Disconnect()end
 			for _,c in pairs(referenceReadiness)do c:Disconnect()end
 		end}
-		connection=RunService.PreSimulation:Connect(function(dt)
+		-- Restore the original working write phase; spawn prioritization stays event-driven.
+		connection=RunService.Heartbeat:Connect(function(dt)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
 				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not sourceSafe()or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
@@ -312,7 +325,9 @@ return function(context)
 				if not root.Parent or not collider.Parent or not target.Body.Parent or player.Character==nil then return end
 				local _,expected=contactPosition(target)
 				local distance=(collider.Position-expected).Magnitude
-				if distance~=distance or distance==math.huge then self:Stop("Posicion de contacto no valida.");return end
+				if distance~=distance or distance==math.huge then
+					self.LastArrivalObserved=false;self.Phase="RECOVERING";return
+				end
 				self.LastContactError=distance;self.LastArrivalObserved=distance<=1
 				local phase=self.LastArrivalObserved and "CONTACT"or "RECOVERING"
 				if phase~=target.VerifiedPhase then
@@ -321,7 +336,10 @@ return function(context)
 				end
 				self.Phase=phase
 			end,debug.traceback)
-			if not ok then log(tostring(err));self:Stop("Error verificando contacto.")end
+			if not ok then
+				self.LastArrivalObserved=false
+				if self.LastVerificationError~=tostring(err)then self.LastVerificationError=tostring(err);log("VERIFICATION_ONLY_ERROR "..tostring(err))end
+			end
 		end)
 		choose();log("START source="..source:GetFullName())
 		refresh("No motos 2: tu vehiculo contra vehiculos de @"..owner.Name..(occupiedTest and ". Incluye ocupados; pieza colisionable elegida por ensamblaje."or ". Solo vehiculos libres; contacto por ensamblaje."))
@@ -389,7 +407,14 @@ return function(context)
 		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V8 SPAWN PRIORITY PRE/POST | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus).."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); contact writes=PreSimulation; verification=PostSimulation; ownership/descendant events accelerate discovery\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()
+		return "NO MOTOS 2 V9 HEARTBEAT CONTACT | client observations only; not server authority"
+			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
+			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
+			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05; no name/model/price/motorcycle filter; force=900000000; NO FAR TRAVEL"
+			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
+	end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end
