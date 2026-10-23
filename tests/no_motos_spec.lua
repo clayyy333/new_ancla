@@ -223,13 +223,13 @@ if source2 then
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
  assert(math.abs(force.Velocity.Magnitude-225)<0.001 and force.MaxForce.X<math.huge and force.P==1250)
- assert(force.Velocity.Y<0,'impact has downward bias')
- assert(math.abs(force.Velocity.Y+225*0.6/math.sqrt(1.36))<0.001,'normalize diagonal so total speed stays 225')
+ assert(force.Velocity.Y==0,'level target has no added downward bias')
  assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==40 and ownBody.AssemblyAngularVelocity.Z==0)
  assert(ownBody.AssemblyLinearVelocity.Magnitude==0,'arrival clears old speed; BodyVelocity is the only linear driver')
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
+ assert(force.Velocity.X*separation.X+force.Velocity.Z*separation.Z<0,'push toward target face rather than away')
  local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05+0.5
  local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05+0.5
  assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
