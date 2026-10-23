@@ -14,6 +14,7 @@ local vm={}
 Vector3={new=function(x,y,z)return setmetatable({X=x,Y=y,Z=z},vm)end};Vector3.zero=Vector3.new(0,0,0)
 vm.__add=function(a,b)return Vector3.new(a.X+b.X,a.Y+b.Y,a.Z+b.Z)end
 vm.__sub=function(a,b)return Vector3.new(a.X-b.X,a.Y-b.Y,a.Z-b.Z)end
+vm.__unm=function(a)return Vector3.new(-a.X,-a.Y,-a.Z)end
 vm.__mul=function(a,b)return Vector3.new(a.X*b,a.Y*b,a.Z*b)end
 vm.__index=function(a,k)if k=='Magnitude'then return math.sqrt(a.X*a.X+a.Y*a.Y+a.Z*a.Z)end end
 local fm={}
@@ -221,14 +222,14 @@ if source2 then
  assert(c2.Phase=='CONTACT','sustained contact starts without a far phase')
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
- assert(force.Velocity.X==900000000 and force.Velocity.Y==900000000 and force.Velocity.Z==900000000 and force.MaxForce.X==math.huge and force.P==1250)
- assert(ownBody.AssemblyAngularVelocity.X==900000000 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==900000000)
- assert(ownBody.AssemblyLinearVelocity.Y==-900000000,'original alternating vertical speed')
+ assert(math.abs(force.Velocity.Magnitude-180)<0.001 and force.MaxForce.X<math.huge and force.P==1250)
+ assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==40 and ownBody.AssemblyAngularVelocity.Z==0)
+ assert(ownBody.AssemblyLinearVelocity.Magnitude==0,'arrival clears old speed; BodyVelocity is the only linear driver')
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
- local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05
- local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05
+ local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05+0.5
+ local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05+0.5
  assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
   or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'restore V5 sustained-contact placement')
  local largerCollider=instance('Part','Collider',targetBody)
@@ -237,12 +238,14 @@ if source2 then
  assert(c2.TargetBody==targetBody,'keep working V5 Body target rather than replace it with a larger collider')
  local entryFrame=ownBody.CFrame
  local firstDirection=ownBody.AssemblyLinearVelocity.Y
- beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==-firstDirection,'alternate vertical velocity each contact step')
+ beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==firstDirection,'no alternating vertical velocity')
  beat(1);beat(1)
  assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<0.001,'sustained contact without far travel')
  local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
- assert((ownBody.Position-priorPosition).Magnitude>0.5,'maintain live face contact with the original car contact writes')
+ assert((ownBody.Position-priorPosition).Magnitude<0.001,'do not teleport during the physical impact window')
+ beat(.13)
+ assert((ownBody.Position-priorPosition).Magnitude>0.5,'refresh arrival after impact window')
  local lastForce=created[#created]
  assert(lastForce.Parent==ownBody and lastForce.Name=='NoMotos2CarFlinger','never put forces on target bike')
  assert(c2:Stop()and ownBody.CFrame==homeFrame and lastForce.Destroyed)
@@ -395,8 +398,8 @@ if source2 then
  ownPhysicalRoot.CFrame=CFrame.new(ownPhysicalRoot.Position+Vector3.new(5,0,0))
  RunService.PostSimulation:Fire(.001)
  assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
- RunService.Heartbeat:Fire(.001);RunService.PostSimulation:Fire(.001)
- assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'correct drift on the restored Heartbeat path, with no delay or far travel')
+ RunService.Heartbeat:Fire(.13);RunService.PostSimulation:Fire(.001)
+ assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'refresh arrival after impact window, not continuously')
  local directVehicle,directBody=moto('DirectOwnerReference',999)
  local directRef=instance('ObjectValue','VehicleOwner',directVehicle);directRef.Value=owner
  spawn(directVehicle);beat(.001)

@@ -6,9 +6,11 @@ return function(context)
 	local occupiedTest=false
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
-	local speed=900000000
+	local speed=180
+	local angularSpeed=40
+	local impactDuration=0.12
 	local source,root,collider,checkpoint,force,target,connection,verification,watch
-	local elapsed,origin,completed,direction
+	local elapsed,origin,completed
 	local function finite(v)
 		return v and v.X==v.X and v.Y==v.Y and v.Z==v.Z and math.abs(v.X)<math.huge and math.abs(v.Y)<math.huge and math.abs(v.Z)<math.huge
 	end
@@ -192,6 +194,7 @@ return function(context)
 				if ok then checkpoint=checkpoint*relative end
 			end
 			root,collider=nextRoot,nextCollider
+			if target then target.ImpactRemaining=0 end
 			log("SOURCE_REBOUND root="..root:GetFullName().." collider="..collider:GetFullName())
 		end
 		if not sourceSafe()then return false,true end
@@ -255,7 +258,6 @@ return function(context)
 		occupiedTest=self.TestOccupiedTargets
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
 		self.LastArrivalObserved=false;self.LastContactError=nil
-		direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
 		local generations,spawnOrder,spawnSerial={},{},0
 		local readiness,referenceReadiness={},{}
@@ -359,19 +361,33 @@ return function(context)
 					choose()
 				end
 				if not target then return end
+				-- Position only at the start of each impact. Let physics advance between
+				-- arrivals instead of pinning the source inside the target every frame.
+				if not target.ImpactRemaining then target.ImpactRemaining=0 end
+				target.ImpactRemaining=target.ImpactRemaining-dt
+				if target.ImpactRemaining<=0 then
+					local position,center=contactPosition(target)
+					local normal=target.Body.CFrame:VectorToWorldSpace(target.Face)
+					target.ImpactDirection=-normal
+					target.LastContactPoint=center
+					root.AssemblyLinearVelocity=Vector3.zero
+					root.AssemblyAngularVelocity=Vector3.zero
+					root.CFrame=CFrame.new(position+normal*0.5)*root.CFrame.Rotation
+					target.ImpactRemaining=impactDuration
+					self.Phase="ARRIVAL"
+				end
 				if not force then
 					force=Instance.new("BodyVelocity");force.Name="NoMotos2CarFlinger";force.P=1250
-					force.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
-					force.Velocity=Vector3.new(speed,speed,speed);force.Parent=root
-					log("SUSTAINED_CONTACT original car forces=900000000; no far travel")
+					-- Bound force by source mass; no infinite force or diagonal driver.
+					local mass=root.AssemblyMass
+					if not mass or mass~=mass or mass<=0 or mass==math.huge then mass=1 end
+					local limit=math.min(mass*12000,100000000)
+					force.MaxForce=Vector3.new(limit,limit,limit)
+					force.Parent=root
+					log("DIRECTED_IMPACT speed=180 angularY=40 duration=0.12; arrival separated from physics")
 				end
-				local position,center=contactPosition(target)
-				target.LastContactPoint=center
-				-- Restore the original contact writes, but never enter a FAR/return cycle.
-				root.CFrame=CFrame.new(position)*root.CFrame.Rotation
-				direction=-direction
-				root.AssemblyLinearVelocity=Vector3.new(0,speed*direction,0)
-				root.AssemblyAngularVelocity=Vector3.new(speed,speed,speed)
+				force.Velocity=target.ImpactDirection*speed
+				root.AssemblyAngularVelocity=Vector3.new(0,angularSpeed,0)
 				self.Phase="CONTACT"
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
@@ -498,13 +514,13 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V13 SOURCE REBIND | client observations only; not server authority"
+		return "NO MOTOS 2 V14 DIRECTED IMPACT | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=V5 face placement overlap=0.05; Body priority with generic fallback; force=900000000; NO FAR TRAVEL; independent character anchors allowed"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=face arrival +0.5 studs; impact window=0.12s; linear speed=180; angularY=40; mass-scaled finite MaxForce; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
