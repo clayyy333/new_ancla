@@ -7,7 +7,7 @@ return function(context)
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
 	local speed=900000000
-	local source,root,collider,checkpoint,force,target,connection,watch
+	local source,root,collider,checkpoint,force,target,connection,verification,watch
 	local elapsed,origin,completed,direction
 	local function finite(v)
 		return v and v.X==v.X and v.Y==v.Y and v.Z==v.Z and math.abs(v.X)<math.huge and math.abs(v.Y)<math.huge and math.abs(v.Z)<math.huge
@@ -152,6 +152,7 @@ return function(context)
 		local active=self.Running
 		self.Running=false
 		if connection then connection:Disconnect();connection=nil end
+		if verification then verification:Disconnect();verification=nil end
 		if watch then watch:Disconnect();watch=nil end
 		clear();target=nil
 		if active then
@@ -197,9 +198,22 @@ return function(context)
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
 		occupiedTest=self.TestOccupiedTargets
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
+		self.LastArrivalObserved=false;self.LastContactError=nil
 		direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
-		local latestSpawn,generations=nil,{}
+		local generations,spawnOrder,spawnSerial={},{},0
+		local readiness,referenceReadiness={},{}
+		local function watchReference(value)
+			if value and value:IsA("ObjectValue")and value.Name=="VehicleOwner"and not referenceReadiness[value]then
+				referenceReadiness[value]=value:GetPropertyChangedSignal("Value"):Connect(function()elapsed=1 end)
+			end
+		end
+		local function remember(v)
+			spawnSerial=spawnSerial+1;spawnOrder[v]=spawnSerial
+			if not readiness[v]then readiness[v]=v:GetAttributeChangedSignal("VehicleOwner"):Connect(function()elapsed=1 end)end
+			watchReference(v:FindFirstChild("VehicleOwner"))
+		end
+		for _,v in ipairs(cars:GetChildren())do remember(v)end
 		local function available(v,body)
 			local record=completed[v]
 			if not record or record.Part~=body then return true end
@@ -212,16 +226,13 @@ return function(context)
 			return false
 		end
 		local function choose()
-			local selected,selectedBody
+			local selected,selectedBody,selectedOrder=nil,nil,-1
 			for _,v in ipairs(cars:GetChildren())do
+				if not spawnOrder[v]then remember(v)end
 				local body=resolve(v)
-				if body and available(v,body)then
-					selected,selectedBody=v,body
+				if body and available(v,body)and spawnOrder[v]>selectedOrder then
+					selected,selectedBody,selectedOrder=v,body,spawnOrder[v]
 				end
-			end
-			if latestSpawn then
-				local body=resolve(latestSpawn)
-				if body and available(latestSpawn,body)then selected,selectedBody=latestSpawn,body end
 			end
 			if selected then
 				local v,body=selected,selectedBody
@@ -233,18 +244,24 @@ return function(context)
 						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
 					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
 					target={Vehicle=v,Body=body,Face=face,Generation=generations[v]or 0};self.TargetBody=body
+					self.LastArrivalObserved=false;self.LastContactError=nil
 					origin=body.Position
 					self.Phase="CONTACT";log("TARGET "..v:GetFullName().." CONTACT_PART="..body:GetFullName());observe(target);return
 			end
 		end
-		local descendants=cars.DescendantAdded:Connect(function()elapsed=1 end)
+		local descendants=cars.DescendantAdded:Connect(function(item)watchReference(item);elapsed=1 end)
 		local children=cars.ChildAdded:Connect(function(v)
 			completed[v]=nil;generations[v]=(generations[v]or 0)+1
-			if owned(v,owner)then latestSpawn=v end
+			-- Record the spawn even before VehicleOwner/descendants have replicated.
+			remember(v)
 			elapsed=1
 		end)
-		watch={Disconnect=function()descendants:Disconnect();children:Disconnect()end}
-		connection=RunService.Heartbeat:Connect(function(dt)
+		watch={Disconnect=function()
+			descendants:Disconnect();children:Disconnect()
+			for _,c in pairs(readiness)do c:Disconnect()end
+			for _,c in pairs(referenceReadiness)do c:Disconnect()end
+		end}
+		connection=RunService.PreSimulation:Connect(function(dt)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
 				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not sourceSafe()or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
@@ -262,7 +279,13 @@ return function(context)
 				elapsed=elapsed+dt
 				if elapsed>=0.25 then
 					elapsed=0
-					for v in pairs(completed)do if v.Parent~=cars then completed[v]=nil;generations[v]=nil end end
+					for v in pairs(spawnOrder)do
+						if v.Parent~=cars then
+							completed[v]=nil;generations[v]=nil;spawnOrder[v]=nil
+							if readiness[v]then readiness[v]:Disconnect();readiness[v]=nil end
+						end
+					end
+					for v,c in pairs(referenceReadiness)do if not v:IsDescendantOf(cars)then c:Disconnect();referenceReadiness[v]=nil end end
 					choose()
 				end
 				if not target then return end
@@ -282,6 +305,23 @@ return function(context)
 				self.Phase="CONTACT"
 			end,debug.traceback)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
+		end)
+		verification=RunService.PostSimulation:Connect(function()
+			if not self.Running or not target or not force then return end
+			local ok,err=xpcall(function()
+				if not root.Parent or not collider.Parent or not target.Body.Parent or player.Character==nil then return end
+				local _,expected=contactPosition(target)
+				local distance=(collider.Position-expected).Magnitude
+				if distance~=distance or distance==math.huge then self:Stop("Posicion de contacto no valida.");return end
+				self.LastContactError=distance;self.LastArrivalObserved=distance<=1
+				local phase=self.LastArrivalObserved and "CONTACT"or "RECOVERING"
+				if phase~=target.VerifiedPhase then
+					target.VerifiedPhase=phase
+					log(string.format("POST_SIMULATION %s geometry_error=%.3f (not collision proof)",phase,distance))
+				end
+				self.Phase=phase
+			end,debug.traceback)
+			if not ok then log(tostring(err));self:Stop("Error verificando contacto.")end
 		end)
 		choose();log("START source="..source:GetFullName())
 		refresh("No motos 2: tu vehiculo contra vehiculos de @"..owner.Name..(occupiedTest and ". Incluye ocupados; pieza colisionable elegida por ensamblaje."or ". Solo vehiculos libres; contacto por ensamblaje."))
@@ -349,7 +389,7 @@ return function(context)
 		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V7 GENERIC SOURCE AND TARGET | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus).."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V8 SPAWN PRIORITY PRE/POST | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus).."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); contact writes=PreSimulation; verification=PostSimulation; ownership/descendant events accelerate discovery\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end

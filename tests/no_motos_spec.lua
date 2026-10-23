@@ -30,6 +30,8 @@ local created={}
 local function instance(class,name,parent)
  local data={ClassName=class,Name=name or class,Parent=parent,items={},attributes={},ChildAdded=signal(),DescendantAdded=signal(),Size=Vector3.new(2,2,2),Position=Vector3.zero,CFrame=CFrame.new(),CanCollide=true,Anchored=false,Health=100,AutoRotate=true,PlatformStand=false}
  local item=setmetatable({}, {__index=function(_,key)
+  if data.PoseRoot and key=='Position'then return data.PoseRoot.Position+(data.PoseOffset or Vector3.zero)end
+  if data.PoseRoot and key=='CFrame'then return CFrame.new(data.PoseRoot.Position+(data.PoseOffset or Vector3.zero))*data.PoseRoot.CFrame.Rotation end
   if key=='Position'then return data.TorsoRoot and data.TorsoRoot.Position+Vector3.new(0,2,0)or data.Position end
   return data[key]
  end,__newindex=function(_,key,value)data[key]=value;if key=='CFrame'then data.Position=value.Position end end})
@@ -41,6 +43,9 @@ local function instance(class,name,parent)
  function item:FindFirstChildOfClass(c)for _,v in ipairs(self.items)do if v:IsA(c)then return v end end end
  function item:IsDescendantOf(ancestor)local p=self.Parent;while p do if p==ancestor then return true end;p=p.Parent end;return false end
  function item:GetAttribute(k)return self.attributes[k]end
+ local propertySignals,attributeSignals={},{}
+ function item:GetPropertyChangedSignal(k)if not propertySignals[k]then propertySignals[k]=signal()end;return propertySignals[k]end
+ function item:GetAttributeChangedSignal(k)if not attributeSignals[k]then attributeSignals[k]=signal()end;return attributeSignals[k]end
  function item:GetFullName()return self.Parent and self.Parent:GetFullName()..'.'..self.Name or self.Name end
  function item:GetConnectedParts()return self.ConnectedParts or {}end
  function item:Destroy()self.Parent=nil;self.Destroyed=true end
@@ -66,7 +71,11 @@ local torso=instance('Part','UpperTorso',char);torso.TorsoRoot=root
 RunService={Heartbeat=signal(),PreSimulation=signal(),PostSimulation=signal()}
 local authorized=true
 ExperimentalFlingCore={IsAuthorized=function()return authorized end}
-local function beat(dt)now=now+dt;RunService.Heartbeat:Fire(dt)end
+local function beat(dt)
+ now=now+dt
+ if NoMotos2Core then RunService.PreSimulation:Fire(dt);RunService.PostSimulation:Fire(dt)end
+ RunService.Heartbeat:Fire(dt)
+end
 local function moto(name,id,occupied,animation)
  local vehicle=instance('Part',name)
  vehicle.attributes.VehicleOwner=id;vehicle.attributes.Animation=animation or 'rbxassetid://13112445577'
@@ -324,7 +333,7 @@ if source2 then
  assert(not c2.Running and c2.AutoStatus:find('esperando ensamblaje',1,true),'show why an incomplete owned source cannot start')
  local ownStructure=instance('Model','CustomPhysics',genericOwn)
  local ownPhysicalRoot=instance('Part','MetalRoot',ownStructure);ownPhysicalRoot.CanCollide=false;ownPhysicalRoot.AssemblyRootPart=ownPhysicalRoot
- local ownCollider=instance('Part','Collider',ownStructure);ownCollider.AssemblyRootPart=ownPhysicalRoot
+ local ownCollider=instance('Part','Collider',ownStructure);ownCollider.AssemblyRootPart=ownPhysicalRoot;ownCollider.PoseRoot=ownPhysicalRoot
  cars.DescendantAdded:Fire(ownCollider);beat(.3);beat(.01)
  assert(c2.Running and created[#created].Parent==ownPhysicalRoot,'auto detects source lacking MoverModel.Body and a collidable top-level root')
  local anotherOwner=instance('Player','AnotherOwner',Players);anotherOwner.UserId=77
@@ -340,6 +349,32 @@ if source2 then
  assert(c2:Start(anotherOwner,genericOwn));beat(.01)
  assert(c2:Start(owner));beat(.01)
  assert(c2.Owner==owner and c2.TargetBody==conventionalCollider,'manual active start must not silently retain old owner either')
+ c2:Destroy()
+ -- Spawn priority must survive delayed ownership and delayed physical components.
+ assert(c2:Start(owner,genericOwn))
+ local older,olderBody=moto('OlderSpawn',owner.UserId);spawn(older);beat(.001)
+ assert(c2.TargetBody==olderBody)
+ local lateOwner,lateOwnerBody=moto('OwnerReplicatesLater',nil);spawn(lateOwner);beat(.001)
+ assert(c2.TargetBody==olderBody,'keep valid contact while newer spawn lacks ownership evidence')
+ lateOwner.attributes.VehicleOwner=owner.UserId;lateOwner:GetAttributeChangedSignal('VehicleOwner'):Fire()
+ beat(.001)
+ assert(c2.TargetBody==lateOwnerBody,'newer spawn wins as soon as delayed owner attribute arrives, without 0.25s wait')
+ local partial=instance('Part','PhysicsReplicatesLater');partial.CanCollide=false;partial.attributes.VehicleOwner=owner.UserId;spawn(partial);beat(.001)
+ assert(c2.TargetBody==lateOwnerBody)
+ local partialCollider=instance('Part','AnyColliderName',partial);partialCollider.AssemblyRootPart=partialCollider
+ cars.DescendantAdded:Fire(partialCollider);beat(.001)
+ assert(c2.TargetBody==partialCollider,'newer spawn takes priority as soon as its collider becomes ready')
+ local lateReference,lateReferenceBody=moto('OwnerObjectValueLater',nil)
+ local reference=instance('ObjectValue','VehicleOwner',lateReference);spawn(lateReference);beat(.001)
+ reference.Value=owner;reference:GetPropertyChangedSignal('Value'):Fire();beat(.001)
+ assert(c2.TargetBody==lateReferenceBody,'ObjectValue ownership changes trigger immediate reevaluation too')
+ -- Check placement after physics, and correct next step rather than waiting/relaunching.
+ RunService.PreSimulation:Fire(.001)
+ ownPhysicalRoot.CFrame=CFrame.new(ownPhysicalRoot.Position+Vector3.new(5,0,0))
+ RunService.PostSimulation:Fire(.001)
+ assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
+ RunService.PreSimulation:Fire(.001);RunService.PostSimulation:Fire(.001)
+ assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'correct drift in the next physics step, with no delay or far travel')
  c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
