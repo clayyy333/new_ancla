@@ -76,7 +76,7 @@ return function(context)
 		local target=c:GetTarget()
 		if message then motoFeedback.Text=tostring(message)
 		elseif motos then motoFeedback.Text=tr("Vigilando motos de @","Monitoring motorcycles owned by @")..NoMotosCore.Owner.Name
-		elseif motos2 then motoFeedback.Text=tr("No motos 2: vehiculo propio contra motos de @","No motorcycles 2: own vehicle against motorcycles of @")..NoMotos2Core.Owner.Name
+		elseif motos2 then motoFeedback.Text=tr("No motos 2: vehiculo propio contra vehiculos de @","No motorcycles 2: own vehicle against vehicles of @")..NoMotos2Core.Owner.Name
 		elseif not target then motoFeedback.Text=tr("Falta seleccionar al propietario de la moto en la lista superior.","Select the motorcycle owner in the list above.")end
 		selectTarget.Text=target and (target.DisplayName.."  (@"..target.Name..")") or tr("Seleccionar jugador","Select player")
 		toggle.Text=c.Stopping and tr("Estabilizando…","Stabilizing…") or (c.Running and not c.MicroMovementEnabled and tr("Desactivar Fling experimental corto","Disable experimental short Fling") or tr("Activar Fling experimental corto","Enable experimental short Fling"))
@@ -90,7 +90,7 @@ return function(context)
 		end
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
-		if not message and motos2 then status.Text=tr("No motos 2: prueba temporal con motos ocupadas; copia el reporte para ver ocupante y anclaje observado.","No motorcycles 2: temporary occupied-bike test; copy report for observed occupant and anchoring.")end
+		if not message and motos2 then status.Text=tr("No motos 2: vehiculos del propietario seleccionado, sin filtro de modelo. Contacto por ensamblaje; incluye ocupados durante la prueba.","No motorcycles 2: selected owner's vehicles, no model filter. Assembly-based contact; includes occupied vehicles during the test.")end
 	end
 	status.LayoutOrder=10
 	copyDiagnostic.LayoutOrder=11;copyMotos.LayoutOrder=12;report.LayoutOrder=13

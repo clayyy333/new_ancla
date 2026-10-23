@@ -1,4 +1,4 @@
--- Independent car-fling adaptation: our vehicle -> unoccupied motorcycle Body.
+-- Independent car-fling adaptation: our vehicle -> owner's vehicle assembly collider.
 return function(context)
 	setfenv(1,context)
 	local C={Running=false,Stopping=false,Phase="IDLE",Rows={},AutoEnabled=false,TestOccupiedTargets=true}
@@ -71,23 +71,31 @@ return function(context)
 	local function resolve(v)
 		local cars=workspace:FindFirstChild("Cars")
 		if v==source or v.Parent~=cars or not owned(v,C.Owner)or (not occupiedTest and not free(v))then return end
-		local mover=v:FindFirstChild("MoverModel")
-		local body=mover and mover:FindFirstChild("Body")
-		if not body or not body:IsA("BasePart")or not body.CanCollide or (not occupiedTest and body.Anchored)or not finite(body.Position)then return end
-		local motorcycle=false
-		for _,key in ipairs({"Animation","RunAnim"})do
-			if tostring(v:GetAttribute(key)):match("%d+")=="13112445577"then motorcycle=true end
-		end
-		if not motorcycle and v:GetAttribute("MoverType")=="WheelAttachMover"then
-			local count=0
-			for _,name in ipairs({"WheelF","WheelB"})do
-				local wheel=mover:FindFirstChild(name)
-				if wheel then for _,d in ipairs(wheel:GetDescendants())do if d.Name:find("Motorcycle",1,true)then count=count+1;break end end end
+		-- Rank actual assemblies, not model names, animations, seats or Body paths.
+		-- Main assembly heuristic: most vehicle parts; largest collision volume breaks ties.
+		local parts=v:GetDescendants()
+		if v:IsA("BasePart")then parts[#parts+1]=v end
+		local groups,order={},{}
+		for _,p in ipairs(parts)do
+			if p:IsA("BasePart")and (p==v or p:IsDescendantOf(v))then
+				local assembly=p.AssemblyRootPart
+				if assembly and (occupiedTest or (not p.Anchored and not assembly.Anchored and (assembly==v or assembly:IsDescendantOf(v))))then
+					local g=groups[assembly]
+					if not g then g={Count=0,Volume=0};groups[assembly]=g;order[#order+1]=g end
+					g.Count=g.Count+1
+					if p.CanCollide and finite(p.Position)and finite(p.Size)then
+						local volume=p.Size.X*p.Size.Y*p.Size.Z
+						g.Volume=g.Volume+volume
+						if volume>0 and (not g.Part or volume>g.PartVolume)then g.Part=p;g.PartVolume=volume end
+					end
+				end
 			end
-			motorcycle=count==2
 		end
-		local assembly=body.AssemblyRootPart
-		if motorcycle and assembly and (occupiedTest or (not assembly.Anchored and (assembly==v or assembly:IsDescendantOf(v))))then return body end
+		local best
+		for _,g in ipairs(order)do
+			if g.Part and (not best or g.Count>best.Count or (g.Count==best.Count and g.Volume>best.Volume))then best=g end
+		end
+		if best then return best.Part end -- Incomplete spawns remain eligible for the next scan.
 	end
 	local function observe(t)
 		local body=t.Body
@@ -185,7 +193,7 @@ return function(context)
 					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
 					target={Vehicle=v,Body=body,Face=face,Generation=generations[v]or 0};self.TargetBody=body
 					origin=body.Position
-					self.Phase="CONTACT";log("TARGET "..v:GetFullName());observe(target);return
+					self.Phase="CONTACT";log("TARGET "..v:GetFullName().." CONTACT_PART="..body:GetFullName());observe(target);return
 			end
 		end
 		local descendants=cars.DescendantAdded:Connect(function()elapsed=1 end)
@@ -232,7 +240,7 @@ return function(context)
 			if not ok then log(tostring(err));self:Stop("Error en No motos 2; fuerzas retiradas.")end
 		end)
 		choose();log("START source="..source:GetFullName())
-		refresh("No motos 2: tu vehiculo contra motos de @"..owner.Name..(occupiedTest and ". PRUEBA temporal: incluye ocupadas; anclaje registrado en reporte."or ". Solo motos libres."))
+		refresh("No motos 2: tu vehiculo contra vehiculos de @"..owner.Name..(occupiedTest and ". Incluye ocupados; pieza colisionable elegida por ensamblaje."or ". Solo vehiculos libres; contacto por ensamblaje."))
 		return true
 	end
 	function C:ForceReturn()
@@ -270,7 +278,7 @@ return function(context)
 		refresh("Automatico activo: elige/spawnea tu auto en la GUI del juego; se detecta por propietario. Objetivo: motos de @"..owner.Name)
 		return true
 	end
-	function C:GetDiagnosticReport()return "NO MOTOS 2 V5 ORIGINAL FORCES NO FAR | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
+	function C:GetDiagnosticReport()return "NO MOTOS 2 V6 GENERIC VEHICLE CONTACT | client observations only; not server authority\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." overlap=0.05 studs; target: owner's vehicles, no motorcycle/name/Body filter; main assembly ranked by part count then collision volume; largest collidable part selected; BodyVelocity diagonal=900000000 per axis; alternating vertical=900000000; angular XYZ=900000000; NO FAR TRAVEL\n"..table.concat(self.Rows,"\n")end
 	function C:Destroy()self:SetAutoEnabled(false);self:Stop("No motos 2: GUI cerrada.")end
 	return true
 end

@@ -279,6 +279,36 @@ if source2 then
  assert(c2:Start(owner))
  assert(c2.Phase=='WAIT_MOTORCYCLE','switch restores previous occupied-target exclusion')
  c2:Destroy()
+ -- Generic targets: no motorcycle IDs, no MoverModel/Body path, no seats.
+ local generic=instance('Part','UnrecognizedModel');generic.attributes.VehicleOwner=owner.UserId
+ generic.CanCollide=false;spawn(generic)
+ assert(c2:Start(owner));beat(.3)
+ assert(c2.Phase=='WAIT_MOTORCYCLE','wait for physical components instead of permanently excluding incomplete spawn')
+ local structure=instance('Model','DifferentStructure',generic)
+ local physicalRoot=instance('Part','Meshes/moto_metal',structure)
+ physicalRoot.AssemblyRootPart=physicalRoot;physicalRoot.CanCollide=false
+ local colliderA=instance('Part','Collider',structure)
+ colliderA.Size=Vector3.new(4,4,4);colliderA.AssemblyRootPart=physicalRoot
+ local colliderB=instance('Part','Collider',structure)
+ colliderB.Size=Vector3.new(2,2,2);colliderB.AssemblyRootPart=physicalRoot
+ local filler=instance('Part','OilFiller',structure)
+ filler.Size=Vector3.new(.4,.4,.4);filler.AssemblyRootPart=physicalRoot
+ local unrelatedWheel=instance('Part','Wheel',structure)
+ unrelatedWheel.AssemblyRootPart=unrelatedWheel;unrelatedWheel.Size=Vector3.new(10,10,10)
+ cars.DescendantAdded:Fire(colliderA);beat(.01)
+ assert(c2.TargetBody==colliderA and c2.Phase=='CONTACT','choose largest collidable part of main assembly, not independent wheel or noncollidable root')
+ assert(c2:GetDiagnosticReport():find('CONTACT_PART=',1,true),'report chosen target collision part')
+ c2:Destroy()
+ -- Non-collidable conventional Body is also valid when its assembly has colliders.
+ generic.Parent=nil
+ local conventional,noncollidingBody=moto('AnotherModel',owner.UserId,false,'rbxassetid://999')
+ noncollidingBody.CanCollide=false
+ local conventionalCollider=instance('Part','Collider',noncollidingBody)
+ conventionalCollider.AssemblyRootPart=noncollidingBody
+ spawn(conventional)
+ assert(c2:Start(owner));beat(.01)
+ assert(c2.TargetBody==conventionalCollider,'do not reject a vehicle simply because Body.CanCollide is false')
+ c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end
