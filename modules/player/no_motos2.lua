@@ -96,7 +96,7 @@ return function(context)
 	end
 	local function sourceSafe()
 		local cars=workspace:FindFirstChild("Cars")
-		if not source or source.Parent~=cars or not owned(source,player)or not root or not root.Parent or root.Anchored or vehicleRoot(source)~=root or not finite(root.Position)then return false end
+		if not source or source.Parent~=cars or not owned(source,player)or not root or not root.Parent or (root~=source and not root:IsDescendantOf(source))or root.Anchored or not finite(root.Position)then return false end
 		if collider and (not collider.Parent or (collider~=source and not collider:IsDescendantOf(source))or not collider.CanCollide or collider.Anchored or collider.AssemblyRootPart~=root.AssemblyRootPart)then return false end
 		local assembly=root.AssemblyRootPart
 		if not assembly or assembly.Anchored then return false end
@@ -172,6 +172,32 @@ return function(context)
 	local function clear()
 		if force then force:Destroy();force=nil end
 	end
+	local function refreshSource()
+		local nextRoot=vehicleRoot(source)
+		local nextCollider=nextRoot and contactPart(source,nextRoot)
+		if not nextRoot or not nextCollider then
+			local oldSafe=sourceSafe()
+			clear()
+			if oldSafe then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
+			C.Phase="WAIT_SOURCE_PARTS";C.SourceState="waiting for source physics"
+			return false,false
+		end
+		if nextRoot~=root or nextCollider~=collider then
+			local oldRoot=root
+			local oldSafe=sourceSafe()
+			clear()
+			if oldSafe then oldRoot.AssemblyLinearVelocity=Vector3.zero;oldRoot.AssemblyAngularVelocity=Vector3.zero end
+			if oldRoot and nextRoot~=oldRoot and oldRoot.AssemblyRootPart==nextRoot.AssemblyRootPart then
+				local ok,relative=pcall(function()return oldRoot.CFrame:ToObjectSpace(nextRoot.CFrame)end)
+				if ok then checkpoint=checkpoint*relative end
+			end
+			root,collider=nextRoot,nextCollider
+			log("SOURCE_REBOUND root="..root:GetFullName().." collider="..collider:GetFullName())
+		end
+		if not sourceSafe()then return false,true end
+		C.SourceState="ready"
+		return true,false
+	end
 	local function home()
 		clear()
 		if not sourceSafe()then return false end
@@ -225,6 +251,7 @@ return function(context)
 		source=chosen;root=vehicleRoot(source);collider=root and contactPart(source,root)
 		if not collider then return false,"Tu vehiculo no tiene una pieza colisionable en su ensamblaje principal."end
 		if not sourceSafe()then return false,"Tu vehiculo esta anclado, unido a otro usuario o no tiene ensamblaje valido."end
+		self.SourceState="ready"
 		occupiedTest=self.TestOccupiedTargets
 		checkpoint=root.CFrame;self.Owner=owner;self.Rows={};completed={};elapsed=1;target=nil
 		self.LastArrivalObserved=false;self.LastContactError=nil
@@ -302,7 +329,12 @@ return function(context)
 		connection=RunService.Heartbeat:Connect(function(dt)
 			local ok,err=xpcall(function()
 				if not self.Running then return end
-				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not sourceSafe()or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
+				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not source or source.Parent~=cars or not owned(source,player)or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
+				local ready,unsafe=refreshSource()
+				if not ready then
+					if unsafe then self:Stop("No motos 2: tu vehiculo esta anclado o unido a otro personaje.")end
+					return
+				end
 				if target then
 					observe(target)
 					if target.Generation~=(generations[target.Vehicle]or 0)then
@@ -411,19 +443,21 @@ return function(context)
 				for _,v in ipairs(cars:GetChildren())do
 					if v.Parent==cars and owned(v,player)then
 						ownedCount=ownedCount+1
-						local r=vehicleRoot(v)
-						if r and r.Parent and contactPart(v,r)then selected=v end
+						-- Keep the newest owned instance even while its physics is loading.
+						selected=v
 					end
 				end
 			end
-			if not selected then
+			local selectedRoot=selected and vehicleRoot(selected)
+			local sourceReady=selectedRoot and selectedRoot.Parent and contactPart(selected,selectedRoot)
+			if not selected or not sourceReady then
 				local message=ownedCount>0 and "Automatico: tu vehiculo esta detectado, esperando ensamblaje y pieza colisionable."
 					or ("Automatico: no se detecta un vehiculo de @"..player.Name.." (UserId="..player.UserId..").")
 				self.AutoStatus=message
 				if autoLastError~=message then autoLastError=message;refresh(message)end
 			else self.AutoStatus="SOURCE_DETECTED "..selected:GetFullName()end
 			if self.Running and (selected~=source or self.Owner~=autoOwner)then self:Stop("Cambio de auto o propietario objetivo.")end
-			if not self.Running and selected then
+			if not self.Running and selected and sourceReady then
 				local called,ok,err=xpcall(function()return self:Start(autoOwner,selected)end,debug.traceback)
 				if not called then err=tostring(ok);ok=false;self:Stop("Error al activar automaticamente.")end
 				if not ok and err~=autoLastError then autoLastError=err;refresh(err)elseif ok then autoLastError=nil end
@@ -464,8 +498,9 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V12 V5 CONTACT RESTORED | client observations only; not server authority"
+		return "NO MOTOS 2 V13 SOURCE REBIND | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
+			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"

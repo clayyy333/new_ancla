@@ -408,6 +408,37 @@ if source2 then
  assert(ownerTrace:find('RAW OWNERSHIP SNAPSHOT:',1,true)and ownerTrace:find('matchesTARGET=',1,true))
  assert(ownerTrace:find('OwnerValue=Players.AnotherOwner class=Player UserId=77',1,true),'raw trace includes actual Player owner ID, not only filtered vehicles')
  c2:Destroy()
+ -- Loading/replacing source physics must not cancel the active automatic mode.
+ local loadingSource,initialSourceRoot=moto('LoadingOwnCar',player.UserId,false,'rbxassetid://123')
+ initialSourceRoot.Name='InitialChassis'
+ spawn(loadingSource)
+ assert(c2:SetAutoEnabled(true,owner));beat(.3);beat(.001)
+ assert(c2.Running and created[#created].Parent==initialSourceRoot)
+ local loadingMover=loadingSource:FindFirstChild('MoverModel')
+ local initialForce=created[#created]
+ local lateBody=instance('Part','Body',loadingMover)
+ lateBody.CFrame=initialSourceRoot.CFrame;lateBody.AssemblyRootPart=initialSourceRoot
+ cars.DescendantAdded:Fire(lateBody);beat(.001)
+ assert(c2.Running and c2.AutoEnabled and initialForce.Destroyed and created[#created].Parent==lateBody,'rebind a newly preferred Body without stopping or restarting the flow')
+ local beforeReloadForce=created[#created]
+ initialSourceRoot.Parent=nil;lateBody.Parent=nil
+ beat(.001);beat(.3)
+ assert(c2.Running and c2.AutoEnabled and c2.Phase=='WAIT_SOURCE_PARTS'and beforeReloadForce.Destroyed,'keep same selected source while physics temporarily disappears')
+ local replacementSourceRoot=instance('Part','Body',loadingMover)
+ replacementSourceRoot.AssemblyRootPart=replacementSourceRoot;replacementSourceRoot.CFrame=CFrame.new(50,10,0)
+ cars.DescendantAdded:Fire(replacementSourceRoot);beat(.001)
+ assert(c2.Running and created[#created].Parent==replacementSourceRoot and c2.Phase=='CONTACT','resume contact on replacement physics without clicking again')
+ local replacementForce=created[#created]
+ replacementSourceRoot.CanCollide=false
+ local sourceCollider=instance('Part','NewCollider',replacementSourceRoot)
+ sourceCollider.AssemblyRootPart=replacementSourceRoot;sourceCollider.PoseRoot=replacementSourceRoot
+ cars.DescendantAdded:Fire(sourceCollider);beat(.001)
+ assert(c2.Running and replacementForce.Destroyed and created[#created].Parent==replacementSourceRoot,'rebind a replacement collider while preserving force root')
+ local liveForce=created[#created]
+ replacementSourceRoot.ConnectedParts={extra}
+ local noUnsafeReturn=replacementSourceRoot.CFrame;beat(.001)
+ assert(not c2.Running and liveForce.Destroyed and replacementSourceRoot.CFrame==noUnsafeReturn,'keep fail-closed external assembly protection after source rebind')
+ replacementSourceRoot.ConnectedParts={};c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end
