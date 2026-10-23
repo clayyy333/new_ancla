@@ -71,8 +71,13 @@ return function(context)
 		end
 	end
 	local function contactPosition(t)
-		-- Center the source collider on the target part; no exterior-face spacing.
-		local center=t.Body.Position
+		-- Restore the sustained-contact positioning from the V5 implementation.
+		local body=t.Body
+		local n=body.CFrame:VectorToWorldSpace(t.Face)
+		local localNormal=collider.CFrame:VectorToObjectSpace(n)
+		local extent=(math.abs(localNormal.X)*collider.Size.X+math.abs(localNormal.Y)*collider.Size.Y+math.abs(localNormal.Z)*collider.Size.Z)*0.5
+		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
+		local center=facePoint+n*math.max(0,extent-0.05)
 		return center-(collider.Position-root.Position),center
 	end
 	local function free(v)
@@ -115,6 +120,13 @@ return function(context)
 		if v.Parent~=cars then return nil,"not in Workspace.Cars"end
 		if not targetOwned(v,C.Owner)then return nil,"owner mismatch"end
 		if not occupiedTest and not free(v)then return nil,"occupied; free-only mode"end
+		-- Preserve V5's Body target for models where that contact already worked.
+		local mover=v:FindFirstChild("MoverModel")
+		local body=mover and mover:FindFirstChild("Body")
+		if body and body:IsA("BasePart")and body.CanCollide and finite(body.Position)then
+			local assembly=body.AssemblyRootPart
+			if assembly and (occupiedTest or (not body.Anchored and not assembly.Anchored and (assembly==v or assembly:IsDescendantOf(v))))then return body end
+		end
 		-- Rank actual assemblies, not model names, animations, seats or Body paths.
 		-- Main assembly heuristic: most vehicle parts; largest collision volume breaks ties.
 		local parts=v:GetDescendants()
@@ -263,7 +275,12 @@ return function(context)
 				local v,body=selected,selectedBody
 				if target and target.Vehicle==v and target.Body==body and target.Generation==(generations[v]or 0)then return end
 				clear()
-					target={Vehicle=v,Body=body,Generation=generations[v]or 0};self.TargetBody=body
+					local relative=body.CFrame:PointToObjectSpace(root.Position)
+					local face
+					if math.abs(relative.X)/math.max(body.Size.X,0.001)>math.abs(relative.Z)/math.max(body.Size.Z,0.001)then
+						face=Vector3.new(relative.X>=0 and 1 or -1,0,0)
+					else face=Vector3.new(0,0,relative.Z>=0 and 1 or -1)end
+					target={Vehicle=v,Body=body,Face=face,Generation=generations[v]or 0};self.TargetBody=body
 					self.LastArrivalObserved=false;self.LastContactError=nil
 					origin=body.Position
 					self.Phase="CONTACT";log("TARGET "..v:GetFullName().." CONTACT_PART="..body:GetFullName());observe(target);return
@@ -447,12 +464,12 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V11 OWNER TRACE | client observations only; not server authority"
+		return "NO MOTOS 2 V12 V5 CONTACT RESTORED | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=center-to-center; no lateral/vertical spacing; no name/model/price/motorcycle filter; force=900000000; NO FAR TRAVEL"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=V5 face placement overlap=0.05; Body priority with generic fallback; force=900000000; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
