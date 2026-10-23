@@ -39,8 +39,11 @@ local function instance(class,name,parent)
  if parent then parent.items[#parent.items+1]=item end
  function item:IsA(c)return class==c or (c=='BasePart'and class=='Part')end
  function item:GetChildren()return self.items end
- function item:GetDescendants()local list={};local function walk(n)for _,c in ipairs(n.items)do list[#list+1]=c;walk(c)end end;walk(self);return list end
- function item:FindFirstChild(name)for _,c in ipairs(self.items)do if c.Name==name and c.Parent==self then return c end end end
+ function item:GetDescendants()local list={};local function walk(n)for _,c in ipairs(n.items)do if c.Parent==n then list[#list+1]=c;walk(c)end end end;walk(self);return list end
+ function item:FindFirstChild(name,recursive)
+  for _,c in ipairs(self.items)do if c.Name==name and c.Parent==self then return c end end
+  if recursive then for _,c in ipairs(self.items)do if c.Parent==self then local found=c:FindFirstChild(name,true);if found then return found end end end end
+ end
  function item:FindFirstChildOfClass(c)for _,v in ipairs(self.items)do if v:IsA(c)then return v end end end
  function item:IsDescendantOf(ancestor)local p=self.Parent;while p do if p==ancestor then return true end;p=p.Parent end;return false end
  function item:GetAttribute(k)return self.attributes[k]end
@@ -77,8 +80,8 @@ local function beat(dt)
  if NoMotos2Core then RunService.PreSimulation:Fire(dt);RunService.PostSimulation:Fire(dt)end
  RunService.Heartbeat:Fire(dt)
 end
-local function moto(name,id,occupied,animation)
- local vehicle=instance('Part',name)
+local function moto(name,id,occupied,animation,containerClass)
+ local vehicle=instance(containerClass or 'Part',name)
  vehicle.attributes.VehicleOwner=id;vehicle.attributes.Animation=animation or 'rbxassetid://13112445577'
  local mover=instance('Model','MoverModel',vehicle)
  local body=instance('Part','Body',mover);body.CFrame=CFrame.new(50,10,0);body.AssemblyRootPart=body
@@ -205,7 +208,7 @@ if source2 then
  assert(load(source2))()(_G)
  local c2=NoMotos2Core
  assert(not c2:Start(owner),'No motos 2 requires own source vehicle')
- local own,ownBody=moto('OurCar',player.UserId,false,'rbxassetid://123');spawn(own)
+ local own,ownBody=moto('OurCar',player.UserId,false,'rbxassetid://123','Model');spawn(own)
  CarFling={Running=false,GetCar=function()return own end}
  local homeFrame=ownBody.CFrame
  local ownReference=instance('ObjectValue','VehicleOwner',own)
@@ -243,10 +246,7 @@ if source2 then
  local targetBody=c2.TargetBody
  assert(ownBody.Position.Y==targetBody.Position.Y,'No motos 2 must not offset contact vertically')
  local separation=ownBody.Position-targetBody.Position
- local expectedX=(ownBody.Size.X+targetBody.Size.X)*0.5-0.05
- local expectedZ=(ownBody.Size.Z+targetBody.Size.Z)*0.5-0.05
- assert((math.abs(math.abs(separation.X)-expectedX)<0.001 and math.abs(separation.Z)<0.001)
-  or (math.abs(math.abs(separation.Z)-expectedZ)<0.001 and math.abs(separation.X)<0.001),'restore V5 sustained-contact placement')
+ assert(separation.Magnitude<0.001,'source collision part center aligns with target part center')
  local largerCollider=instance('Part','Collider',targetBody)
  largerCollider.AssemblyRootPart=targetBody;largerCollider.Size=Vector3.new(8,8,8)
  cars.DescendantAdded:Fire(largerCollider);beat(.001)
@@ -256,13 +256,10 @@ if source2 then
  beat(.01);assert(ownBody.AssemblyLinearVelocity.Y==firstDirection,'no alternating vertical velocity')
  beat(1);beat(1)
  assert(c2.Phase=='CONTACT'and (ownBody.Position-entryFrame.Position).Magnitude<=0.501,'short bounded contact without far travel')
- local offsets={}
  for i=1,12 do
   beat(.01)
-  offsets[c2.ContactOffset]=true
-  assert((ownBody.Position-entryFrame.Position).Magnitude<=0.501,'short travel stays within 0.5 studs of contact')
+  assert((ownBody.Position-targetBody.Position).Magnitude<0.001,'remain centered without outward separation')
  end
- assert(offsets[0]and offsets[0.5],'alternate surface contact and outward separation')
  local priorPosition=ownBody.Position
  targetBody.CFrame=CFrame.new(targetBody.Position+Vector3.new(0,0,1));beat(.01)
  assert((ownBody.Position-priorPosition).Magnitude>0.5,'restore sustained live face placement')
@@ -355,7 +352,7 @@ if source2 then
  own.Parent=nil;beat(.3)
  assert(not c2.Running,'removing source stops the automatic run')
  own.Parent=cars;beat(.3);assert(c2.Running,'automatic mode reactivates on source respawn')
- local newOwn,newOwnBody=moto('OurCar',player.UserId,false,'rbxassetid://123');spawn(newOwn)
+ local newOwn,newOwnBody=moto('OurCar',player.UserId,false,'rbxassetid://123','Model');spawn(newOwn)
  beat(.3);beat(.01)
  assert(c2.Running and created[#created].Parent==newOwnBody,'same model name/new instance replaces source automatically')
  assert(selected==nil,'do not modify original car fling selection')
@@ -399,7 +396,7 @@ if source2 then
  c2:Destroy()
  -- Source discovery must be generic too, not only the target resolver.
  for _,v in ipairs(cars:GetChildren())do if v.attributes.VehicleOwner==player.UserId then v.Parent=nil end end
- local genericOwn=instance('Part','DifferentOwnCar');genericOwn.attributes.VehicleOwner=player.UserId;genericOwn.CanCollide=false;spawn(genericOwn)
+ local genericOwn=instance('Model','DifferentOwnCar');genericOwn.attributes.VehicleOwner=player.UserId;genericOwn.CanCollide=false;spawn(genericOwn)
  assert(c2:SetAutoEnabled(true,owner));beat(.3)
  assert(not c2.Running and c2.AutoStatus:find('esperando ensamblaje',1,true),'show why an incomplete owned source cannot start')
  local ownStructure=instance('Model','CustomPhysics',genericOwn)
@@ -458,7 +455,7 @@ if source2 then
  assert(ownerTrace:find('OwnerValue=Players.AnotherOwner class=Player UserId=77',1,true),'raw trace includes actual Player owner ID, not only filtered vehicles')
  c2:Destroy()
  -- Loading/replacing source physics must not cancel the active automatic mode.
- local loadingSource,initialSourceRoot=moto('LoadingOwnCar',player.UserId,false,'rbxassetid://123')
+ local loadingSource,initialSourceRoot=moto('LoadingOwnCar',player.UserId,false,'rbxassetid://123','Model')
  initialSourceRoot.Name='InitialChassis'
  spawn(loadingSource)
  assert(c2:SetAutoEnabled(true,owner));beat(.3);beat(.001)
@@ -488,6 +485,25 @@ if source2 then
  local noUnsafeReturn=replacementSourceRoot.CFrame;beat(.001)
  assert(not c2.Running and liveForce.Destroyed and replacementSourceRoot.CFrame==noUnsafeReturn,'keep fail-closed external assembly protection after source rebind')
  replacementSourceRoot.ConnectedParts={};c2:Destroy()
+ -- Real game shape: a top-level Part plus an internal Body. Move the same
+ -- top-level reference used by the original car fling, not the internal mesh.
+ local directSource,directSourceBody=moto('TopLevelPartCar',player.UserId)
+ directSource.CanCollide=false;directSource.AssemblyRootPart=directSource
+ directSourceBody.AssemblyRootPart=directSource
+ directSourceBody.PoseRoot=directSource;directSourceBody.PoseOffset=Vector3.new(2,1,0)
+ spawn(directSource)
+ assert(c2:Start(owner,directSource));beat(.01)
+ assert(c2.Running and created[#created].Parent==directSource,'BasePart container wins over internal Body for source writes')
+ assert((directSourceBody.Position-c2.TargetBody.Position).Magnitude<0.001,'preserve center contact using offset collider on original source reference')
+ assert(directSource.AssemblyAngularVelocity.Y==900000000,'spin applies to original top-level source reference')
+ c2:Destroy()
+ local primarySource=instance('Model','PrimaryPartCar');primarySource.attributes.VehicleOwner=player.UserId
+ local preferredBody=instance('Part','Body',primarySource);preferredBody.AssemblyRootPart=preferredBody
+ local explicitPrimary=instance('Part','ExplicitPrimary',primarySource);explicitPrimary.AssemblyRootPart=explicitPrimary
+ primarySource.PrimaryPart=explicitPrimary;spawn(primarySource)
+ assert(c2:Start(owner,primarySource));beat(.01)
+ assert(c2.Running and created[#created].Parent==explicitPrimary,'PrimaryPart wins over Body as in original selector')
+ c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
 for _,s in ipairs(signals)do assert(s:Count()==0,'No motos leaked an event connection')end

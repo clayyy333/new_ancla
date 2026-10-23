@@ -7,8 +7,6 @@ return function(context)
 	local autoConnection,autoOwner,autoElapsed,autoLastError
 	NoMotos2Core=C
 	local speed=900000000
-	local contactTravel=0.5
-	local contactStepDuration=0.05
 	local source,root,collider,checkpoint,force,target,connection,verification,watch
 	local elapsed,origin,completed
 	local function finite(v)
@@ -36,46 +34,20 @@ return function(context)
 		return tonumber(v:GetAttribute("VehicleOwner"))==p.UserId
 	end
 	local function vehicleRoot(v)
-		local mover=v:FindFirstChild("MoverModel")
-		local body=mover and mover:FindFirstChild("Body")
-		local parts=v:GetDescendants()
-		if v:IsA("BasePart")then parts[#parts+1]=v end
-		local groups,order={},{}
-		for _,p in ipairs(parts)do
-			if p:IsA("BasePart")and (p==v or p:IsDescendantOf(v))then
-				local assembly=p.AssemblyRootPart
-				if assembly then
-					local g=groups[assembly]
-					if not g then g={Root=assembly,Member=p,Count=0,Volume=0};groups[assembly]=g;order[#order+1]=g end
-					g.Count=g.Count+1
-					if p.CanCollide and finite(p.Position)and finite(p.Size)then
-						g.Volume=g.Volume+p.Size.X*p.Size.Y*p.Size.Z;g.Collidable=true
-					end
-				end
-			end
+		-- Same reference-selection order as Fling con vehiculo's findCarRoot.
+		-- Keep this local: never call or alter the original fling controller.
+		if not v then return nil end
+		if v:IsA("BasePart")then return v end
+		if v.PrimaryPart then return v.PrimaryPart end
+		for _,name in ipairs({"Body","Chassis","HumanoidRootPart","VehicleSeat","DriveSeat","Seat","WheelB","W"})do
+			local p=v:FindFirstChild(name,true)
+			if p and p:IsA("BasePart")then return p end
 		end
-		-- Keep the previously working Body when its assembly can actually collide.
-		if body and body:IsA("BasePart")and body.AssemblyRootPart then
-			local g=groups[body.AssemblyRootPart]
-			if g and g.Collidable then return body end
+		for _,p in ipairs(v:GetDescendants())do
+			if p:IsA("BasePart")and not p.Anchored then return p end
 		end
-		local best
-		for _,g in ipairs(order)do
-			if g.Collidable and (not best or g.Count>best.Count or (g.Count==best.Count and g.Volume>best.Volume))then best=g end
-		end
-		if best then
-			if best.Root==v or best.Root:IsDescendantOf(v)then return best.Root end
-			return best.Member
-		end
-		-- Arrival needs a physical reference, not a collision surface. Preserve
-		-- collision-aware selection above for the eventual contact adjustment.
-		if body and body:IsA("BasePart")and body.AssemblyRootPart then return body end
-		for _,g in ipairs(order)do
-			if not best or g.Count>best.Count then best=g end
-		end
-		if best then
-			if best.Root==v or best.Root:IsDescendantOf(v)then return best.Root end
-			return best.Member
+		for _,p in ipairs(v:GetDescendants())do
+			if p:IsA("BasePart")then return p end
 		end
 	end
 	local function contactPart(v,r)
@@ -85,14 +57,9 @@ return function(context)
 		end
 	end
 	local function contactPosition(t)
-		-- Restore the sustained-contact positioning from the V5 implementation.
-		local body=t.Body
-		local n=body.CFrame:VectorToWorldSpace(t.Face)
+		-- Align the source collision-part center, not merely the vehicle root.
 		local reference=collider or root
-		local localNormal=reference.CFrame:VectorToObjectSpace(n)
-		local extent=(math.abs(localNormal.X)*reference.Size.X+math.abs(localNormal.Y)*reference.Size.Y+math.abs(localNormal.Z)*reference.Size.Z)*0.5
-		local facePoint=body.CFrame:PointToWorldSpace(Vector3.new(t.Face.X*body.Size.X*0.5,0,t.Face.Z*body.Size.Z*0.5))
-		local center=facePoint+n*(math.max(0,extent-0.05)+(t.ContactOffset or 0))
+		local center=t.Body.Position
 		return center-(reference.Position-root.Position),center
 	end
 	local function free(v)
@@ -400,13 +367,6 @@ return function(context)
 					force.Parent=root
 					log("SUSTAINED_CONTACT speedXYZ=900000000 angularY=900000000 angularXZ=0; alternating vertical write removed; no far travel")
 				end
-				-- Alternate contact and a short outward separation along the selected
-				-- face normal. Bounded timing: no waits or catch-up loops on slow frames.
-				if target.ContactClock==nil then target.ContactClock=0 else
-					target.ContactClock=(target.ContactClock+dt)%(contactStepDuration*2)
-				end
-				target.ContactOffset=target.ContactClock>=contactStepDuration and contactTravel or 0
-				self.ContactOffset=target.ContactOffset
 				local position,center=contactPosition(target)
 				target.LastContactPoint=center
 				root.CFrame=CFrame.new(position)*root.CFrame.Rotation
@@ -538,13 +498,13 @@ return function(context)
 			details[#details+1]=ok and line or (v.Name.." READ_ERROR="..tostring(line))
 		end
 		details[#details+1]="MATCH COUNTS local="..localMatches.." target="..targetMatches
-		return "NO MOTOS 2 V21 EARLY ARRIVAL | client observations only; not server authority"
+		return "NO MOTOS 2 V23 ORIGINAL SOURCE REFERENCE | client observations only; not server authority"
 			.."\nRunning="..tostring(self.Running).." AutoEnabled="..tostring(self.AutoEnabled).." TestOccupiedTargets="..tostring(occupiedTest).." Phase="..self.Phase
 			.."\nSourceState="..tostring(self.SourceState).." SourceRoot="..tostring(root and root:GetFullName())
 			.."\nConfiguredOccupiedTest="..tostring(self.TestOccupiedTargets).." (active TestOccupiedTargets is initialized on Start)"
 			.."\nLocalUserId="..player.UserId.." TargetOwnerId="..tostring(self.AutoOwnerId or (self.Owner and self.Owner.UserId)).." AutoStatus="..tostring(self.AutoStatus)
 			.."\nArrivalObserved="..tostring(self.LastArrivalObserved).." GeometryError="..tostring(self.LastContactError).." (not collision/replication proof); writes=Heartbeat; verification=read-only PostSimulation"
-			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=V5 face placement overlap=0.05; outwardTravel=0.5; stepDuration=0.05; ContactOffset="..tostring(self.ContactOffset).."; linearXYZ=900000000; angularY=900000000; angularXZ=0; MaxForce=infinite; alternating vertical override=removed; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
+			.."\nSourceContactPart="..tostring(collider and collider:GetFullName()).." contact=source collider center to target part center; outwardTravel=0; linearXYZ=900000000; angularY=900000000; angularXZ=0; MaxForce=infinite; alternating vertical override=removed; Body priority with generic fallback; NO FAR TRAVEL; independent character anchors allowed"
 			.."\nTARGET SCAN:\n"..tostring(self.TargetScan or "No scan yet").."\nEVENTS:\n"..table.concat(self.Rows,"\n")
 			.."\nRAW OWNERSHIP SNAPSHOT:\n"..table.concat(details,"\n")
 	end
