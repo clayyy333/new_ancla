@@ -223,7 +223,7 @@ if source2 then
  local force=created[#created]
  assert(force.ClassName=='BodyVelocity'and force.Name=='NoMotos2CarFlinger'and force.Parent==ownBody)
  assert(force.Velocity.X==900000000 and force.Velocity.Y==900000000 and force.Velocity.Z==900000000 and force.MaxForce.X==math.huge and force.P==1250)
- assert(ownBody.AssemblyAngularVelocity.X==900000000 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==900000000)
+ assert(ownBody.AssemblyAngularVelocity.X==0 and ownBody.AssemblyAngularVelocity.Y==900000000 and ownBody.AssemblyAngularVelocity.Z==0,'spin only on vertical axis, preserving requested Y speed')
  ownBody.AssemblyLinearVelocity=Vector3.new(12,34,56)
  beat(.01)
  assert(ownBody.AssemblyLinearVelocity.X==12 and ownBody.AssemblyLinearVelocity.Y==34 and ownBody.AssemblyLinearVelocity.Z==56,'contact must not overwrite simulated linear velocity')
