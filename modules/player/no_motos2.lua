@@ -23,6 +23,14 @@ return function(context)
 		local owner=value and value:IsA("ObjectValue")and value.Value
 		return (not id or id==p.UserId)and (not owner or owner==p)and (id==p.UserId or owner==p)
 	end
+	local function targetOwned(v,p)
+		-- Resolve target ownership directly, like the original vehicle selector:
+		-- a populated Player reference takes precedence over a possibly stale attribute.
+		local value=v:FindFirstChild("VehicleOwner")
+		local owner=value and value:IsA("ObjectValue")and value.Value
+		if owner then return owner:IsA("Player")and owner.UserId==p.UserId end
+		return tonumber(v:GetAttribute("VehicleOwner"))==p.UserId
+	end
 	local function vehicleRoot(v)
 		local mover=v:FindFirstChild("MoverModel")
 		local body=mover and mover:FindFirstChild("Body")
@@ -94,7 +102,7 @@ return function(context)
 		local cars=workspace:FindFirstChild("Cars")
 		if v==source then return nil,"source vehicle"end
 		if v.Parent~=cars then return nil,"not in Workspace.Cars"end
-		if not owned(v,C.Owner)then return nil,"owner mismatch"end
+		if not targetOwned(v,C.Owner)then return nil,"owner mismatch"end
 		if not occupiedTest and not free(v)then return nil,"occupied; free-only mode"end
 		-- Rank actual assemblies, not model names, animations, seats or Body paths.
 		-- Main assembly heuristic: most vehicle parts; largest collision volume breaks ties.
@@ -231,7 +239,7 @@ return function(context)
 			for _,v in ipairs(cars:GetChildren())do
 				if not spawnOrder[v]then remember(v)end
 				local body,reason=resolve(v)
-				if v~=source and owned(v,owner)then
+				if v~=source and targetOwned(v,owner)then
 					local reference=v:FindFirstChild("VehicleOwner")
 					local refOwner=reference and reference:IsA("ObjectValue")and reference.Value
 					snapshot[#snapshot+1]=v.Name.." ownerAttr="..tostring(v:GetAttribute("VehicleOwner"))

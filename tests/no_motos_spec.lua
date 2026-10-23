@@ -246,7 +246,10 @@ if source2 then
  own:FindFirstChild('MoverModel'):FindFirstChild('Body'):FindFirstChild('Seat').Occupant=occupant
  assert(not c2:Start(owner),'reject own vehicle carrying another person')
  own:FindFirstChild('MoverModel'):FindFirstChild('Body'):FindFirstChild('Seat').Occupant=nil
- for _,v in ipairs(cars:GetChildren())do if v.attributes.VehicleOwner==owner.UserId then v.Parent=nil end end
+ for _,v in ipairs(cars:GetChildren())do
+  local ref=v:FindFirstChild('VehicleOwner')
+  if v.attributes.VehicleOwner==owner.UserId or (ref and ref.Value==owner)then v.Parent=nil end
+ end
  local testBike,testBody,testSeat=moto('OccupiedTest',owner.UserId);spawn(testBike)
  testSeat.Occupant=occupant
  local selected=nil
@@ -372,6 +375,13 @@ if source2 then
  assert(c2.Phase=='RECOVERING'and not c2.LastArrivalObserved and c2.LastContactError>4)
  RunService.Heartbeat:Fire(.001);RunService.PostSimulation:Fire(.001)
  assert(c2.Phase=='CONTACT'and c2.LastArrivalObserved,'correct drift on the restored Heartbeat path, with no delay or far travel')
+ local directVehicle,directBody=moto('DirectOwnerReference',999)
+ local directRef=instance('ObjectValue','VehicleOwner',directVehicle);directRef.Value=owner
+ spawn(directVehicle);beat(.001)
+ assert(c2.TargetBody==directBody,'actual target Player reference takes precedence over stale owner attribute')
+ directRef.Value=anotherOwner;directRef:GetPropertyChangedSignal('Value'):Fire()
+ directVehicle.attributes.VehicleOwner=owner.UserId;beat(.001)
+ assert(c2.TargetBody~=directBody,'never target another Player reference just because attribute matches')
  c2:Destroy()
  print('no_motos2_spec OK: authorization, own source vehicle, mutual exclusion, motorcycle targeting, car phases, cleanup and external assembly guard')
 end
