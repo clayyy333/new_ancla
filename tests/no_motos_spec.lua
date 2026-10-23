@@ -257,7 +257,15 @@ if source2 then
  local respawnedBike,respawnedBody=moto('OccupiedTest',owner.UserId);spawn(respawnedBike)
  beat(.01)
  assert(c2.TargetBody==respawnedBody,'switch to new spawn while previous target still exists')
+ -- Respawn can arrive while the old contact is active, at a different position.
+ respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike)
+ respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(40,0,0));beat(.01)
+ assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','do not mark a fresh generation completed using the previous origin')
+ local reusedSpawnFrame=respawnedBody.CFrame
  respawnedBody.CFrame=CFrame.new(respawnedBody.Position+Vector3.new(30,0,0));beat(.01)
+ assert(c2.TargetBody~=respawnedBody,'do not keep pursuing displaced vehicle')
+ respawnedBody.CFrame=reusedSpawnFrame;beat(.3)
+ assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','rearm same Part returned to its spawn without ChildAdded')
  respawnedBike.Parent=nil;respawnedBike.Parent=cars;cars.ChildAdded:Fire(respawnedBike);beat(.01)
  assert(c2.TargetBody==respawnedBody and c2.Phase=='CONTACT','reinserted same Body must not remain permanently completed')
  local regenMover=respawnedBike:FindFirstChild('MoverModel');respawnedBody.Parent=nil

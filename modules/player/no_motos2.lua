@@ -200,17 +200,28 @@ return function(context)
 		direction=1
 		self.Running=true;self.Phase="WAIT_MOTORCYCLE"
 		local latestSpawn,generations=nil,{}
+		local function available(v,body)
+			local record=completed[v]
+			if not record or record.Part~=body then return true end
+			-- Some games reuse the same Part and teleport it back instead of reparenting.
+			local returned=(body.Position-record.Origin).Magnitude<=8
+			local movedBack=(body.Position-record.Position).Magnitude>=12
+			if body.AssemblyRootPart~=record.Assembly or (returned and movedBack)then
+				completed[v]=nil;log("REARM reused assembly/returned vehicle "..v:GetFullName());return true
+			end
+			return false
+		end
 		local function choose()
 			local selected,selectedBody
 			for _,v in ipairs(cars:GetChildren())do
 				local body=resolve(v)
-				if body and completed[v]~=body then
+				if body and available(v,body)then
 					selected,selectedBody=v,body
 				end
 			end
 			if latestSpawn then
 				local body=resolve(latestSpawn)
-				if body and completed[latestSpawn]~=body then selected,selectedBody=latestSpawn,body end
+				if body and available(latestSpawn,body)then selected,selectedBody=latestSpawn,body end
 			end
 			if selected then
 				local v,body=selected,selectedBody
@@ -239,10 +250,13 @@ return function(context)
 				if owner.Parent~=Players or workspace:FindFirstChild("Cars")~=cars or not sourceSafe()or conflict()then self:Stop("No motos 2: vehiculo, propietario o flujo cambio.");return end
 				if target then
 					observe(target)
-					if resolve(target.Vehicle)~=target.Body then
+					if target.Generation~=(generations[target.Vehicle]or 0)then
+						log("TARGET_RESPAWN generation changed");target=nil;self.TargetBody=nil;home();self.Phase="WAIT_MOTORCYCLE";elapsed=1
+					elseif resolve(target.Vehicle)~=target.Body then
 						log("CONTACT_CANCELLED");target=nil;home();self.Phase="WAIT_MOTORCYCLE"
 					elseif (target.Body.Position-origin).Magnitude>=20 then
-						completed[target.Vehicle]=target.Body;log("DISPLACED >=20 studs");target=nil;home();self.Phase="WAIT_MOTORCYCLE"
+						completed[target.Vehicle]={Part=target.Body,Origin=origin,Position=target.Body.Position,Assembly=target.Body.AssemblyRootPart}
+						log("DISPLACED >=20 studs");target=nil;self.TargetBody=nil;home();self.Phase="WAIT_MOTORCYCLE"
 					end
 				end
 				elapsed=elapsed+dt
