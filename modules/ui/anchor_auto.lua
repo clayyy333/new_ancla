@@ -91,17 +91,29 @@ return function(context)
 	if FoldingCleanupCore:IsAvailable() then description.Size=UDim2.new(0.75,-8,0,38) end
 	FoldingCleanupControls:Create(card,UDim2.new(0.75,4,0,0),UDim2.new(0.25,-4,0,30))
 	if SeatAnchorLabCore and SeatAnchorLabCore:IsAuthorized()then
-		card.Size=UDim2.new(1,0,0,462)
+		card.Size=UDim2.new(1,0,0,510)
 		local trip=makeButton(214)
 		trip.Name="SeatLabRoundTrip"
 		local anchored=makeButton(268)
 		anchored.Name="SeatLabAnchorSit"
 		local refreshSeat=makeButton(322)
 		refreshSeat.Name="SeatLabRefreshSeat"
-		refreshSeat.Size=UDim2.new(1,0,0,30)
-		refreshSeat.Text=isES and "Actualizar asiento cercano"or "Refresh nearest seat"
+		refreshSeat.Position=UDim2.new(.18,4,0,322)
+		refreshSeat.Size=UDim2.new(.64,-8,0,30)
+		refreshSeat.Text=isES and "Actualizar asientos"or "Refresh seats"
+		local previousSeat=makeButton(322)
+		previousSeat.Name="SeatLabPreviousSeat";previousSeat.Size=UDim2.new(.18,0,0,30);previousSeat.Text="<"
+		local nextSeat=makeButton(322)
+		nextSeat.Name="SeatLabNextSeat";nextSeat.Position=UDim2.new(.82,4,0,322);nextSeat.Size=UDim2.new(.18,-4,0,30);nextSeat.Text=">"
+		local selection=Instance.new("TextLabel")
+		selection.Position=UDim2.fromOffset(0,358);selection.Size=UDim2.new(1,0,0,42)
+		selection.BackgroundTransparency=1;selection.TextColor3=currentTheme.text
+		selection.Font=Enum.Font.GothamMedium;selection.TextSize=isMobile and 10 or 12
+		selection.TextWrapped=true;selection.TextXAlignment=Enum.TextXAlignment.Left
+		selection.ZIndex=8;selection.Parent=card
+		RegisterTheme(selection,"TextColor3","text")
 		local labStatus=Instance.new("TextLabel")
-		labStatus.Position=UDim2.fromOffset(0,360);labStatus.Size=UDim2.new(1,0,0,72)
+		labStatus.Position=UDim2.fromOffset(0,406);labStatus.Size=UDim2.new(1,0,0,72)
 		labStatus.BackgroundTransparency=1;labStatus.TextColor3=currentTheme.textDim
 		labStatus.Font=Enum.Font.GothamMedium;labStatus.TextSize=isMobile and 10 or 12
 		labStatus.TextWrapped=true;labStatus.TextXAlignment=Enum.TextXAlignment.Left
@@ -114,7 +126,8 @@ return function(context)
 			anchored.Text=core.Mode=="anchor"and (isES and "Desactivar ancla con asiento (prueba)"or "Disable seat anchor (test)")or (isES and "Anclar aqui e intentar sentarse"or "Anchor here and attempt sitting")
 			trip.BackgroundColor3=core.Mode=="trip"and currentTheme.critical or currentTheme.tertiary
 			anchored.BackgroundColor3=core.Mode=="anchor"and currentTheme.critical or currentTheme.tertiary
-			labStatus.Text=message or (core.Status~=""and core.Status)or (isES and "Pruebas owners: asiento libre mas cercano. Desactiva otras anclas. Evidencia solo local."or "Owner tests: nearest free seat. Disable other anchors. Local evidence only.")
+			selection.Text=core.Seat and ((isES and "Asiento "or "Seat ")..core.SelectedIndex.."/"..#core.Seats.."\n"..core.Seat:GetFullName())or (isES and "Pulsa Actualizar asientos y elige con < >."or "Refresh seats and select with < >.")
+			labStatus.Text=message or (core.Status~=""and core.Status)or (isES and "Pruebas owners: elige el mismo asiento que en AUTO SIT LAB. Una sola ida y regreso. Evidencia solo local."or "Owner tests: select the same seat as AUTO SIT LAB. Single round trip. Local evidence only.")
 		end
 		local function run(mode)
 			if SeatAnchorLabCore.Running then SeatAnchorLabCore:Stop();return end
@@ -125,6 +138,14 @@ return function(context)
 		anchored.Activated:Connect(function()run("anchor")end)
 		refreshSeat.Activated:Connect(function()
 			local ok,err=SeatAnchorLabCore:RefreshSeat()
+			if not ok then UpdateSeatAnchorLabPanel(err)end
+		end)
+		previousSeat.Activated:Connect(function()
+			local ok,err=SeatAnchorLabCore:SelectSeat(-1)
+			if not ok then UpdateSeatAnchorLabPanel(err)end
+		end)
+		nextSeat.Activated:Connect(function()
+			local ok,err=SeatAnchorLabCore:SelectSeat(1)
 			if not ok then UpdateSeatAnchorLabPanel(err)end
 		end)
 		gui.Destroying:Connect(function()SeatAnchorLabCore:Destroy()end)

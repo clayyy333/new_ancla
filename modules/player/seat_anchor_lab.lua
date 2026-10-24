@@ -1,7 +1,7 @@
 -- Independent, owner-only local experiments; no changes to other anchor engines.
 return function(context)
 	setfenv(1,context)
-	local C={Running=false,Mode=nil,Phase="IDLE",Status=""}
+	local C={Running=false,Mode=nil,Phase="IDLE",Status="",Seats={},SelectedIndex=0}
 	SeatAnchorLabCore=C
 	local connections={}
 	local character,humanoid,root,seat,checkpoint,previousAnchored
@@ -56,16 +56,14 @@ return function(context)
 		update(message or text("Prueba detenida; anclaje anterior restaurado.","Test stopped; previous anchoring restored."))
 		return active
 	end
-	local function nearestSeat(position)
-		local best,distance
-		-- Scan on explicit refresh (or first use), never per frame.
-		for _,candidate in ipairs(workspace:GetDescendants())do
-			if (candidate:IsA("Seat")or candidate:IsA("VehicleSeat"))and not candidate.Disabled and not candidate.Occupant then
-				local d=(candidate.Position-position).Magnitude
-				if not distance or d<distance then best,distance=candidate,d end
-			end
-		end
-		return best,distance
+	local function selectSeat(index)
+		C.SelectedIndex=index;C.Seat=C.Seats[index]
+		local current=player.Character
+		local reference=current and current:FindFirstChild("HumanoidRootPart")
+		C.SeatDistance=C.Seat and reference and (C.Seat.Position-reference.Position).Magnitude or nil
+		if not C.Seat then return false,text("No se encontraron asientos.","No seats found.")end
+		update(text("Asiento ","Seat ")..index.."/"..#C.Seats..": "..C.Seat:GetFullName())
+		return true
 	end
 	function C:RefreshSeat()
 		if not self:IsAuthorized()then return false,"Solo owners."end
@@ -73,14 +71,25 @@ return function(context)
 		local current=player.Character
 		local reference=current and current:FindFirstChild("HumanoidRootPart")
 		if not reference then return false,text("Personaje no disponible.","Character unavailable.")end
-		local found,distance=nearestSeat(reference.Position)
-		self.Seat=found;self.SeatDistance=distance
-		if not found then
-			local message=text("No hay asientos libres disponibles.","No free seats available.")
+		-- Original selector: Seat instances sorted by full path, no nearest-seat
+		-- substitution or VehicleSeat fallback. Validate availability on Start.
+		self.Seats={}
+		for _,candidate in ipairs(workspace:GetDescendants())do
+			if candidate:IsA("Seat")then self.Seats[#self.Seats+1]=candidate end
+		end
+		table.sort(self.Seats,function(a,b)return a:GetFullName()<b:GetFullName()end)
+		if #self.Seats==0 then
+			self.Seat=nil;self.SeatDistance=nil;self.SelectedIndex=0
+			local message=text("No se encontraron asientos.","No seats found.")
 			update(message);return false,message
 		end
-		update(text("Asiento actualizado: ","Seat refreshed: ")..found:GetFullName()..string.format(" | %.1f studs",distance))
-		return true
+		return selectSeat(1)
+	end
+	function C:SelectSeat(direction)
+		if not self:IsAuthorized()then return false,"Solo owners."end
+		if self.Running then return false,text("Deten la prueba antes de cambiar de asiento.","Stop the test before changing seats.")end
+		if #self.Seats==0 then return self:RefreshSeat()end
+		return selectSeat(((self.SelectedIndex-1+(direction<0 and -1 or 1))%#self.Seats)+1)
 	end
 	local function hold()
 		-- Seat-compatible: no anti-seat, weld deletion or forced GettingUp here.
@@ -102,7 +111,7 @@ return function(context)
 		humanoid=character and character:FindFirstChildOfClass("Humanoid")
 		root=character and character:FindFirstChild("HumanoidRootPart")
 		if not humanoid or not root or humanoid.Health<=0 then return false,text("Personaje no disponible.","Character unavailable.")end
-		if humanoid.SeatPart or humanoid.Sit then return false,text("Levantate antes de empezar.","Leave your current seat first.")end
+		if mode=="trip"and (humanoid.SeatPart or humanoid.Sit)then return false,text("Levantate antes de empezar la ida y regreso.","Leave your current seat before the round trip.")end
 		if root.Anchored then return false,text("Desactiva el anclaje actual.","Disable existing anchoring first.")end
 		-- Respect the selection displayed by RefreshSeat. Never silently switch
 		-- seats just because the character or another seat moved after refresh.
@@ -114,7 +123,10 @@ return function(context)
 		if not seat:IsDescendantOf(workspace)or not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or seat.Disabled then
 			return false,text("El asiento seleccionado ya no esta disponible. Pulsa Actualizar asiento.","Selected seat is unavailable. Refresh the seat first.")
 		end
-		if seat.Occupant then return false,text("El asiento seleccionado esta ocupado. Pulsa Actualizar asiento.","Selected seat is occupied. Refresh the seat first.")end
+		if seat.Occupant and not (mode=="anchor"and seat.Occupant==humanoid)then return false,text("El asiento seleccionado esta ocupado. Pulsa Actualizar asiento.","Selected seat is occupied. Refresh the seat first.")end
+		if mode=="anchor"and humanoid.SeatPart and humanoid.SeatPart~=seat then
+			return false,text("Estas sentado en otro asiento distinto del seleccionado.","You are sitting in a different seat than the selected one.")
+		end
 		self.SeatDistance=(seat.Position-root.Position).Magnitude
 		checkpoint=root.CFrame;previousAnchored=root.Anchored
 		self.Checkpoint=checkpoint;self.Seat=seat
@@ -126,7 +138,11 @@ return function(context)
 			root.CFrame=seat.CFrame*CFrame.new(0,2.5,0)
 		else
 			hold()
-			if not sit()then return false,self.Status end
+			-- Preserve an existing seat attachment instead of rejecting it or
+			-- requesting another Sit that may interrupt the current attachment.
+			if humanoid.SeatPart~=seat and seat.Occupant~=humanoid then
+				if not sit()then return false,self.Status end
+			end
 		end
 		local function tick(dt,post)
 			if not self.Running then return end
@@ -150,8 +166,10 @@ return function(context)
 					end
 				else
 					if seated then confirmed=true;self.Phase="HOLD"
-					elseif confirmed then self:Stop(text("Se perdio la union con el asiento.","Seat attachment lost."));return
-					elseif elapsed>=2.5 then self:Stop(text("Sin confirmacion local del asiento; intento finalizado.","No local seat confirmation; attempt ended."));return end
+					elseif confirmed then self.Phase="HOLD_SEAT_UNCONFIRMED"
+					else self.Phase="WAIT_SEAT"end
+					-- Missing or delayed evidence is not a reason to stand the player
+					-- up. Keep anchoring until explicit stop, invalid seat, or lifecycle exit.
 				end
 				if displayElapsed>=.15 then
 					displayElapsed=0

@@ -68,12 +68,18 @@ assert(load(source))()(context)
 local c=SeatAnchorLabCore
 authorized=false;assert(not c:Start('trip'));authorized=true
 local beforeRefresh=root.CFrame
-assert(c:RefreshSeat()and c.Seat==near and c.SeatDistance==4)
+local vehicleSeat=instance('VehicleSeat','000VehicleSeat',workspace)
+assert(c:RefreshSeat()and c.Seat==far and #c.Seats==2 and c.SelectedIndex==1,'original Seat-only alphabetic list excludes VehicleSeat')
 assert(root.CFrame==beforeRefresh and not c.Running and calls==0,'refresh only detects; never moves, anchors or sits')
+assert(c:SelectSeat(1)and c.Seat==near and c.SeatDistance==4)
+assert(c:SelectSeat(1)and c.Seat==far,'next wraps around')
+assert(c:SelectSeat(-1)and c.Seat==near,'previous wraps around')
 near.Disabled=true
-assert(c:RefreshSeat()and c.Seat==far,'refresh excludes disabled nearest seat')
+assert(c:RefreshSeat()and c.Seat==far,'refresh resets selector to first alphabetical Seat')
+assert(c:SelectSeat(1)and c.Seat==near,'selector preserves original list even when selected seat is disabled')
+assert(not c:Start('trip'),'validate disabled selection at activation without silently substituting another Seat')
 near.Disabled=false
-assert(c:RefreshSeat()and c.Seat==near)
+assert(c:RefreshSeat()and c:SelectSeat(1)and c.Seat==near)
 local farFrame=far.CFrame
 far.CFrame=CFrame.new(101,5,0)
 local scansAfterSelection=scans
@@ -82,6 +88,7 @@ assert(c:Start('trip'));assert(c.Seat==near and calls==0,'choose distance rather
 assert(scans==scansAfterSelection,'Start must use refreshed selection, not rescan for a different nearest seat')
 far.CFrame=farFrame
 assert(not c:RefreshSeat(),'cannot replace the seat of an active test')
+assert(not c:SelectSeat(-1),'cannot navigate away from active test seat')
 assert(root.CFrame.Position.X==104 and not root.Anchored)
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_WAIT'and calls==1)
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_HOLD'and c.OccupantMatches and c.SeatPartMatches and c.WeldMatches)
@@ -98,10 +105,18 @@ assert(scans==before,'restarting with selected seat needs no extra scan, and fra
 assert(c:Stop()and not root.Anchored and not humanoid.Sit)
 assert(c:Start('anchor'));RunService.PreSimulation:Fire(.01)
 near:FindFirstChild('SeatWeld').Parent=nil
-RunService.PreSimulation:Fire(.01);assert(not c.Running and not root.Anchored,'lost weld stops confirmed hold')
+RunService.PreSimulation:Fire(.01);assert(c.Running and root.Anchored and humanoid.Sit and c.Phase=='HOLD_SEAT_UNCONFIRMED','missing weld evidence must not automatically stand player up')
+c:Stop()
 noSit=true;assert(c:Start('anchor'))
-RunService.PreSimulation:Fire(2.5);assert(not c.Running and not root.Anchored,'unconfirmed remote sitting ends without claiming success')
+RunService.PreSimulation:Fire(2.5);assert(c.Running and root.Anchored and c.Phase=='WAIT_SEAT','unconfirmed seat attempt keeps the anchor without claiming sitting success')
+c:Stop()
 noSit=false
+sit(near,humanoid)
+local callsBeforeSeated=calls
+assert(c:Start('anchor'),'existing selected-seat occupant can activate anchor')
+RunService.PreSimulation:Fire(.01)
+assert(c.Phase=='HOLD'and calls==callsBeforeSeated and humanoid.Sit,'already seated anchor preserves weld without requesting Sit again')
+c:Stop()
 assert(c:Start('trip'));near.Parent=nil
 RunService.PreSimulation:Fire(.01);assert(not c.Running and root.CFrame==home,'seat removal cancels and returns')
 near.Parent=workspace
@@ -111,9 +126,9 @@ assert(not c:Start('trip')and root.CFrame==beforeInvalid and c.Seat==near,'unava
 near.Disabled=false
 near.Occupant=instance('Humanoid','OtherOccupant',workspace)
 assert(not c:Start('trip')and c.Seat==near,'occupied selection must not switch to a free alternative')
-assert(c:RefreshSeat()and c.Seat==far,'explicit refresh switches to another available seat')
+assert(c:RefreshSeat()and c.Seat==far,'explicit refresh restores original first-seat selection')
 near.Occupant=nil
-assert(c:RefreshSeat()and c.Seat==near,'explicit refresh restores nearest free selection')
+assert(c:SelectSeat(1)and c.Seat==near,'explicit selection restores chosen Seat')
 assert(c:Start('anchor'))
 local replacement=instance('Model','NewCharacter',workspace);player.Character=replacement
 local replacementRoot=instance('Part','HumanoidRootPart',replacement);replacementRoot.CFrame=CFrame.new(1,2,3)
@@ -126,4 +141,4 @@ assert(not c.Running and not root.Anchored,'death restores anchoring and disconn
 humanoid.Health=100;humanoid.Sit=false;humanoid.SeatPart=nil;near.Occupant=nil
 assert(c:Start('trip'));c:Destroy();c:Destroy()
 for _,s in ipairs(signals)do assert(s:Count()==0,'frame connections must not leak')end
-print('seat_anchor_lab_spec OK: owner authorization, conflicts, nearest seat, one-shot, seat-compatible hold, timeout, death, respawn and cleanup')
+print('seat_anchor_lab_spec OK: owner authorization, original seat list, selector persistence, one-shot, seat-compatible hold, delayed evidence, death, respawn and cleanup')
