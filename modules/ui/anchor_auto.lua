@@ -75,6 +75,10 @@ return function(context)
 		status.Text=message or engineStatus or AutoAnchorCore.Status
 	end
 	local function toggle(mode)
+		if SeatAnchorLabCore and SeatAnchorLabCore.Running then
+			UpdateAutoAnchorPanel(isES and "Deten primero la prueba de asiento."or "Stop the seat experiment first.")
+			return
+		end
 		if AutoAnchorCore.Busy then return end
 		task.spawn(function()
 			local ok,err=AutoAnchorCore:Toggle(mode)
@@ -86,6 +90,38 @@ return function(context)
 	xenoButton.MouseButton1Click:Connect(function() toggle("xeno") end)
 	if FoldingCleanupCore:IsAvailable() then description.Size=UDim2.new(0.75,-8,0,38) end
 	FoldingCleanupControls:Create(card,UDim2.new(0.75,4,0,0),UDim2.new(0.25,-4,0,30))
+	if SeatAnchorLabCore and SeatAnchorLabCore:IsAuthorized()then
+		card.Size=UDim2.new(1,0,0,424)
+		local trip=makeButton(214)
+		trip.Name="SeatLabRoundTrip"
+		local anchored=makeButton(268)
+		anchored.Name="SeatLabAnchorSit"
+		local labStatus=Instance.new("TextLabel")
+		labStatus.Position=UDim2.fromOffset(0,322);labStatus.Size=UDim2.new(1,0,0,72)
+		labStatus.BackgroundTransparency=1;labStatus.TextColor3=currentTheme.textDim
+		labStatus.Font=Enum.Font.GothamMedium;labStatus.TextSize=isMobile and 10 or 12
+		labStatus.TextWrapped=true;labStatus.TextXAlignment=Enum.TextXAlignment.Left
+		labStatus.ZIndex=8;labStatus.Parent=card
+		RegisterTheme(labStatus,"TextColor3","textDim")
+		UpdateSeatAnchorLabPanel=function(message)
+			if not card.Parent then return end
+			local core=SeatAnchorLabCore
+			trip.Text=core.Mode=="trip"and (isES and "Cancelar ida y regreso"or "Cancel round trip")or (isES and "Prueba de asiento: ida y regreso"or "Seat test: round trip")
+			anchored.Text=core.Mode=="anchor"and (isES and "Desactivar ancla con asiento (prueba)"or "Disable seat anchor (test)")or (isES and "Anclar aqui e intentar sentarse"or "Anchor here and attempt sitting")
+			trip.BackgroundColor3=core.Mode=="trip"and currentTheme.critical or currentTheme.tertiary
+			anchored.BackgroundColor3=core.Mode=="anchor"and currentTheme.critical or currentTheme.tertiary
+			labStatus.Text=message or (core.Status~=""and core.Status)or (isES and "Pruebas owners: asiento libre mas cercano. Desactiva otras anclas. Evidencia solo local."or "Owner tests: nearest free seat. Disable other anchors. Local evidence only.")
+		end
+		local function run(mode)
+			if SeatAnchorLabCore.Running then SeatAnchorLabCore:Stop();return end
+			local ok,err=SeatAnchorLabCore:Start(mode)
+			if not ok then UpdateSeatAnchorLabPanel(err)end
+		end
+		trip.Activated:Connect(function()run("trip")end)
+		anchored.Activated:Connect(function()run("anchor")end)
+		gui.Destroying:Connect(function()SeatAnchorLabCore:Destroy()end)
+		UpdateSeatAnchorLabPanel()
+	end
 	UpdateAutoAnchorPanel()
 	return true
 end
