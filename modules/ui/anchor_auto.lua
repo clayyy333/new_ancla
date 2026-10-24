@@ -123,7 +123,7 @@ return function(context)
 			if not card.Parent then return end
 			local core=SeatAnchorLabCore
 			trip.Text=core.Mode=="trip"and (isES and "Cancelar ida y regreso"or "Cancel round trip")or (isES and "Prueba de asiento: ida y regreso"or "Seat test: round trip")
-			anchored.Text=core.Mode=="anchor"and (isES and "Desactivar ancla con asiento (prueba)"or "Disable seat anchor (test)")or (isES and "Anclar en punto de prueba y sentarse"or "Anchor at test checkpoint and attempt sitting")
+			anchored.Text=core.Mode=="anchor"and (isES and "Desactivar sujecion fisica con asiento"or "Disable physical seat hold")or (isES and "Sujecion fisica al punto de prueba + asiento"or "Physical hold at test checkpoint + seat")
 			trip.BackgroundColor3=core.Mode=="trip"and currentTheme.critical or currentTheme.tertiary
 			anchored.BackgroundColor3=core.Mode=="anchor"and currentTheme.critical or currentTheme.tertiary
 			selection.Text=core.Seat and ((isES and "Asiento "or "Seat ")..core.SelectedIndex.."/"..#core.Seats.."\n"..core.Seat:GetFullName())or (isES and "Pulsa Actualizar asientos y elige con < >."or "Refresh seats and select with < >.")

@@ -4,6 +4,7 @@ return function(context)
 	local C={Running=false,Mode=nil,Phase="IDLE",Status="",Seats={},SelectedIndex=0}
 	SeatAnchorLabCore=C
 	local connections={}
+	local holdAttachment,holdPosition,holdOrientation
 	local character,humanoid,root,seat,checkpoint,previousAnchored
 	local elapsed,displayElapsed,confirmed=0,0,false
 	local function text(es,en)return isES and es or en end
@@ -23,6 +24,12 @@ return function(context)
 		for _,connection in ipairs(connections)do connection:Disconnect()end
 		connections={}
 	end
+	local function clearHold()
+		for _,object in pairs({holdPosition,holdOrientation,holdAttachment})do
+			pcall(function()object:Destroy()end)
+		end
+		holdPosition,holdOrientation,holdAttachment=nil,nil,nil
+	end
 	local function evidence()
 		local a=seat.Occupant==humanoid
 		local b=humanoid.SeatPart==seat
@@ -37,7 +44,7 @@ return function(context)
 	end
 	function C:Stop(message)
 		local active=self.Running
-		self.Running=false;disconnect()
+		self.Running=false;disconnect();clearHold()
 		if active and root and root.Parent then
 			pcall(function()
 				if humanoid and humanoid.Parent and humanoid.Health>0 then
@@ -92,10 +99,31 @@ return function(context)
 		return selectSeat(((self.SelectedIndex-1+(direction<0 and -1 or 1))%#self.Seats)+1)
 	end
 	local function hold()
-		-- Seat-compatible: no anti-seat, weld deletion or forced GettingUp here.
-		root.Anchored=true
-		root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
-		root.CFrame=checkpoint
+		-- Physical alternative: only local character constraints, no SeatWeld
+		-- edits, anchored-seat edits, or repeated CFrame/velocity overrides.
+		root.Anchored=false
+		if not holdAttachment or not holdAttachment.Parent or not holdPosition or not holdPosition.Parent or not holdOrientation or not holdOrientation.Parent then
+			clearHold()
+			holdAttachment=Instance.new("Attachment")
+			holdAttachment.Name="SeatLabHoldAttachment";holdAttachment.Parent=root
+			holdPosition=Instance.new("AlignPosition")
+			holdPosition.Name="SeatLabHoldPosition"
+			holdPosition.Mode=Enum.PositionAlignmentMode.OneAttachment
+			holdPosition.Attachment0=holdAttachment
+			holdPosition.MaxForce=1000000;holdPosition.MaxVelocity=150
+			holdPosition.Responsiveness=200;holdPosition.RigidityEnabled=false
+			holdPosition.ApplyAtCenterOfMass=true;holdPosition.ReactionForceEnabled=false
+			holdPosition.Position=checkpoint.Position;holdPosition.Parent=root
+			holdOrientation=Instance.new("AlignOrientation")
+			holdOrientation.Name="SeatLabHoldOrientation"
+			holdOrientation.Mode=Enum.OrientationAlignmentMode.OneAttachment
+			holdOrientation.Attachment0=holdAttachment
+			holdOrientation.MaxTorque=1000000;holdOrientation.MaxAngularVelocity=20
+			holdOrientation.Responsiveness=200;holdOrientation.RigidityEnabled=false
+			holdOrientation.ReactionTorqueEnabled=false
+			holdOrientation.CFrame=checkpoint;holdOrientation.Parent=root
+		end
+		holdPosition.Position=checkpoint.Position;holdOrientation.CFrame=checkpoint
 	end
 	local function sit()
 		local ok,err=pcall(function()
@@ -145,6 +173,7 @@ return function(context)
 		checkpoint=mode=="anchor"and self.TripCheckpoint or root.CFrame
 		previousAnchored=root.Anchored
 		self.Checkpoint=checkpoint;self.Seat=seat
+		self.HoldStrategy=mode=="anchor"and "PHYSICAL_CONSTRAINTS"or nil
 		self.OccupantMatches=false;self.SeatPartMatches=false;self.WeldMatches=false
 		elapsed,displayElapsed,confirmed=0,0,false
 		self.Running=true;self.Mode=mode;self.Phase=mode=="trip"and "APPROACH"or "ANCHOR_SIT"
@@ -181,7 +210,11 @@ return function(context)
 						self:Stop(text("Ida y regreso completados; flujo detenido automaticamente.","Round trip completed; flow stopped automatically."));return
 					end
 				else
-					if seated then confirmed=true;self.Phase="HOLD"
+					self.LocalCheckpointError=(root.Position-checkpoint.Position).Magnitude
+					self.SeatAnchored=seat.Anchored
+					local assembly=root.AssemblyRootPart
+					self.AssemblyAnchored=assembly and assembly.Anchored
+					if seated then confirmed=true;self.Phase=self.LocalCheckpointError<=1 and "HOLD"or "SEATED_RETURNING"
 					elseif confirmed then self.Phase="HOLD_SEAT_UNCONFIRMED"
 					else self.Phase="WAIT_SEAT"end
 					-- Missing or delayed evidence is not a reason to stand the player
@@ -189,7 +222,8 @@ return function(context)
 				end
 				if displayElapsed>=.15 then
 					displayElapsed=0
-					update(self.Phase.." | Occupant="..tostring(self.OccupantMatches).." SeatPart="..tostring(self.SeatPartMatches).." Weld="..tostring(self.WeldMatches)..text(" | Solo evidencia local."," | Local evidence only."))
+					local physical=mode=="anchor"and string.format(" | error=%.2f studs Seat.Anchored=%s Assembly.Anchored=%s",self.LocalCheckpointError,tostring(self.SeatAnchored),tostring(self.AssemblyAnchored))or ""
+					update(self.Phase.." | Occupant="..tostring(self.OccupantMatches).." SeatPart="..tostring(self.SeatPartMatches).." Weld="..tostring(self.WeldMatches)..physical..text(" | Solo evidencia local."," | Local evidence only."))
 				end
 			end,debug.traceback)
 			if not ok then self:Stop(text("Error de prueba: ","Test error: ")..tostring(err))end

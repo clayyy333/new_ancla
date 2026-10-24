@@ -21,15 +21,17 @@ end
 local objects={}
 local function instance(class,name,parent)
  local values={Name=name,Parent=parent,ClassName=class,Anchored=false,Health=100,Sit=false,Disabled=false,CFrame=CFrame.new()}
- local o=setmetatable({}, {__index=function(_,k)if k=='Position'then return values.CFrame.Position end;return values[k]end,__newindex=function(_,k,v)values[k]=v end})
+ local o=setmetatable({}, {__index=function(_,k)if k=='Position'and (class=='Part'or class=='Seat'or class=='VehicleSeat')then return values.CFrame.Position end;return values[k]end,__newindex=function(_,k,v)values[k]=v end})
  function o:IsA(c)return c==class or(c=='JointInstance'and class=='Weld')end
  function o:IsDescendantOf(a)local p=self.Parent;while p do if p==a then return true end;p=p.Parent end;return false end
  function o:GetDescendants()local list={};for _,v in ipairs(objects)do if v:IsDescendantOf(self)then list[#list+1]=v end end;return list end
  function o:FindFirstChild(n)for _,v in ipairs(objects)do if v.Parent==self and v.Name==n then return v end end end
  function o:FindFirstChildOfClass(c)for _,v in ipairs(objects)do if v.Parent==self and v:IsA(c)then return v end end end
  function o:GetFullName()return self.Parent and self.Parent:GetFullName()..'.'..self.Name or self.Name end
+ function o:Destroy()self.Parent=nil;self.Destroyed=true end
  objects[#objects+1]=o;return o
 end
+Instance={new=function(class)return instance(class,class)end}
 workspace=instance('Workspace','Workspace')
 local character=instance('Model','LocalCharacter',workspace)
 local root=instance('Part','HumanoidRootPart',character)
@@ -37,7 +39,7 @@ root.CFrame=CFrame.new(100,5,0)
 local home=root.CFrame
 local humanoid=instance('Humanoid','Humanoid',character)
 player={Character=character}
-Enum={HumanoidStateType={GettingUp='GettingUp'}}
+Enum={HumanoidStateType={GettingUp='GettingUp'},PositionAlignmentMode={OneAttachment='OneAttachment'},OrientationAlignmentMode={OneAttachment='OneAttachment'}}
 function humanoid:ChangeState(state)
  self.State=state
  if self.SeatPart then
@@ -99,21 +101,29 @@ assert(not c.Running and root.CFrame==home and not root.Anchored and not humanoi
 assert(c.TripCheckpoint==home,'retain the location where round trip was activated')
 local before=scans
 root.CFrame=near.CFrame
-assert(c:Start('anchor'));assert(root.Anchored and root.CFrame==home and not humanoid.Jump,'next anchor attempt does not inherit release jump')
+assert(c:Start('anchor'));assert(not root.Anchored and root.CFrame==near.CFrame and not humanoid.Jump,'physical hold does not teleport or inherit release jump')
 assert(c.Checkpoint==home,'do not recapture a checkpoint at the seat after the player was pulled there')
-RunService.PreSimulation:Fire(.01);assert(c.Phase=='HOLD'and c.WeldMatches)
+local positionHold=root:FindFirstChild('SeatLabHoldPosition')
+local orientationHold=root:FindFirstChild('SeatLabHoldOrientation')
+assert(positionHold.Position==home.Position and orientationHold.CFrame==home,'constraints target original round-trip checkpoint')
+assert(positionHold.MaxForce==1000000 and positionHold.MaxVelocity==150 and not positionHold.RigidityEnabled)
+RunService.PreSimulation:Fire(.01);assert(c.Phase=='SEATED_RETURNING'and c.WeldMatches,'seated far from checkpoint is not reported as already held')
 local weld=near:FindFirstChild('SeatWeld')
-root.CFrame=CFrame.new(999,999,999);RunService.PostSimulation:Fire()
-assert(root.CFrame==home and humanoid.Sit and weld.Parent==near,'hold restores checkpoint without removing seat weld or standing up')
+local displacedFrame=CFrame.new(999,999,999)
+root.CFrame=displacedFrame;RunService.PostSimulation:Fire()
+assert(root.CFrame==displacedFrame and positionHold.Position==home.Position and humanoid.Sit and weld.Parent==near,'physical hold preserves weld without locally teleporting back')
+root.CFrame=home -- Mock a physics arrival; no claim of real engine convergence.
 for i=1,20 do RunService.PreSimulation:Fire(.01);RunService.PostSimulation:Fire()end
+assert(c.Phase=='HOLD'and c.LocalCheckpointError==0)
 assert(scans==before,'restarting with selected seat needs no extra scan, and frame callbacks never scan')
 assert(c:Stop()and not root.Anchored and not humanoid.Sit)
+assert(positionHold.Destroyed and orientationHold.Destroyed and not root:FindFirstChild('SeatLabHoldAttachment'),'destroy only lab constraints when stopping')
 assert(c:Start('anchor'));RunService.PreSimulation:Fire(.01)
 near:FindFirstChild('SeatWeld').Parent=nil
-RunService.PreSimulation:Fire(.01);assert(c.Running and root.Anchored and humanoid.Sit and c.Phase=='HOLD_SEAT_UNCONFIRMED','missing weld evidence must not automatically stand player up')
+RunService.PreSimulation:Fire(.01);assert(c.Running and not root.Anchored and humanoid.Sit and c.Phase=='HOLD_SEAT_UNCONFIRMED','missing weld evidence must not automatically stand player up')
 c:Stop()
 noSit=true;assert(c:Start('anchor'))
-RunService.PreSimulation:Fire(2.5);assert(c.Running and root.Anchored and c.Phase=='WAIT_SEAT','unconfirmed seat attempt keeps the anchor without claiming sitting success')
+RunService.PreSimulation:Fire(2.5);assert(c.Running and not root.Anchored and c.Phase=='WAIT_SEAT','unconfirmed seat attempt keeps physical hold without claiming sitting success')
 c:Stop()
 noSit=false
 sit(near,humanoid)
@@ -121,7 +131,7 @@ local callsBeforeSeated=calls
 root.CFrame=near.CFrame
 assert(c:Start('anchor'),'existing selected-seat occupant can activate anchor')
 RunService.PreSimulation:Fire(.01)
-assert(c.Phase=='HOLD'and calls==callsBeforeSeated and humanoid.Sit and root.CFrame==home,'already seated anchor preserves weld and uses round-trip checkpoint without requesting Sit again')
+assert(c.Phase=='SEATED_RETURNING'and calls==callsBeforeSeated and humanoid.Sit and root.CFrame==near.CFrame and root:FindFirstChild('SeatLabHoldPosition').Position==home.Position,'already seated anchor preserves weld and targets round-trip checkpoint without requesting Sit again')
 c:Stop()
 assert(c:Start('trip'));near.Parent=nil
 RunService.PreSimulation:Fire(.01);assert(not c.Running and root.CFrame==home,'seat removal cancels and returns')
@@ -148,4 +158,7 @@ assert(not c.Running and not root.Anchored,'death restores anchoring and disconn
 humanoid.Health=100;humanoid.Sit=false;humanoid.SeatPart=nil;near.Occupant=nil
 assert(c:Start('trip'));c:Destroy();c:Destroy()
 for _,s in ipairs(signals)do assert(s:Count()==0,'frame connections must not leak')end
+for _,o in ipairs(objects)do
+ if o.Name:match('^SeatLabHold')then assert(o.Parent==nil,'constraints must not leak after stop, death, respawn or destroy')end
+end
 print('seat_anchor_lab_spec OK: owner authorization, original seat list, selector persistence, one-shot, seat-compatible hold, delayed evidence, death, respawn and cleanup')
