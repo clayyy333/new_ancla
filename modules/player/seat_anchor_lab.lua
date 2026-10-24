@@ -58,7 +58,7 @@ return function(context)
 	end
 	local function nearestSeat(position)
 		local best,distance
-		-- Only one full scan per activation, never per frame.
+		-- Scan on explicit refresh (or first use), never per frame.
 		for _,candidate in ipairs(workspace:GetDescendants())do
 			if (candidate:IsA("Seat")or candidate:IsA("VehicleSeat"))and not candidate.Disabled and not candidate.Occupant then
 				local d=(candidate.Position-position).Magnitude
@@ -104,8 +104,18 @@ return function(context)
 		if not humanoid or not root or humanoid.Health<=0 then return false,text("Personaje no disponible.","Character unavailable.")end
 		if humanoid.SeatPart or humanoid.Sit then return false,text("Levantate antes de empezar.","Leave your current seat first.")end
 		if root.Anchored then return false,text("Desactiva el anclaje actual.","Disable existing anchoring first.")end
-		seat,self.SeatDistance=nearestSeat(root.Position)
-		if not seat then return false,text("No hay asientos libres disponibles.","No free seats available.")end
+		-- Respect the selection displayed by RefreshSeat. Never silently switch
+		-- seats just because the character or another seat moved after refresh.
+		if not self.Seat then
+			local ok,err=self:RefreshSeat()
+			if not ok then return false,err end
+		end
+		seat=self.Seat
+		if not seat:IsDescendantOf(workspace)or not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or seat.Disabled then
+			return false,text("El asiento seleccionado ya no esta disponible. Pulsa Actualizar asiento.","Selected seat is unavailable. Refresh the seat first.")
+		end
+		if seat.Occupant then return false,text("El asiento seleccionado esta ocupado. Pulsa Actualizar asiento.","Selected seat is occupied. Refresh the seat first.")end
+		self.SeatDistance=(seat.Position-root.Position).Magnitude
 		checkpoint=root.CFrame;previousAnchored=root.Anchored
 		self.Checkpoint=checkpoint;self.Seat=seat
 		self.OccupantMatches=false;self.SeatPartMatches=false;self.WeldMatches=false
@@ -132,7 +142,10 @@ return function(context)
 				if mode=="trip"then
 					if self.Phase=="APPROACH"and elapsed>=.12 then
 						self.Phase="SIT_WAIT";elapsed=0;if not sit()then return end
-					elseif self.Phase=="SIT_WAIT"and elapsed>=.37 then
+					elseif self.Phase=="SIT_WAIT"and elapsed>=.12 then
+						-- Original sequence: wait .12 after Sit(), inspect, then hold .25.
+						self.Phase="SIT_HOLD";elapsed=0
+					elseif self.Phase=="SIT_HOLD"and elapsed>=.25 then
 						self:Stop(text("Ida y regreso completados; flujo detenido automaticamente.","Round trip completed; flow stopped automatically."));return
 					end
 				else
