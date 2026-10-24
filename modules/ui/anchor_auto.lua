@@ -91,13 +91,17 @@ return function(context)
 	if FoldingCleanupCore:IsAvailable() then description.Size=UDim2.new(0.75,-8,0,38) end
 	FoldingCleanupControls:Create(card,UDim2.new(0.75,4,0,0),UDim2.new(0.25,-4,0,30))
 	if SeatAnchorLabCore and SeatAnchorLabCore:IsAuthorized()then
-		card.Size=UDim2.new(1,0,0,424)
+		card.Size=UDim2.new(1,0,0,462)
 		local trip=makeButton(214)
 		trip.Name="SeatLabRoundTrip"
 		local anchored=makeButton(268)
 		anchored.Name="SeatLabAnchorSit"
+		local refreshSeat=makeButton(322)
+		refreshSeat.Name="SeatLabRefreshSeat"
+		refreshSeat.Size=UDim2.new(1,0,0,30)
+		refreshSeat.Text=isES and "Actualizar asiento cercano"or "Refresh nearest seat"
 		local labStatus=Instance.new("TextLabel")
-		labStatus.Position=UDim2.fromOffset(0,322);labStatus.Size=UDim2.new(1,0,0,72)
+		labStatus.Position=UDim2.fromOffset(0,360);labStatus.Size=UDim2.new(1,0,0,72)
 		labStatus.BackgroundTransparency=1;labStatus.TextColor3=currentTheme.textDim
 		labStatus.Font=Enum.Font.GothamMedium;labStatus.TextSize=isMobile and 10 or 12
 		labStatus.TextWrapped=true;labStatus.TextXAlignment=Enum.TextXAlignment.Left
@@ -119,6 +123,10 @@ return function(context)
 		end
 		trip.Activated:Connect(function()run("trip")end)
 		anchored.Activated:Connect(function()run("anchor")end)
+		refreshSeat.Activated:Connect(function()
+			local ok,err=SeatAnchorLabCore:RefreshSeat()
+			if not ok then UpdateSeatAnchorLabPanel(err)end
+		end)
 		gui.Destroying:Connect(function()SeatAnchorLabCore:Destroy()end)
 		UpdateSeatAnchorLabPanel()
 	end

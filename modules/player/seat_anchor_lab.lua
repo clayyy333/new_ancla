@@ -56,16 +56,31 @@ return function(context)
 		update(message or text("Prueba detenida; anclaje anterior restaurado.","Test stopped; previous anchoring restored."))
 		return active
 	end
-	local function nearestSeat()
+	local function nearestSeat(position)
 		local best,distance
 		-- Only one full scan per activation, never per frame.
 		for _,candidate in ipairs(workspace:GetDescendants())do
 			if (candidate:IsA("Seat")or candidate:IsA("VehicleSeat"))and not candidate.Disabled and not candidate.Occupant then
-				local d=(candidate.Position-root.Position).Magnitude
+				local d=(candidate.Position-position).Magnitude
 				if not distance or d<distance then best,distance=candidate,d end
 			end
 		end
-		return best
+		return best,distance
+	end
+	function C:RefreshSeat()
+		if not self:IsAuthorized()then return false,"Solo owners."end
+		if self.Running then return false,text("Deten la prueba antes de actualizar el asiento.","Stop the test before refreshing the seat.")end
+		local current=player.Character
+		local reference=current and current:FindFirstChild("HumanoidRootPart")
+		if not reference then return false,text("Personaje no disponible.","Character unavailable.")end
+		local found,distance=nearestSeat(reference.Position)
+		self.Seat=found;self.SeatDistance=distance
+		if not found then
+			local message=text("No hay asientos libres disponibles.","No free seats available.")
+			update(message);return false,message
+		end
+		update(text("Asiento actualizado: ","Seat refreshed: ")..found:GetFullName()..string.format(" | %.1f studs",distance))
+		return true
 	end
 	local function hold()
 		-- Seat-compatible: no anti-seat, weld deletion or forced GettingUp here.
@@ -89,7 +104,7 @@ return function(context)
 		if not humanoid or not root or humanoid.Health<=0 then return false,text("Personaje no disponible.","Character unavailable.")end
 		if humanoid.SeatPart or humanoid.Sit then return false,text("Levantate antes de empezar.","Leave your current seat first.")end
 		if root.Anchored then return false,text("Desactiva el anclaje actual.","Disable existing anchoring first.")end
-		seat=nearestSeat()
+		seat,self.SeatDistance=nearestSeat(root.Position)
 		if not seat then return false,text("No hay asientos libres disponibles.","No free seats available.")end
 		checkpoint=root.CFrame;previousAnchored=root.Anchored
 		self.Checkpoint=checkpoint;self.Seat=seat

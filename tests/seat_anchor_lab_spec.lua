@@ -67,8 +67,16 @@ local context=_G
 assert(load(source))()(context)
 local c=SeatAnchorLabCore
 authorized=false;assert(not c:Start('trip'));authorized=true
+local beforeRefresh=root.CFrame
+assert(c:RefreshSeat()and c.Seat==near and c.SeatDistance==4)
+assert(root.CFrame==beforeRefresh and not c.Running and calls==0,'refresh only detects; never moves, anchors or sits')
+near.Disabled=true
+assert(c:RefreshSeat()and c.Seat==far,'refresh excludes disabled nearest seat')
+near.Disabled=false
+assert(c:RefreshSeat()and c.Seat==near)
 AnchorCore={AnclaEnabled=true};assert(not c:Start('anchor'));assert(AnchorCore.AnclaEnabled);AnchorCore=nil
 assert(c:Start('trip'));assert(c.Seat==near and calls==0,'choose distance rather than alphabetical path')
+assert(not c:RefreshSeat(),'cannot replace the seat of an active test')
 assert(root.CFrame.Position.X==104 and not root.Anchored)
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_WAIT'and calls==1)
 RunService.PreSimulation:Fire(.12);assert(c.OccupantMatches and c.SeatPartMatches and c.WeldMatches)
