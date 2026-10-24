@@ -17,7 +17,8 @@ RaycastParams={new=function()return {}end}
 local objects={}
 local function instance(class,name,parent)
  local o={ClassName=class,Name=name,Parent=parent,CanCollide=true,Anchored=true,AssemblyLinearVelocity=Vector3.zero,AssemblyAngularVelocity=Vector3.zero,CFrame=CFrame.new()}
- function o:IsA(c)return c==class or (class=='Part'and c=='BasePart')end
+ function o:IsA(c)return c==class or ((class=='Part'or class=='Seat'or class=='VehicleSeat')and c=='BasePart')or (class=='Weld'and c=='JointInstance')or (class=='NoCollisionConstraint'and c=='Constraint')end
+ function o:Destroy()self.Parent=nil;self.Destroyed=true end
  function o:IsDescendantOf(a)local p=self.Parent;while p do if p==a then return true end;p=p.Parent end;return false end
  function o:FindFirstChild(n)for _,p in ipairs(objects)do if p.Parent==self and p.Name==n then return p end end end
  objects[#objects+1]=o;return o
@@ -174,15 +175,23 @@ if anchorSource then
   signals[#signals+1]=s;return s
  end
  local clock=10;os.clock=function()return clock end
- task={defer=function(fn)fn()end}
+ local deferredCalls=0
+ task={defer=function(fn)deferredCalls=deferredCalls+1;fn()end}
  newGuard()
  root.CFrame=CFrame.new(root.Position)
  h.MoveDirection=Vector3.zero;h.WalkSpeed=16;h.FloorMaterial='Concrete';h.Parent=character
  h.Seated=signal()
  function h:ChangeState(state)self.State=state end
  root.Touched=signal()
- function root:GetJoints()return {}end
- function character:GetDescendants()return {root}end
+ local jointScans=0
+ function root:GetJoints()jointScans=jointScans+1;return {}end
+ local characterParts={root}
+ for i=1,11 do
+  local limb=instance('Part','Body'..i,character);limb.Touched=signal()
+  function limb:GetJoints()jointScans=jointScans+1;return {}end
+  characterParts[#characterParts+1]=limb
+ end
+ function character:GetDescendants()return characterParts end
  function character:FindFirstChildOfClass(c)if c=='Humanoid'then return h end end
  function character:PivotTo(frame)root.CFrame=frame;root.Position=frame.Position end
  character.DescendantAdded=signal()
@@ -192,6 +201,8 @@ if anchorSource then
  function workspace:GetPartBoundsInRadius()return {}end
  OverlapParams={new=function()return {}end}
  RunService={PreSimulation=signal(),Heartbeat=signal()}
+ local creations={}
+ Instance={new=function(class)local o=instance(class,class);creations[#creations+1]=o;return o end}
  MobileAnchorCore={Running=false,IsRunning=function(self)return self.Running end}
  MobileAnchorV11Core={Running=false,IsRunning=function(self)return self.Running end}
  local original10,original11=MobileAnchorCore,MobileAnchorV11Core
@@ -226,9 +237,71 @@ if anchorSource then
  h.State='Running';h.FloorMaterial='Concrete';root.AssemblyLinearVelocity=Vector3.zero
  assert(core:Start())
  assert(core.FallProtectionEnabled,'each main activation enables integrated protection again')
+ -- Urgent seat handling must break the exact local weld before any scan.
+ local forcedSeat=instance('Seat','ForcedSeat',workspace)
+ forcedSeat.Position=root.Position;forcedSeat.AssemblyRootPart=forcedSeat
+ local connected={forcedSeat}
+ for i=1,6 do
+  local p=instance('Part','VehicleCollider'..i,workspace)
+  p.Position=root.Position;p.AssemblyRootPart=forcedSeat;connected[#connected+1]=p
+ end
+ local assemblyScans=0
+ function forcedSeat:GetConnectedParts()assemblyScans=assemblyScans+1;return connected end
+ local function seatWeld()
+  local w=instance('Weld','SeatWeld',forcedSeat);w.Part0=forcedSeat;w.Part1=root;return w
+ end
+ local w=seatWeld()
+ h.Sit=true;h.SeatPart=forcedSeat
+ local beforeJoints=jointScans
+ local beforeCreation=#creations
+ h.Seated:Fire(true,forcedSeat)
+ assert(w.Destroyed and not h.Sit and core.FastSeatBreaks==1)
+ assert(assemblyScans==0 and jointScans==beforeJoints and #creations==beforeCreation,'Seated releases directly without assembly/character scans or phase allocations')
+ local beforeDeferred=deferredCalls
+ workspace.DescendantAdded:Fire(w);character.DescendantAdded:Fire(w)
+ assert(core.FastSeatBreaks==1 and deferredCalls==beforeDeferred,'duplicate destroyed-weld notifications do not schedule repeated inspection')
+ local second=seatWeld();workspace.DescendantAdded:Fire(second)
+ assert(second.Destroyed and core.FastSeatBreaks==2 and assemblyScans==0,'new weld on same seat is never blocked by deduplication')
+ h.Seated:Fire(true,forcedSeat)
+ h.SeatPart=nil
+ local function constraintsCreated()
+  local n=0;for _,p in ipairs(creations)do if p.ClassName=='NoCollisionConstraint'then n=n+1 end end;return n
+ end
+ local totalBefore=constraintsCreated()
+ for i=1,12 do
+  local old=constraintsCreated()
+  tick(.02)
+  assert(constraintsCreated()-old<=8,'phase constraint creation must be bounded per physics frame')
+ end
+ assert(assemblyScans==1,'one secondary assembly discovery for burst of weld/seat events')
+ assert(core.DeferredSeatScans==0,'late duplicate Seated notification must not trigger fallback after an already verified fast release')
+ assert(constraintsCreated()-totalBefore==72,'secondary protection eventually covers the same six-by-twelve collision pairs')
+ beforeDeferred=deferredCalls
+ for _,p in ipairs(creations)do
+  if p.ClassName=='NoCollisionConstraint'and p.Parent then
+   workspace.DescendantAdded:Fire(p);character.DescendantAdded:Fire(p)
+  end
+ end
+ assert(deferredCalls==beforeDeferred,'own phase constraints must not trigger generic inspection storms')
+ local foreignCharacter=instance('Model','OtherCharacter',workspace)
+ local foreignRoot=instance('Part','HumanoidRootPart',foreignCharacter)
+ local foreignWeld=instance('Weld','SeatWeld',forcedSeat);foreignWeld.Part0=forcedSeat;foreignWeld.Part1=foreignRoot
+ workspace.DescendantAdded:Fire(foreignWeld)
+ assert(not foreignWeld.Destroyed and core.FastSeatBreaks==2,'never release another character from a seat')
+ foreignWeld.Parent=nil
+ -- Non-seat external connections retain the original general bridge fallback.
+ local otherBridge=instance('Weld','ExternalBridge',forcedSeat);otherBridge.Part0=root;otherBridge.Part1=connected[2]
+ workspace.DescendantAdded:Fire(otherBridge)
+ assert(otherBridge.Destroyed and core.FastSeatBreaks==2,'general bridge removal remains available')
+ -- Missing SeatWeld takes the deferred scan path, not a synchronous full scan.
+ beforeJoints=jointScans
+ h.Seated:Fire(true,forcedSeat)
+ assert(jointScans==beforeJoints,'missing-weld event does not immediately scan the character')
+ tick(.10)
+ assert(core.DeferredSeatScans>=1 and jointScans>beforeJoints,'one coalesced fallback scan remains for delayed/unusual seat connections')
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
  core:Destroy()
  for _,s in ipairs(signals)do assert(s:Count()==0,'v1.3 must clean up its callbacks')end
- print('mobile_anchor_v13 integration OK: independent version, single-button activation, shared probes, pre-clamp recovery, conflicts and cleanup')
+ print('mobile_anchor_v13 integration OK: independent version, integrated fall guard, fast verified seat release, deduplication, bounded secondary work, fallback and cleanup')
 end

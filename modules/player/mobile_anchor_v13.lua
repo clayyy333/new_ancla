@@ -15,6 +15,12 @@ return function(context)
  local supports={} -- [BasePart]=expiry
  local hostiles={} -- [AssemblyRootPart]={expires,seed,reason,lastRecord,parts,phaseParts}
  local phaseLinks={} -- [ExternalPart]={expires,pairs={[CharacterPart]=NoCollisionConstraint}}
+ local phaseBodyParts,pendingPhaseParts={},{}
+ local phaseBudget=8 -- Maximum new phase constraints per physics frame.
+ local pendingSeats={}
+ local recentSeats=setmetatable({},{__mode="k"})
+ local recentSeatBreaks=setmetatable({},{__mode="k"})
+ local handledSeatWelds=setmetatable({},{__mode="k"})
  local lastSpatialScan=0
  local lastBridgeScan=0
  local lastSupportScan=0
@@ -70,8 +76,8 @@ return function(context)
   if Core.PhaseFolder then pcall(function()Core.PhaseFolder:Destroy()end) end
   local folder=Instance.new("Folder")
   folder.Name="MobileAnchorPhase"
-  folder.Parent=character
   Core.PhaseFolder=folder
+  folder.Parent=character
   return folder
  end
 
@@ -84,9 +90,11 @@ return function(context)
   local folder=ensurePhaseFolder(character)
   local count=0
   for _ in pairs(state.pairs) do count+=1 end
-  for _,bodyPart in ipairs(character:GetDescendants()) do
+  local incomplete=false
+  for _,bodyPart in ipairs(phaseBodyParts) do
    if count>=12 then break end
-   if bodyPart:IsA("BasePart") and not state.pairs[bodyPart] then
+   if belongsTo(bodyPart,character) and not state.pairs[bodyPart] then
+    if phaseBudget<=0 then incomplete=true;break end
     local ok,constraint=pcall(function()
      local noCollision=Instance.new("NoCollisionConstraint")
      noCollision.Part0=bodyPart
@@ -94,7 +102,21 @@ return function(context)
      noCollision.Parent=folder
      return noCollision
     end)
-    if ok and constraint then state.pairs[bodyPart]=constraint;count+=1 end
+    if ok and constraint then state.pairs[bodyPart]=constraint;count+=1;phaseBudget=phaseBudget-1 end
+   end
+  end
+  if incomplete and not state.Pending then state.Pending=true;pendingPhaseParts[#pendingPhaseParts+1]=externalPart end
+ end
+
+ local function finishPendingPhases(now)
+  local attempts=#pendingPhaseParts
+  while phaseBudget>0 and attempts>0 and #pendingPhaseParts>0 do
+   attempts=attempts-1
+   local part=table.remove(pendingPhaseParts,1)
+   local state=phaseLinks[part]
+   if state then
+    state.Pending=false
+    if part.Parent and now<state.expires then phasePart(part,math.max(.2,state.expires-now))end
    end
   end
  end
@@ -107,6 +129,7 @@ return function(context)
    end
   end
   if force and Core.PhaseFolder then pcall(function()Core.PhaseFolder:Destroy()end);Core.PhaseFolder=nil end
+  if force then table.clear(pendingPhaseParts)end
  end
 
  local function clearSupportState()
@@ -123,7 +146,7 @@ return function(context)
   end
   state.permanent=state.permanent or permanent==true
   state.expires=math.max(state.expires,os.clock()+(duration or 1))
-  pcall(function()part.CanCollide=false end)
+  if part.CanCollide then pcall(function()part.CanCollide=false end)end
   return true
  end
 
@@ -276,6 +299,16 @@ return function(context)
   hostile.reason=reason
   hostile.parts=hostile.parts or parts
   hostile.phaseParts=hostile.phaseParts or {}
+  -- Multiple touch/bridge/seat notifications for the same cached assembly
+  -- extend its lifetime, but do not repeat a complete part pass immediately.
+  if not isNew and hostile.lastPass and now-hostile.lastPass<.08 then
+   for _,part in ipairs(hostile.phaseParts)do
+    local phase=phaseLinks[part];if phase then phase.expires=math.max(phase.expires,hostile.expires)end
+   end
+   Core.ThreatUntil=math.max(Core.ThreatUntil,now+.45)
+   return true
+  end
+  hostile.lastPass=now
   local root=character:FindFirstChild("HumanoidRootPart")
   local count,phaseCount=0,0
   for _,part in ipairs(hostile.parts) do
@@ -330,6 +363,7 @@ return function(context)
     for _,part in ipairs(state.parts or {}) do
      if part and part.Parent and part:IsA("BasePart") and not isSupportPart(part,now) then
       local collision=collisions[part]
+      if collision then collision.expires=math.max(collision.expires,state.expires)end
       if part.CanCollide or not collision then suppressPart(part,remaining,false) end
      end
     end
@@ -355,10 +389,53 @@ return function(context)
   return part0,part1
  end
 
+ local function queueSeatIsolation(seat,needsScan)
+  local now=os.clock()
+  if needsScan and now-(recentSeatBreaks[seat]or -math.huge)<.08 then needsScan=false end
+  local entry=pendingSeats[seat]
+  if entry then entry.NeedsScan=entry.NeedsScan or needsScan;return end
+  if now-(recentSeats[seat]or -math.huge)<.08 then return end
+  local count=0;for _ in pairs(pendingSeats)do count=count+1 end
+  if count>=16 then return end -- Direct release is never skipped by this bound.
+  pendingSeats[seat]={NeedsScan=needsScan};recentSeats[seat]=now
+ end
+
+ local function releaseSeatWeld(weld,expectedSeat)
+  if not Core.Running or not weld then return false end
+  if handledSeatWelds[weld]then return true end
+  if not weld.Parent or weld.Name~="SeatWeld"then return false end
+  if not (weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
+  local character,humanoid=rig()
+  if not character or not humanoid then return false end
+  local p,q=endpoints(weld)
+  if not p or not q then return false end
+  local insideP,insideQ=belongsTo(p,character),belongsTo(q,character)
+  if insideP==insideQ then return false end
+  local seat=insideP and q or p
+  if not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or (expectedSeat and seat~=expectedSeat)then return false end
+  handledSeatWelds[weld]=true
+  local ok=pcall(function()weld:Destroy()end)
+  if not ok then handledSeatWelds[weld]=nil;return false end
+  recentSeatBreaks[seat]=os.clock()
+  -- Urgent path: no GetConnectedParts, character scan or constraint creation.
+  humanoid.Sit=false
+  pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+  suppressPart(seat,3,false)
+  Core.BrokenBridges=Core.BrokenBridges+1
+  Core.FastSeatBreaks=Core.FastSeatBreaks+1
+  Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+.65)
+  setState("CONTACT",.65,"FAST_SEAT_RELEASE")
+  record("FAST_SEAT_RELEASE",{DirectBridge=weld,ExternalEndpoint=seat})
+  queueSeatIsolation(seat,false)
+  return true
+ end
+
  local function inspectBridge(connection)
   if not Core.Running or not connection or not connection.Parent then return false end
   local character=player.Character
   if not character then return false end
+  if belongsTo(connection,Core.PhaseFolder)then return false end
+  if releaseSeatWeld(connection)then return true end
   if connection:IsA("Motor6D") or connection.Name=="AccessoryWeld" then return false end
   if connection:IsA("BodyMover") and belongsTo(connection,character) then
    local parent=connection.Parent
@@ -431,10 +508,26 @@ return function(context)
   end
  end
 
+ local function processPendingSeat(now)
+  -- At most one assembly discovery per frame. Direct weld release already ran.
+  local seat,entry=next(pendingSeats)
+  if not seat then return end
+  pendingSeats[seat]=nil
+  if not seat.Parent then return end
+  recentSeats[seat]=now
+  local broken=releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)
+  if entry.NeedsScan and not broken then
+   Core.DeferredSeatScans=Core.DeferredSeatScans+1
+   scanCharacterBridges(player.Character)
+  end
+  isolateAssembly(seat,"FORCED_SEAT")
+ end
+
  local function bindCharacter(character)
   if not character then return end
   for _,object in ipairs(character:GetDescendants()) do
    if object:IsA("BasePart") then
+    if #phaseBodyParts<12 then phaseBodyParts[#phaseBodyParts+1]=object end
     runtime[#runtime+1]=object.Touched:Connect(function(other)
      if not Core.Running or not other or belongsTo(other,character) then return end
      local relative=(other.AssemblyLinearVelocity-object.AssemblyLinearVelocity).Magnitude
@@ -444,7 +537,9 @@ return function(context)
    end
   end
   runtime[#runtime+1]=character.DescendantAdded:Connect(function(object)
+   if belongsTo(object,Core.PhaseFolder)then return end
    if object:IsA("BasePart") then
+    if #phaseBodyParts<12 then phaseBodyParts[#phaseBodyParts+1]=object end
     runtime[#runtime+1]=object.Touched:Connect(function(other)
      if Core.Running and other and not belongsTo(other,character) then
       local relative=(other.AssemblyLinearVelocity-object.AssemblyLinearVelocity).Magnitude
@@ -452,7 +547,7 @@ return function(context)
      end
     end)
    end
-   task.defer(function()if Core.Running then inspectBridge(object) end end)
+   if not releaseSeatWeld(object)then task.defer(function()if Core.Running then inspectBridge(object) end end)end
   end)
  end
 
@@ -647,6 +742,10 @@ return function(context)
   self.Corrections=0
   self.BrokenBridges=0
   self.AntiRamBlocks=0
+  self.FastSeatBreaks=0;self.DeferredSeatScans=0
+  table.clear(pendingSeats);table.clear(phaseBodyParts)
+  recentSeats=setmetatable({},{__mode="k"});recentSeatBreaks=setmetatable({},{__mode="k"});handledSeatWelds=setmetatable({},{__mode="k"})
+  phaseBudget=8
   self.State="NORMAL"
   self.StateUntil=0
   self.LastThreatScan=0
@@ -670,6 +769,8 @@ return function(context)
 
   runtime[#runtime+1]=workspace.DescendantAdded:Connect(function(object)
    if not self.Running then return end
+   if belongsTo(object,Core.PhaseFolder)then return end
+   if releaseSeatWeld(object)then return end
    if object:IsA("WeldConstraint") or object:IsA("JointInstance") or object:IsA("Constraint") or object:IsA("BodyMover") then
     task.defer(function()if self.Running then inspectBridge(object) end end)
    end
@@ -677,22 +778,23 @@ return function(context)
 
   runtime[#runtime+1]=humanoid.Seated:Connect(function(active,seat)
    if not self.Running or not active or not seat then return end
-   isolateAssembly(seat,"FORCED_SEAT")
-   task.defer(function()
-    if not self.Running then return end
-    scanCharacterBridges(player.Character)
+   if not releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)then
+    queueSeatIsolation(seat,true)
     humanoid.Sit=false
     pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
-   end)
+   end
   end)
 
   local preSignal=RunService.PreSimulation or RunService.Stepped
   runtime[#runtime+1]=preSignal:Connect(function(timeOrDt,stepDt)
    local dt=stepDt or timeOrDt
    if not self.Running then return end
+   phaseBudget=8
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
     local now=os.clock()
+    processPendingSeat(now)
+    finishPendingPhases(now)
     refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
     -- Run before the existing clamp can hide the incoming downward speed.
     if protectFall(now,dt,currentCharacter,currentHumanoid,currentRoot)then return end
@@ -778,6 +880,8 @@ return function(context)
   self.Running=false
   self.FallProtectionEnabled=false
   disconnectRuntime()
+  table.clear(pendingSeats);table.clear(phaseBodyParts)
+  table.clear(recentSeats);table.clear(recentSeatBreaks);table.clear(handledSeatWelds)
   restoreCollisions()
   self.SafeCFrame=nil
   self.LastPosition=nil
