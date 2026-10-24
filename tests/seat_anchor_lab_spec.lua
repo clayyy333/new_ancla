@@ -77,7 +77,8 @@ assert(c:SelectSeat(-1)and c.Seat==near,'previous wraps around')
 near.Disabled=true
 assert(c:RefreshSeat()and c.Seat==far,'refresh resets selector to first alphabetical Seat')
 assert(c:SelectSeat(1)and c.Seat==near,'selector preserves original list even when selected seat is disabled')
-assert(not c:Start('trip'),'validate disabled selection at activation without silently substituting another Seat')
+assert(c:Start('trip')and near.Disabled,'Disabled flag does not preempt original round trip or get modified')
+c:Stop()
 near.Disabled=false
 assert(c:RefreshSeat()and c:SelectSeat(1)and c.Seat==near)
 local farFrame=far.CFrame
@@ -91,11 +92,12 @@ assert(not c:RefreshSeat(),'cannot replace the seat of an active test')
 assert(not c:SelectSeat(-1),'cannot navigate away from active test seat')
 assert(root.CFrame.Position.X==104 and not root.Anchored)
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_WAIT'and calls==1)
+assert(not humanoid.Jump,'clear previous release jump before calling Sit')
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_HOLD'and c.OccupantMatches and c.SeatPartMatches and c.WeldMatches)
 RunService.PreSimulation:Fire(.25)
 assert(not c.Running and root.CFrame==home and not root.Anchored and not humanoid.Sit,'one round trip automatically releases and returns')
 local before=scans
-assert(c:Start('anchor'));assert(root.Anchored and root.CFrame==home)
+assert(c:Start('anchor'));assert(root.Anchored and root.CFrame==home and not humanoid.Jump,'next anchor attempt does not inherit release jump')
 RunService.PreSimulation:Fire(.01);assert(c.Phase=='HOLD'and c.WeldMatches)
 local weld=near:FindFirstChild('SeatWeld')
 root.CFrame=CFrame.new(999,999,999);RunService.PostSimulation:Fire()
@@ -120,10 +122,10 @@ c:Stop()
 assert(c:Start('trip'));near.Parent=nil
 RunService.PreSimulation:Fire(.01);assert(not c.Running and root.CFrame==home,'seat removal cancels and returns')
 near.Parent=workspace
-near.Disabled=true
+near.Parent=nil
 local beforeInvalid=root.CFrame
 assert(not c:Start('trip')and root.CFrame==beforeInvalid and c.Seat==near,'unavailable selection must not switch silently to another seat')
-near.Disabled=false
+near.Parent=workspace
 near.Occupant=instance('Humanoid','OtherOccupant',workspace)
 assert(not c:Start('trip')and c.Seat==near,'occupied selection must not switch to a free alternative')
 assert(c:RefreshSeat()and c.Seat==far,'explicit refresh restores original first-seat selection')

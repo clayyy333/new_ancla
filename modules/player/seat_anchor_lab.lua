@@ -98,7 +98,12 @@ return function(context)
 		root.CFrame=checkpoint
 	end
 	local function sit()
-		local ok,err=pcall(function()seat:Sit(humanoid)end)
+		local ok,err=pcall(function()
+			-- A previous round trip releases with Jump=true. Do not carry that
+			-- request into the next sitting attempt.
+			humanoid.Jump=false
+			seat:Sit(humanoid)
+		end)
 		if not ok then C:Stop(text("Fallo de sentado: ","Seat attempt failed: ")..tostring(err))end
 		return ok
 	end
@@ -120,7 +125,7 @@ return function(context)
 			if not ok then return false,err end
 		end
 		seat=self.Seat
-		if not seat:IsDescendantOf(workspace)or not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or seat.Disabled then
+		if not seat:IsDescendantOf(workspace)or not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))then
 			return false,text("El asiento seleccionado ya no esta disponible. Pulsa Actualizar asiento.","Selected seat is unavailable. Refresh the seat first.")
 		end
 		if seat.Occupant and not (mode=="anchor"and seat.Occupant==humanoid)then return false,text("El asiento seleccionado esta ocupado. Pulsa Actualizar asiento.","Selected seat is occupied. Refresh the seat first.")end
@@ -137,6 +142,7 @@ return function(context)
 			root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
 			root.CFrame=seat.CFrame*CFrame.new(0,2.5,0)
 		else
+			humanoid.Jump=false
 			hold()
 			-- Preserve an existing seat attachment instead of rejecting it or
 			-- requesting another Sit that may interrupt the current attachment.
@@ -148,7 +154,7 @@ return function(context)
 			if not self.Running then return end
 			local ok,err=xpcall(function()
 				if player.Character~=character or not root.Parent or not humanoid.Parent or humanoid.Health<=0 then self:Stop(text("Personaje cambiado o muerto; prueba detenida.","Character changed or died; test stopped."));return end
-				if not seat:IsDescendantOf(workspace)or seat.Disabled then self:Stop(text("Asiento retirado o desactivado.","Seat removed or disabled."));return end
+				if not seat:IsDescendantOf(workspace)then self:Stop(text("Asiento retirado.","Seat removed."));return end
 				if seat.Occupant and seat.Occupant~=humanoid then self:Stop(text("Asiento ocupado por otro personaje.","Seat occupied by another character."));return end
 				local competing=conflict();if competing then self:Stop(text("Conflicto: ","Conflict: ")..competing);return end
 				if mode=="anchor"then hold()end

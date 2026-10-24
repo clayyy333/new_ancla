@@ -94,26 +94,26 @@ return function(context)
 		card.Size=UDim2.new(1,0,0,510)
 		local trip=makeButton(214)
 		trip.Name="SeatLabRoundTrip"
-		local anchored=makeButton(268)
+		local anchored=makeButton(334)
 		anchored.Name="SeatLabAnchorSit"
-		local refreshSeat=makeButton(322)
+		local refreshSeat=makeButton(388)
 		refreshSeat.Name="SeatLabRefreshSeat"
-		refreshSeat.Position=UDim2.new(.18,4,0,322)
+		refreshSeat.Position=UDim2.new(.18,4,0,388)
 		refreshSeat.Size=UDim2.new(.64,-8,0,30)
 		refreshSeat.Text=isES and "Actualizar asientos"or "Refresh seats"
-		local previousSeat=makeButton(322)
+		local previousSeat=makeButton(388)
 		previousSeat.Name="SeatLabPreviousSeat";previousSeat.Size=UDim2.new(.18,0,0,30);previousSeat.Text="<"
-		local nextSeat=makeButton(322)
-		nextSeat.Name="SeatLabNextSeat";nextSeat.Position=UDim2.new(.82,4,0,322);nextSeat.Size=UDim2.new(.18,-4,0,30);nextSeat.Text=">"
+		local nextSeat=makeButton(388)
+		nextSeat.Name="SeatLabNextSeat";nextSeat.Position=UDim2.new(.82,4,0,388);nextSeat.Size=UDim2.new(.18,-4,0,30);nextSeat.Text=">"
 		local selection=Instance.new("TextLabel")
-		selection.Position=UDim2.fromOffset(0,358);selection.Size=UDim2.new(1,0,0,42)
+		selection.Position=UDim2.fromOffset(0,426);selection.Size=UDim2.new(1,0,0,42)
 		selection.BackgroundTransparency=1;selection.TextColor3=currentTheme.text
 		selection.Font=Enum.Font.GothamMedium;selection.TextSize=isMobile and 10 or 12
 		selection.TextWrapped=true;selection.TextXAlignment=Enum.TextXAlignment.Left
 		selection.ZIndex=8;selection.Parent=card
 		RegisterTheme(selection,"TextColor3","text")
 		local labStatus=Instance.new("TextLabel")
-		labStatus.Position=UDim2.fromOffset(0,406);labStatus.Size=UDim2.new(1,0,0,72)
+		labStatus.Position=UDim2.fromOffset(0,266);labStatus.Size=UDim2.new(1,0,0,60)
 		labStatus.BackgroundTransparency=1;labStatus.TextColor3=currentTheme.textDim
 		labStatus.Font=Enum.Font.GothamMedium;labStatus.TextSize=isMobile and 10 or 12
 		labStatus.TextWrapped=true;labStatus.TextXAlignment=Enum.TextXAlignment.Left
@@ -131,8 +131,18 @@ return function(context)
 		end
 		local function run(mode)
 			if SeatAnchorLabCore.Running then SeatAnchorLabCore:Stop();return end
-			local ok,err=SeatAnchorLabCore:Start(mode)
-			if not ok then UpdateSeatAnchorLabPanel(err)end
+			local called,ok,err=xpcall(function()return SeatAnchorLabCore:Start(mode)end,debug.traceback)
+			if not called then
+				err=tostring(ok);ok=false
+				SeatAnchorLabCore:Stop(err)
+			end
+			if not ok then
+				err=err or (isES and "No se pudo iniciar la prueba."or "Could not start the test.")
+				SeatAnchorLabCore.Status=err
+				UpdateSeatAnchorLabPanel(err)
+				-- Reveal the actual start rejection even when the panel is scrolled.
+				autoAnchorPanel.CanvasPosition=Vector2.new(0,math.max(0,labStatus.AbsolutePosition.Y-autoAnchorPanel.AbsolutePosition.Y+autoAnchorPanel.CanvasPosition.Y-12))
+			end
 		end
 		trip.Activated:Connect(function()run("trip")end)
 		anchored.Activated:Connect(function()run("anchor")end)
