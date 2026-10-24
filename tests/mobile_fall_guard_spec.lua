@@ -203,8 +203,8 @@ if anchorSource then
  local function tick(dt)clock=clock+dt;RunService.PreSimulation:Fire(dt);RunService.Heartbeat:Fire(dt)end
  assert(core:Start())
  for i=1,20 do tick(.02)end
- assert(core.Running and core:GetFallProtectionStatus().SafePoints==0,'fall option stays inactive by default')
- core:SetFallProtectionEnabled(true)
+ assert(core.Running and core.FallProtectionEnabled and core:GetFallProtectionStatus().SafePoints>0,'main activation automatically enables fall protection and ground sampling')
+ core:ResetFallProtectionReference()
  for i=1,30 do tick(.02)end
  assert(core:GetFallProtectionStatus().SafePoints>0,'existing footprint rays feed verified checkpoint history')
  -- Introduce the dangerous descent directly; the pre-physics guard must act
@@ -220,14 +220,15 @@ if anchorSource then
  core:ResetFallProtectionReference()
  assert(core:GetFallProtectionStatus().SafePoints==0 and core:GetFallProtectionStatus().Recoveries==1,'intentional relocation invalidates checkpoints without losing counters')
  core:Stop()
- assert(not core.Running and core.FallProtectionEnabled and RunService.PreSimulation:Count()==0 and RunService.Heartbeat:Count()==0)
+ assert(not core.Running and not core.FallProtectionEnabled and RunService.PreSimulation:Count()==0 and RunService.Heartbeat:Count()==0,'main stop disables fall protection and all runtime callbacks')
  MobileAnchorCore.Running=true;assert(not core:Start());MobileAnchorCore.Running=false
  MobileAnchorV11Core.Running=true;assert(not core:Start());MobileAnchorV11Core.Running=false
  h.State='Running';h.FloorMaterial='Concrete';root.AssemblyLinearVelocity=Vector3.zero
  assert(core:Start())
+ assert(core.FallProtectionEnabled,'each main activation enables integrated protection again')
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
  core:Destroy()
  for _,s in ipairs(signals)do assert(s:Count()==0,'v1.3 must clean up its callbacks')end
- print('mobile_anchor_v13 integration OK: independent version, opt-in, shared probes, pre-clamp recovery, conflicts and cleanup')
+ print('mobile_anchor_v13 integration OK: independent version, single-button activation, shared probes, pre-clamp recovery, conflicts and cleanup')
 end

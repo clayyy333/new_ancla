@@ -1,4 +1,4 @@
--- Independent v1.3 based on v1.0, with opt-in predictive fall protection.
+-- Independent v1.3 based on v1.0, with integrated predictive fall protection.
 return function(context)
  setfenv(1,context)
 
@@ -593,14 +593,6 @@ return function(context)
   return true
  end
 
- function Core:SetFallProtectionEnabled(enabled)
-  self.FallProtectionEnabled=enabled==true
-  local character,humanoid,root=rig()
-  fallGuard:Reset(character,humanoid,root,os.clock())
-  lastSupportScan=0
-  if UpdateMoveAnchoredPanel then UpdateMoveAnchoredPanel()end
-  return true
- end
  function Core:GetFallProtectionStatus()
   return {Enabled=self.FallProtectionEnabled,Status=fallGuard.Status,SafePoints=#fallGuard.History,Recoveries=fallGuard.Recoveries or 0,Brakes=fallGuard.Brakes or 0}
  end
@@ -644,6 +636,7 @@ return function(context)
   end
 
   self.Running=true
+  self.FallProtectionEnabled=true
   self.SafeCFrame=root.CFrame
   self.LastPosition=root.Position
   self.GraceUntil=os.clock()+0.35
@@ -783,6 +776,7 @@ return function(context)
  function Core:Stop()
   if not self.Running then return true end
   self.Running=false
+  self.FallProtectionEnabled=false
   disconnectRuntime()
   restoreCollisions()
   self.SafeCFrame=nil

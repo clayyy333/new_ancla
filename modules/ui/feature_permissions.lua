@@ -37,7 +37,7 @@ return function(context)
 		local core=context[name]
 		if core then
 			cores[#cores+1]=core
-			for _,method in ipairs({"Start","SetAncla","SetAntiSeat","SetHeartbeat","SetTest","SetEnabled","SetPhase","SetFallProtectionEnabled"}) do
+			for _,method in ipairs({"Start","SetAncla","SetAntiSeat","SetHeartbeat","SetTest","SetEnabled","SetPhase"}) do
 				local original=core[method]
 				if type(original)=="function" then
 					core[method]=function(self,...)
