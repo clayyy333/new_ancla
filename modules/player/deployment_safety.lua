@@ -51,6 +51,7 @@ return function(context)
   if not Core.MobileEnabled then return nil end
   if MobileAnchorCore and MobileAnchorCore:IsRunning() then return MobileAnchorCore end
   if MobileAnchorV11Core and MobileAnchorV11Core:IsRunning() then return MobileAnchorV11Core end
+  if MobileAnchorV13Core and MobileAnchorV13Core:IsRunning() then return MobileAnchorV13Core end
  end
  local function active()
   return (Core.StaticEnabled and DeploymentAnchorMotorCore:IsRunning()) or mobile()~=nil
@@ -121,6 +122,7 @@ return function(context)
       if part:IsA("BasePart") then part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero end
      end
      root.CFrame=target
+     if movable.ResetFallProtectionReference then movable:ResetFallProtectionReference()end
     else
      DeploymentAnchorMotorCore:RelocateForDeployment(target)
     end

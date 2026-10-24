@@ -275,7 +275,7 @@ return function(context)
 				else
 					local anchored,mode,checkpoint=anchorState()
 					local customFlingUsing=customFlingPanel~=nil and customFlingPanel.Visible==true and CustomFlingUsageActive==true
-					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning())
+					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning()) or (MobileAnchorV13Core~=nil and MobileAnchorV13Core:IsRunning())
 					local shortFlingEnabled=Fling2EfficientCore~=nil and Fling2EfficientCore.Running==true and Fling2EfficientCore:IsShortDisplacementEnabled() and not (Fling2AutoController and Fling2AutoController.Running)
 					local anchorFeatures=Guard.AnchorGuardEnabled==true
 					local foldingCleanupEnabled=FoldingCleanupCore~=nil and FoldingCleanupCore.Enabled==true and FoldingCleanupCore:IsAvailable()

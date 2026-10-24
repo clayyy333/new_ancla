@@ -15,7 +15,7 @@ return function(context)
 	function C:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	local function conflict()
 		if AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)then return "Ancla automatica"end
-		for _,name in ipairs({"AnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","VerticalControlController","EmergencyAnchorController","ExperimentalFlingCore","NoMotosCore","NoMotos2Core","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","MotoFlingCore","MotoFlingXenoCore"})do
+		for _,name in ipairs({"AnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","VerticalControlController","EmergencyAnchorController","ExperimentalFlingCore","NoMotosCore","NoMotos2Core","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","MotoFlingCore","MotoFlingXenoCore"})do
 			local core=context[name]
 			if core and (core.Running or core.Stopping or core.AnclaEnabled or core.TestEnabled or core.AntiSeatEnabled or core.HeartbeatEnabled)then return name end
 		end

@@ -132,7 +132,7 @@ return function(context)
 		testButton.BackgroundColor3=DeploymentSafetyCore:IsRunning() and currentTheme.accent or currentTheme.tertiary
 		combinedButton.BackgroundColor3=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning() and currentTheme.accent or currentTheme.tertiary
 		local automaticBusy=AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy)
-		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
+		local mobileBusy=(MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()) or (MobileAnchorV13Core and MobileAnchorV13Core:IsRunning())
 		local combinedBusy=StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning()
 		local manualEnabled=not automaticBusy and not AnchorCore.TestEnabled and not mobileBusy and not combinedBusy and not DeploymentSafetyCore:IsRunning()
 		anchorButton.Active=manualEnabled

@@ -71,7 +71,7 @@ return function(context)
 		return not (weld and weld:IsA("WeldConstraint")and weld.Enabled and weld.Part0 and weld.Part1)
 	end
 	local function characterAnchorActive()
-		for _,name in ipairs({"AnchorCore","MobileAnchorCore","MobileAnchorV11Core","StaticPassThroughAnchorCore","VerticalControlController","DeploymentAnchorMotorCore","EmergencyAnchorController"})do
+		for _,name in ipairs({"AnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","StaticPassThroughAnchorCore","VerticalControlController","DeploymentAnchorMotorCore","EmergencyAnchorController"})do
 			local a=context[name]
 			if a and (a.Running or a.Stopping or a.AnclaEnabled or a.TestEnabled or a.AntiSeatEnabled or a.HeartbeatEnabled)then return true end
 		end

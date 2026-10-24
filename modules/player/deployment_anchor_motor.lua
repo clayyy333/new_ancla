@@ -460,7 +460,7 @@ return function(context)
 	local function conflict()
 		return (StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning())
 			or (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.AntiSeatEnabled or AnchorCore.HeartbeatEnabled or AnchorCore.TestEnabled))
-			or (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning())
+			or (MobileAnchorCore and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()) or (MobileAnchorV13Core and MobileAnchorV13Core:IsRunning())
 			or (AutoAnchorCore and (AutoAnchorCore.Mode or AutoAnchorCore.Busy))
 	end
 	local function clean(force)

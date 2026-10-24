@@ -75,7 +75,7 @@ return function(context)
 
 	local versionDropdown=Instance.new("Frame")
 	versionDropdown.Name="VersionDropdown"
-	versionDropdown.Size=UDim2.new(1,0,0,82)
+	versionDropdown.Size=UDim2.new(1,0,0,121)
 	versionDropdown.Position=UDim2.new(0,0,0,88)
 	versionDropdown.BackgroundColor3=currentTheme.tertiary
 	versionDropdown.BorderSizePixel=0
@@ -101,7 +101,7 @@ return function(context)
 	dropdownLayout.SortOrder=Enum.SortOrder.LayoutOrder
 	dropdownLayout.Parent=versionDropdown
 	local versionOptions={}
-	for index,version in ipairs({"1.0","1.1"}) do
+	for index,version in ipairs({"1.0","1.1","1.3"}) do
 		local option=Instance.new("TextButton")
 		option.Name="Version"..version
 		option.Size=UDim2.new(1,0,0,35)
@@ -152,6 +152,18 @@ return function(context)
 		DeploymentSafetyCore:SetMobileEnabled(not DeploymentSafetyCore.MobileEnabled)
 		UpdateMoveAnchoredPanel(DeploymentSafetyCore.LastError)
 	end)
+	local fallToggle=Instance.new("TextButton")
+	fallToggle.Name="MobileAnchorFallProtectionToggle"
+	fallToggle.Size=UDim2.new(1,0,0,30);fallToggle.Position=UDim2.fromOffset(0,148)
+	fallToggle.BackgroundColor3=currentTheme.tertiary;fallToggle.TextColor3=currentTheme.text
+	fallToggle.Font=Enum.Font.GothamMedium;fallToggle.TextSize=isMobile and 10 or 12
+	fallToggle.AutoButtonColor=false;fallToggle.ZIndex=8;fallToggle.Parent=card
+	Instance.new("UICorner",fallToggle).CornerRadius=UDim.new(0,8)
+	RegisterTheme(fallToggle,"TextColor3","text")
+	fallToggle.Activated:Connect(function()
+		if selectedVersion~="1.3"or not MobileAnchorV13Core then return end
+		MobileAnchorV13Core:SetFallProtectionEnabled(not MobileAnchorV13Core.FallProtectionEnabled)
+	end)
 
 	local status=Instance.new("TextLabel")
 	status.Size=UDim2.new(1,0,0,42)
@@ -167,13 +179,24 @@ return function(context)
 	RegisterTheme(status,"TextColor3","textDim")
 
 	UpdateMoveAnchoredPanel=function(message)
+		local fallVisible=selectedVersion=="1.3"
+		fallToggle.Visible=fallVisible
+		local fallEnabled=MobileAnchorV13Core and MobileAnchorV13Core.FallProtectionEnabled
+		fallToggle.Text=fallEnabled and (isES and "Proteccion preventiva de caidas v1.3: ON"or "Preventive fall protection v1.3: ON")or (isES and "Proteccion preventiva de caidas v1.3: OFF"or "Preventive fall protection v1.3: OFF")
+		fallToggle.BackgroundColor3=fallEnabled and currentTheme.accent or currentTheme.tertiary
+		local row=148+(fallVisible and 38 or 0)
+		deploymentToggle.Position=UDim2.fromOffset(0,row)
+		if deploymentAvailable then row=row+40 end
+		status.Position=UDim2.fromOffset(0,row+2)
+		card.Size=UDim2.new(1,0,0,row+72)
 		deploymentToggle.Text=DeploymentSafetyCore.MobileEnabled and (isES and "Desactivar seguridad de despliegue" or "Disable deployment safety") or (isES and "Activar seguridad de despliegue" or "Enable deployment safety")
 		deploymentToggle.BackgroundColor3=DeploymentSafetyCore.MobileEnabled and currentTheme.accent or currentTheme.tertiary
 		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
 		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
-		local running=running10 or running11
-		local activeVersion=running11 and "1.1" or (running10 and "1.0" or nil)
-		beta.Text=selectedVersion=="1.1"
+		local running13=MobileAnchorV13Core and MobileAnchorV13Core:IsRunning()
+		local running=running10 or running11 or running13
+		local activeVersion=running13 and "1.3" or (running11 and "1.1" or (running10 and "1.0" or nil))
+		beta.Text=selectedVersion=="1.3"and (isES and "Version beta 1.3: base 1.0 independiente + prevencion de caidas opcional."or "Beta v1.3: independent v1.0 base + optional fall prevention.")or selectedVersion=="1.1"
 			and (isES and "Versión beta 1.1 (esta versión puede tener errores)" or "Beta version 1.1 (this version may contain errors)")
 			or (isES and "Versión beta 1.0 (esta versión puede tener errores)" or "Beta version 1.0 (this version may contain errors)")
 		versionButton.Text=(isES and "Versión seleccionada: " or "Selected version: ")..selectedVersion
@@ -193,12 +216,17 @@ return function(context)
 		status.Text=message or (running
 			and (isES and "Protección v"..activeVersion.." activa. Puedes caminar con el ancla." or "Protection v"..activeVersion.." active. You can walk while anchored.")
 			or (isES and "Protección detenida." or "Protection stopped."))
+		if fallVisible and fallEnabled then
+			local report=MobileAnchorV13Core:GetFallProtectionStatus()
+			status.Text=status.Text.." | Anti-caidas: "..report.Status.." | "..(isES and "regresos "or "returns ")..report.Recoveries
+		end
 	end
 
 	versionButton.Activated:Connect(function()
 		local running10=MobileAnchorCore and MobileAnchorCore:IsRunning()
 		local running11=MobileAnchorV11Core and MobileAnchorV11Core:IsRunning()
-		if running10 or running11 then return end
+		local running13=MobileAnchorV13Core and MobileAnchorV13Core:IsRunning()
+		if running10 or running11 or running13 then return end
 		SetVersionDropdown(not dropdownOpen)
 		UpdateMoveAnchoredPanel()
 	end)
@@ -239,13 +267,16 @@ return function(context)
 	toggle.MouseButton1Click:Connect(function()
 		local core10=MobileAnchorCore
 		local core11=MobileAnchorV11Core
+		local core13=MobileAnchorV13Core
 		local ok,message
-		if core10 and core10:IsRunning() then
+		if core13 and core13:IsRunning()then
+			ok,message=core13:Stop()
+		elseif core10 and core10:IsRunning() then
 			ok,message=core10:Stop()
 		elseif core11 and core11:IsRunning() then
 			ok,message=core11:Stop()
 		else
-			local selectedCore=selectedVersion=="1.1" and core11 or core10
+			local selectedCore=selectedVersion=="1.3"and core13 or (selectedVersion=="1.1" and core11 or core10)
 			if not selectedCore then return end
 			if DeploymentSafetyCore:IsRunning() then UpdateMoveAnchoredPanel(isES and "Desactiva Ancla con despliegue primero." or "Disable Deployment Anchor first.");return end
 			ok,message=selectedCore:Start()

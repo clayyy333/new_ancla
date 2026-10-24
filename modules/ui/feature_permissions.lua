@@ -33,11 +33,11 @@ return function(context)
 		NoMotosCore.Start=function(self,...)if blocked then return false,"Funcion no disponible." end;return start(self,...)end
 		cores[#cores+1]=NoMotosCore
 	end
-	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno"}) do
+	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectFling2Delta","ObjectFling2Xeno"}) do
 		local core=context[name]
 		if core then
 			cores[#cores+1]=core
-			for _,method in ipairs({"Start","SetAncla","SetAntiSeat","SetHeartbeat","SetTest","SetEnabled","SetPhase"}) do
+			for _,method in ipairs({"Start","SetAncla","SetAntiSeat","SetHeartbeat","SetTest","SetEnabled","SetPhase","SetFallProtectionEnabled"}) do
 				local original=core[method]
 				if type(original)=="function" then
 					core[method]=function(self,...)
