@@ -96,8 +96,11 @@ assert(not humanoid.Jump,'clear previous release jump before calling Sit')
 RunService.PreSimulation:Fire(.12);assert(c.Phase=='SIT_HOLD'and c.OccupantMatches and c.SeatPartMatches and c.WeldMatches)
 RunService.PreSimulation:Fire(.25)
 assert(not c.Running and root.CFrame==home and not root.Anchored and not humanoid.Sit,'one round trip automatically releases and returns')
+assert(c.TripCheckpoint==home,'retain the location where round trip was activated')
 local before=scans
+root.CFrame=near.CFrame
 assert(c:Start('anchor'));assert(root.Anchored and root.CFrame==home and not humanoid.Jump,'next anchor attempt does not inherit release jump')
+assert(c.Checkpoint==home,'do not recapture a checkpoint at the seat after the player was pulled there')
 RunService.PreSimulation:Fire(.01);assert(c.Phase=='HOLD'and c.WeldMatches)
 local weld=near:FindFirstChild('SeatWeld')
 root.CFrame=CFrame.new(999,999,999);RunService.PostSimulation:Fire()
@@ -115,9 +118,10 @@ c:Stop()
 noSit=false
 sit(near,humanoid)
 local callsBeforeSeated=calls
+root.CFrame=near.CFrame
 assert(c:Start('anchor'),'existing selected-seat occupant can activate anchor')
 RunService.PreSimulation:Fire(.01)
-assert(c.Phase=='HOLD'and calls==callsBeforeSeated and humanoid.Sit,'already seated anchor preserves weld without requesting Sit again')
+assert(c.Phase=='HOLD'and calls==callsBeforeSeated and humanoid.Sit and root.CFrame==home,'already seated anchor preserves weld and uses round-trip checkpoint without requesting Sit again')
 c:Stop()
 assert(c:Start('trip'));near.Parent=nil
 RunService.PreSimulation:Fire(.01);assert(not c.Running and root.CFrame==home,'seat removal cancels and returns')
@@ -129,6 +133,7 @@ near.Parent=workspace
 near.Occupant=instance('Humanoid','OtherOccupant',workspace)
 assert(not c:Start('trip')and c.Seat==near,'occupied selection must not switch to a free alternative')
 assert(c:RefreshSeat()and c.Seat==far,'explicit refresh restores original first-seat selection')
+assert(not c:Start('anchor'),'a different seat must not silently reuse the checkpoint associated with the old seat')
 near.Occupant=nil
 assert(c:SelectSeat(1)and c.Seat==near,'explicit selection restores chosen Seat')
 assert(c:Start('anchor'))

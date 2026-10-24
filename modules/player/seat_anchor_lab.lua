@@ -133,7 +133,17 @@ return function(context)
 			return false,text("Estas sentado en otro asiento distinto del seleccionado.","You are sitting in a different seat than the selected one.")
 		end
 		self.SeatDistance=(seat.Position-root.Position).Magnitude
-		checkpoint=root.CFrame;previousAnchored=root.Anchored
+		if mode=="trip"then
+			-- The reference is where the round-trip button was pressed, not where
+			-- a later seat correction happens to place the character.
+			self.TripCheckpoint=root.CFrame;self.TripCharacter=character;self.TripSeat=seat
+		else
+			if not self.TripCheckpoint or self.TripCharacter~=character or self.TripSeat~=seat then
+				return false,text("Ejecuta primero la prueba de ida y regreso con este personaje y asiento para guardar el punto.","Run the round trip with this character and seat first to save the checkpoint.")
+			end
+		end
+		checkpoint=mode=="anchor"and self.TripCheckpoint or root.CFrame
+		previousAnchored=root.Anchored
 		self.Checkpoint=checkpoint;self.Seat=seat
 		self.OccupantMatches=false;self.SeatPartMatches=false;self.WeldMatches=false
 		elapsed,displayElapsed,confirmed=0,0,false
