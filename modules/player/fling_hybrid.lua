@@ -5,16 +5,9 @@ return function(context)
 	HybridFlingCore=core
 	local connections,collisions={},{}
 	local character,humanoid,root,checkpoint,saved,spin,thrust,target,phaseStart
-	local conflicts={"ExperimentalFlingCore","NoMotosCore","NoMotos2Core","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","MotoFlingCore","MotoFlingXenoCore","ObjectFling2Delta","ObjectFling2Xeno","AnchorCore","AutoAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","StaticPassThroughAnchorCore","SeatAnchorLabCore","VerticalControlController"}
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
-	local function busy()
-		for _,name in ipairs(conflicts)do
-			local c=context[name]
-			if c and(c.Running or c.Stopping or c.AnclaEnabled or c.AutoEnabled)then return name end
-		end
-	end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
 		local limits={Spin={0,150000},Force={0,150000},ContactTime={.05,2},RecoveryTime={.05,2}}
@@ -50,7 +43,6 @@ return function(context)
 	local function step()
 		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
 		if player.Character~=character or not root.Parent or humanoid.Health<=0 then core:Stop("Personaje local perdido.");return end
-		if busy()or root.Anchored or(root.AssemblyRootPart and root.AssemblyRootPart.Anchored)or humanoid.SeatPart then core:Stop("Otro flujo, ancla o asiento activo.");return end
 		if target.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
 		local tc=target.Character
 		local tr=tc and tc:FindFirstChild("HumanoidRootPart")
@@ -87,11 +79,8 @@ return function(context)
 		if not self:IsAuthorized()then return false,"Prueba exclusiva para owners."end
 		if self.Running then return true end
 		if not selected or selected==player or selected.Parent~=Players then return false,"Selecciona un jugador."end
-		local conflict=busy();if conflict then return false,"Desactiva primero: "..conflict end
 		character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid");root=character and character:FindFirstChild("HumanoidRootPart")
 		if not root or not humanoid or humanoid.Health<=0 then return false,"Tu personaje no esta disponible."end
-		if root.Anchored or humanoid.SeatPart or(root.AssemblyRootPart and root.AssemblyRootPart.Anchored)then return false,"Desanclate y baja del vehiculo antes de activar."end
-		for _,part in ipairs(root:GetConnectedParts(true))do if not part:IsDescendantOf(character)then return false,"Tu personaje esta unido a un objeto externo."end end
 		checkpoint=root.CFrame;target=selected
 		saved={PlatformStand=humanoid.PlatformStand,AutoRotate=humanoid.AutoRotate,Seated=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)}
 		self.Running=true;self.Phase="CONTACT";phaseStart=os.clock()

@@ -33,9 +33,9 @@ function hum:GetStateEnabled()return self.SeatedEnabled end
 function hum:SetStateEnabled(_,v)self.SeatedEnabled=v end
 hum.Parent=char
 local initial=frame(vec(0,3,0))
-local root={Parent=char,CFrame=initial,Position=vec(0,3,0),Anchored=false,CanCollide=false}
+local root={Parent=char,CFrame=initial,Position=vec(0,3,0),Anchored=false,CanCollide=false,Connected={}}
 function root:IsA(c)return c=="BasePart"end
-function root:GetConnectedParts()return {}end
+function root:GetConnectedParts()return self.Connected end
 local limb={Parent=char,CanCollide=true,IsA=root.IsA}
 function char:FindFirstChild()return root end
 function char:FindFirstChildOfClass()return hum end
@@ -51,6 +51,8 @@ local c=HybridFlingCore
 authorized=false;assert(not c:Start(target));authorized=true
 assert(not c:SetParameter("Force",0/0));assert(not c:SetParameter("ContactTime",0))
 assert(c:SetParameter("Spin",20000))
+root.Connected={{Name="ExternalAttachment",Anchored=true}}
+root.Anchored=true;root.AssemblyRootPart={Anchored=true};hum.SeatPart={}
 assert(c:Start(target));assert(c.Running and not limb.CanCollide and not hum.SeatedEnabled)
 RunService.PreSimulation:Fire();assert(c.Running and c.Phase=="CONTACT")
 now=.21;RunService.PreSimulation:Fire();assert(c.Phase=="RECOVERY")
@@ -60,6 +62,6 @@ target.Character=tc;RunService.PreSimulation:Fire();assert(c.Phase=="CONTACT")
 assert(c:Stop());assert(not c.Running and limb.CanCollide and root.CanCollide==false)
 assert(hum.AutoRotate and not hum.PlatformStand and hum.SeatedEnabled and root.CFrame==initial)
 assert(c:Start(target));authorized=false;RunService.PreSimulation:Fire();assert(not c.Running);authorized=true
-AnchorCore={Running=true};assert(not c:Start(target));AnchorCore=nil
+AnchorCore={Running=true};assert(c:Start(target));RunService.PreSimulation:Fire();assert(c.Running);c:Stop();AnchorCore=nil
 assert(c:Start(target));player.Character={};RunService.PreSimulation:Fire();assert(not c.Running)
-print("hybrid OK: owner authorization, parameters, phases, target respawn, restoration, conflicts and character replacement")
+print("hybrid OK: owner authorization, parameters, phases, target respawn, restoration, no anchor/seat/external blockers and character replacement")
