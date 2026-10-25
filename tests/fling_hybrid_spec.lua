@@ -72,6 +72,28 @@ target.Character=nil;RunService.Heartbeat:Fire();assert(c.Running and c.Phase=="
 target.Character=tc;RunService.Heartbeat:Fire();assert(c.Phase=="CONTACT")
 assert(c:Stop());assert(not c.Running and limb.CanCollide and root.CanCollide==false)
 assert(hum.AutoRotate and not hum.PlatformStand and hum.SeatedEnabled and root.CFrame==initial)
+-- Passenger escape requires owner, occupant, verified weld and our physical connection.
+local cars={}
+local reference={Value=player,IsA=function(_,class)return class=='ObjectValue'end}
+local vehicle={Parent=cars,FindFirstChild=function()return reference end}
+local seat={Parent=vehicle,Occupant=th,IsA=function(_,class)return class=='Seat'end}
+function seat:IsDescendantOf(object)return object==vehicle end
+local passengerPart={IsDescendantOf=function(_,object)return object==tc end}
+local weld={Part0=seat,Part1=passengerPart,IsA=function(_,class)return class=='JointInstance'end}
+function seat:FindFirstChild()return weld end
+workspace={FindFirstChild=function()return cars end}
+th.SeatPart=seat;root.Connected={}
+assert(c:Start(target));assert(c.Phase=='CONTACT','not riding the owned vehicle must not trigger escape')
+root.Connected={seat};reference.Value={}
+RunService.Heartbeat:Fire();assert(c.Phase=='CONTACT','another owner must not trigger escape')
+reference.Value=player
+local departure=frame(vec(50,50,50));root.CFrame=departure
+RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE'and root.CFrame==departure)
+target.Character=nil;target.Parent=nil
+for i=1,3 do RunService.Heartbeat:Fire();assert(c.Running and c.Phase=='ESCAPE'and root.CFrame==departure)end
+assert(root.AssemblyLinearVelocity.X==9000 and root.AssemblyLinearVelocity.Y==9000 and root.AssemblyLinearVelocity.Z==9000)
+c:Stop();assert(root.CFrame==initial,'manual disable retains the checkpoint return')
+target.Character=tc;target.Parent=Players;th.SeatPart=nil
 assert(c:Start(target));authorized=false;RunService.Heartbeat:Fire();assert(not c.Running);authorized=true
 AnchorCore={Running=true};assert(c:Start(target));RunService.Heartbeat:Fire();assert(c.Running);c:Stop();AnchorCore=nil
 assert(c:Start(target));player.Character={};RunService.Heartbeat:Fire();assert(not c.Running)

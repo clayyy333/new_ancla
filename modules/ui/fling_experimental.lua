@@ -110,6 +110,7 @@ return function(context)
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
 		if not message and motos2 then status.Text=tr("No motos 2: vehiculos del propietario seleccionado, sin filtro de modelo. Contacto por ensamblaje; incluye ocupados durante la prueba.","No motorcycles 2: selected owner's vehicles, no model filter. Assembly-based contact; includes occupied vehicles during the test.")end
 		if not message and HybridFlingCore.Running then status.Text=tr("Hibrido: cada Heartbeat vuelve a 0.5 studs del HRP actual y aplica giro y velocidad diagonal XYZ. Sin anticipacion ni espera de alejamiento.","Hybrid: every Heartbeat returns to 0.5 studs from the current HRP and applies spin and diagonal XYZ velocity. No prediction or outgoing delay.")end
+		if not message and HybridFlingCore.Phase=="ESCAPE"then status.Text=tr("Copiloto confirmado: salida diagonal continua sin regreso automatico. Desactivar limpia velocidades y vuelve al punto inicial.","Passenger confirmed: continuous diagonal departure without automatic return. Disable clears velocities and returns to the starting point.")end
 	end
 	motoFeedback.LayoutOrder=10;back.LayoutOrder=11;status.LayoutOrder=12
 	copyDiagnostic.LayoutOrder=13;copyMotos.LayoutOrder=14;report.LayoutOrder=15

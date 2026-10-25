@@ -39,9 +39,41 @@ return function(context)
 			part.CanCollide=false
 		end
 	end
+	local function passengerConnected(tc,th)
+		local seat=th.SeatPart
+		if not seat or not(seat:IsA("Seat")or seat:IsA("VehicleSeat"))or seat.Occupant~=th then return false end
+		local cars=workspace:FindFirstChild("Cars")
+		if not cars then return false end
+		local vehicle=seat
+		while vehicle and vehicle.Parent~=cars do vehicle=vehicle.Parent end
+		if not vehicle then return false end
+		local reference=vehicle:FindFirstChild("VehicleOwner")
+		local owner=reference and reference:IsA("ObjectValue")and reference.Value
+		if owner then
+			if owner~=player then return false end
+		elseif tonumber(vehicle:GetAttribute("VehicleOwner"))~=player.UserId then return false end
+		local weld=seat:FindFirstChild("SeatWeld")
+		if not weld or not(weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
+		local a,b=weld.Part0,weld.Part1
+		if not(a==seat and b and b:IsDescendantOf(tc)or b==seat and a and a:IsDescendantOf(tc))then return false end
+		-- Ownership alone is insufficient: our character must also be riding
+		-- this assembly. Discovery runs only when occupancy and weld already match.
+		for _,part in ipairs(root:GetConnectedParts(true))do
+			if part==vehicle or part:IsDescendantOf(vehicle)then return true end
+		end
+		return false
+	end
+	local function escape()
+		local cfg=core.Config
+		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
+		local speed=cfg.DiagonalSpeed
+		root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
+		humanoid.PlatformStand=true
+	end
 	local function step()
 		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
 		if player.Character~=character or not root.Parent or humanoid.Health<=0 then core:Stop("Personaje local perdido.");return end
+		if core.Phase=="ESCAPE"then escape();return end
 		if target.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
 		local tc=target.Character
 		local tr=tc and tc:FindFirstChild("HumanoidRootPart")
@@ -50,6 +82,11 @@ return function(context)
 			if core.Phase~="WAIT_TARGET"then zero();root.CFrame=checkpoint;core.Phase="WAIT_TARGET";refresh("Esperando la reaparicion del jugador seleccionado.")end
 			spin.AngularVelocity=Vector3.zero
 			return
+		end
+		if passengerConnected(tc,th)then
+			core.Phase="ESCAPE"
+			refresh("Copiloto confirmado: salida diagonal continua, sin retorno automatico.")
+			escape();return
 		end
 		if not vector(tr.Position)then core:Stop("Datos de posicion no validos.");return end
 		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";refresh()end
