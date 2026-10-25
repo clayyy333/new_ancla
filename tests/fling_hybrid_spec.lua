@@ -50,13 +50,14 @@ assert(load(source))()(_G)
 local c=HybridFlingCore
 authorized=false;assert(not c:Start(target));authorized=true
 assert(not c:SetParameter("DiagonalSpeed",0/0));assert(not c:SetParameter("LaunchDistance",1000))
-assert(c:SetParameter("Spin",20000))
+assert(not c:SetParameter("Spin",20000));assert(c:SetParameter("DescentSpeed",9000))
 root.Connected={{Name="ExternalAttachment",Anchored=true}}
 root.Anchored=true;root.AssemblyRootPart={Anchored=true};hum.SeatPart={}
 assert(c:Start(target));assert(c.Running and not limb.CanCollide and not hum.SeatedEnabled)
 assert(c.Running and c.Phase=="CONTACT")
 assert((root.CFrame.Position-tr.Position).Magnitude==.5)
 assert(root.AssemblyLinearVelocity.X==9000,"Classic velocity must also run during contact")
+assert(root.AssemblyAngularVelocity.Magnitude==0,'contact must not impose spin')
 assert(root.AssemblyLinearVelocity.X==9000 and root.AssemblyLinearVelocity.Y==9000 and root.AssemblyLinearVelocity.Z==9000)
 local airborne=frame(vec(100,100,100));root.CFrame=airborne
 tr.Position=vec(20,3,0)
@@ -91,7 +92,9 @@ local departure=frame(vec(50,50,50));root.CFrame=departure
 RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE'and root.CFrame==departure)
 target.Character=nil;target.Parent=nil
 for i=1,3 do RunService.Heartbeat:Fire();assert(c.Running and c.Phase=='ESCAPE'and root.CFrame==departure)end
-assert(root.AssemblyLinearVelocity.X==9000 and root.AssemblyLinearVelocity.Y==9000 and root.AssemblyLinearVelocity.Z==9000)
+assert(root.AssemblyLinearVelocity.X==0 and root.AssemblyLinearVelocity.Y==-9000 and root.AssemblyLinearVelocity.Z==0)
+assert(root.AssemblyAngularVelocity.Magnitude==0,'passenger descent must not impose spin')
+assert(c:SetParameter('DescentSpeed',12000));RunService.Heartbeat:Fire();assert(root.AssemblyLinearVelocity.Y==-12000)
 c:Stop();assert(root.CFrame==initial,'manual disable retains the checkpoint return')
 target.Character=tc;target.Parent=Players;th.SeatPart=nil
 assert(c:Start(target));authorized=false;RunService.Heartbeat:Fire();assert(not c.Running);authorized=true

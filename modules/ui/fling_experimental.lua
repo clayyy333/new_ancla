@@ -39,7 +39,7 @@ return function(context)
 	local hybridParams=Instance.new("Frame",panel)
 	hybridParams.Size=UDim2.new(1,-4,0,56);hybridParams.LayoutOrder=9;hybridParams.BackgroundTransparency=1
 	local paramLayout=Instance.new("UIListLayout",hybridParams);paramLayout.Padding=UDim.new(0,4)
-	for _,spec in ipairs({{"Spin",tr("Giro","Spin")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}})do
+	for _,spec in ipairs({{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}})do
 		local key=spec[1]
 		local row=Instance.new("Frame",hybridParams);row.Size=UDim2.new(1,0,0,24);row.BackgroundTransparency=1
 		local label=Instance.new("TextLabel",row);label.Size=UDim2.new(.6,0,1,0);label.BackgroundTransparency=1;label.Text=spec[2];label.TextColor3=currentTheme.textDim;label.Font=Enum.Font.Gotham;label.TextSize=12;label.ZIndex=8;label.TextXAlignment=Enum.TextXAlignment.Left;RegisterTheme(label,"TextColor3","textDim")
@@ -47,7 +47,7 @@ return function(context)
 		Instance.new("UICorner",box).CornerRadius=UDim.new(0,6);RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
 		box.FocusLost:Connect(function()
 			local ok=HybridFlingCore:SetParameter(key,tonumber(box.Text));box.Text=tostring(HybridFlingCore.Config[key])
-			if not ok then UpdateExperimentalFlingPanel(tr("Rango de giro y velocidad por eje: 0–150000.","Spin and speed per axis range: 0–150000."))end
+			if not ok then UpdateExperimentalFlingPanel(tr("Rango de velocidades: 0–150000.","Speed range: 0–150000."))end
 		end)
 	end
 	local motoFeedback=Instance.new("TextLabel")
@@ -109,8 +109,8 @@ return function(context)
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
 		if not message and motos2 then status.Text=tr("No motos 2: vehiculos del propietario seleccionado, sin filtro de modelo. Contacto por ensamblaje; incluye ocupados durante la prueba.","No motorcycles 2: selected owner's vehicles, no model filter. Assembly-based contact; includes occupied vehicles during the test.")end
-		if not message and HybridFlingCore.Running then status.Text=tr("Hibrido: cada Heartbeat vuelve a 0.5 studs del HRP actual y aplica giro y velocidad diagonal XYZ. Sin anticipacion ni espera de alejamiento.","Hybrid: every Heartbeat returns to 0.5 studs from the current HRP and applies spin and diagonal XYZ velocity. No prediction or outgoing delay.")end
-		if not message and HybridFlingCore.Phase=="ESCAPE"then status.Text=tr("Copiloto confirmado: salida diagonal continua sin regreso automatico. Desactivar limpia velocidades y vuelve al punto inicial.","Passenger confirmed: continuous diagonal departure without automatic return. Disable clears velocities and returns to the starting point.")end
+		if not message and HybridFlingCore.Running then status.Text=tr("Hibrido sin giro: contacto a 0.5 studs y velocidad XYZ; al confirmar copiloto inicia descenso sin retorno automatico.","Hybrid without spin: contact at 0.5 studs and XYZ velocity; confirmed passenger starts descent without automatic return.")end
+		if not message and HybridFlingCore.Phase=="ESCAPE"then status.Text=tr("Copiloto confirmado: descenso sin giro ni regreso automatico. Desactivar limpia velocidades y vuelve al punto inicial.","Passenger confirmed: descent without spin or automatic return. Disable clears velocities and returns to the starting point.")end
 	end
 	motoFeedback.LayoutOrder=10;back.LayoutOrder=11;status.LayoutOrder=12
 	copyDiagnostic.LayoutOrder=13;copyMotos.LayoutOrder=14;report.LayoutOrder=15

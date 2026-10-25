@@ -1,16 +1,16 @@
 -- Reposition at the current target every Heartbeat, then apply classic XYZ velocity.
 return function(context)
 	setfenv(1,context)
-	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000}}
+	local core={Running=false,Phase="IDLE",Config={DescentSpeed=9000,DiagonalSpeed=9000}}
 	HybridFlingCore=core
 	local connections,collisions={},{}
-	local character,humanoid,root,checkpoint,saved,spin,target
+	local character,humanoid,root,checkpoint,saved,target
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Spin={0,150000},DiagonalSpeed={0,150000}}
+		local limits={DescentSpeed={0,150000},DiagonalSpeed={0,150000}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -22,7 +22,6 @@ return function(context)
 		if not self.Running then return false end
 		self.Running=false;self.Phase="IDLE"
 		for _,c in ipairs(connections)do c:Disconnect()end;table.clear(connections)
-		if spin then spin:Destroy();spin=nil end
 		if character==player.Character and root and root.Parent and humanoid and humanoid.Parent then
 			zero()
 			if humanoid.Health>0 and checkpoint then root.CFrame=checkpoint end
@@ -65,9 +64,8 @@ return function(context)
 	end
 	local function escape()
 		local cfg=core.Config
-		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
-		local speed=cfg.DiagonalSpeed
-		root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
+		root.AssemblyAngularVelocity=Vector3.zero
+		root.AssemblyLinearVelocity=Vector3.new(0,-cfg.DescentSpeed,0)
 		humanoid.PlatformStand=true
 	end
 	local function step()
@@ -80,18 +78,18 @@ return function(context)
 		local th=tc and tc:FindFirstChildOfClass("Humanoid")
 		if not tr or not th or th.Health<=0 then
 			if core.Phase~="WAIT_TARGET"then zero();root.CFrame=checkpoint;core.Phase="WAIT_TARGET";refresh("Esperando la reaparicion del jugador seleccionado.")end
-			spin.AngularVelocity=Vector3.zero
+			root.AssemblyAngularVelocity=Vector3.zero
 			return
 		end
 		if passengerConnected(tc,th)then
 			core.Phase="ESCAPE"
-			refresh("Copiloto confirmado: salida diagonal continua, sin retorno automatico.")
+			refresh("Copiloto confirmado: salida descendente sin giro ni retorno automatico.")
 			escape();return
 		end
 		if not vector(tr.Position)then core:Stop("Datos de posicion no validos.");return end
 		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";refresh()end
 		local cfg=core.Config
-		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
+		root.AssemblyAngularVelocity=Vector3.zero
 		-- Always use the live HRP position: no lead, timers or distance gating.
 		local destination=tr.Position+tr.CFrame.RightVector*.5
 		root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
@@ -111,7 +109,6 @@ return function(context)
 		local ok,err=xpcall(function()
 			humanoid.AutoRotate=false;humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
 			for _,part in ipairs(character:GetDescendants())do suppress(part)end
-			spin=Instance.new("BodyAngularVelocity");spin.Name="VR7HybridSpin";spin.MaxTorque=Vector3.new(1e9,1e9,1e9);spin.AngularVelocity=Vector3.zero;spin.Parent=root
 			connections[#connections+1]=character.DescendantAdded:Connect(suppress)
 			connections[#connections+1]=humanoid.Died:Connect(function()self:Stop("Personaje sin vida.")end)
 			connections[#connections+1]=RunService.Heartbeat:Connect(function()
