@@ -1,17 +1,16 @@
--- Classic diagonal contact, predictive tracking and distance-limited outgoing phase.
+-- Reposition at the current target every Heartbeat, then apply classic XYZ velocity.
 return function(context)
 	setfenv(1,context)
-	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000,ContactTime=.20,LaunchTime=.10,LaunchDistance=1000}}
+	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000}}
 	HybridFlingCore=core
 	local connections,collisions={},{}
-	local character,humanoid,root,checkpoint,saved,spin,target,phaseStart,launchOrigin
-	local cachedPing,nextPing=0,0
+	local character,humanoid,root,checkpoint,saved,spin,target
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Spin={0,150000},DiagonalSpeed={0,150000},ContactTime={.05,2},LaunchTime={.05,2},LaunchDistance={.5,1000000}}
+		local limits={Spin={0,150000},DiagonalSpeed={0,150000}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -31,7 +30,7 @@ return function(context)
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,saved.Seated)
 		end
 		for part,value in pairs(collisions)do if part.Parent then part.CanCollide=value end end
-		table.clear(collisions);target=nil;launchOrigin=nil
+		table.clear(collisions);target=nil
 		refresh(message or "Fling hibrido detenido; velocidades limpiadas.");return true
 	end
 	local function suppress(part)
@@ -52,39 +51,15 @@ return function(context)
 			spin.AngularVelocity=Vector3.zero
 			return
 		end
-		if not vector(root.Position)or not vector(tr.Position)or not vector(tr.AssemblyLinearVelocity)then core:Stop("Datos de posicion no validos.");return end
-		local now=os.clock()
-		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";phaseStart=now;refresh()end
+		if not vector(tr.Position)then core:Stop("Datos de posicion no validos.");return end
+		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";refresh()end
 		local cfg=core.Config
-		-- Measure from the departure point, not the activation checkpoint or a moving target.
-		local reached=launchOrigin and(root.Position-launchOrigin).Magnitude>=cfg.LaunchDistance
-		if core.Phase=="LAUNCH"and(reached or now-phaseStart>=cfg.LaunchTime)then
-			zero();core.Phase="CONTACT";phaseStart=now
-			launchOrigin=nil
-		end
 		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
-		if core.Phase=="CONTACT"then
-			if now>=nextPing then
-				nextPing=now+.5
-				local ok,value=pcall(function()return player:GetNetworkPing()end)
-				cachedPing=ok and finite(value)and math.clamp(value,0,.15)or 0
-			end
-			local lead=tr.AssemblyLinearVelocity*cachedPing
-			if lead.Magnitude>6 then lead=lead.Unit*6 end
-			local destination=tr.Position+lead+tr.CFrame.RightVector*.5
-			root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
-			-- Preserve classic XYZ velocity even while repeatedly tracking the target.
-			local speed=cfg.DiagonalSpeed
-			root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
-			if now-phaseStart>=cfg.ContactTime then
-				core.Phase="LAUNCH";phaseStart=now;launchOrigin=destination
-			end
-		end
-		if core.Phase=="LAUNCH"then
-			-- World XYZ, as in the classic. No position writes during outgoing flight.
-			local speed=cfg.DiagonalSpeed
-			root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
-		end
+		-- Always use the live HRP position: no lead, timers or distance gating.
+		local destination=tr.Position+tr.CFrame.RightVector*.5
+		root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
+		local speed=cfg.DiagonalSpeed
+		root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
 		humanoid.PlatformStand=true;humanoid.Sit=false
 	end
 	function core:Start(selected)
@@ -93,19 +68,20 @@ return function(context)
 		if not selected or selected==player or selected.Parent~=Players then return false,"Selecciona un jugador."end
 		character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid");root=character and character:FindFirstChild("HumanoidRootPart")
 		if not root or not humanoid or humanoid.Health<=0 then return false,"Tu personaje no esta disponible."end
-		checkpoint=root.CFrame;target=selected;launchOrigin=nil;cachedPing=0;nextPing=0
+		checkpoint=root.CFrame;target=selected
 		saved={PlatformStand=humanoid.PlatformStand,AutoRotate=humanoid.AutoRotate,Seated=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)}
-		self.Running=true;self.Phase="CONTACT";phaseStart=os.clock()
+		self.Running=true;self.Phase="CONTACT"
 		local ok,err=xpcall(function()
 			humanoid.AutoRotate=false;humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
 			for _,part in ipairs(character:GetDescendants())do suppress(part)end
 			spin=Instance.new("BodyAngularVelocity");spin.Name="VR7HybridSpin";spin.MaxTorque=Vector3.new(1e9,1e9,1e9);spin.AngularVelocity=Vector3.zero;spin.Parent=root
 			connections[#connections+1]=character.DescendantAdded:Connect(suppress)
 			connections[#connections+1]=humanoid.Died:Connect(function()self:Stop("Personaje sin vida.")end)
-			connections[#connections+1]=RunService.PreSimulation:Connect(function()
+			connections[#connections+1]=RunService.Heartbeat:Connect(function()
 				local success,failure=xpcall(step,debug.traceback)
 				if not success then self:Stop("Error del flujo hibrido: "..tostring(failure))end
 			end)
+			step()
 		end,debug.traceback)
 		if not ok then self:Stop();return false,tostring(err)end
 		refresh();return true

@@ -196,10 +196,10 @@ return function(context)
    end
   end
  end
- local function pushSafePosition(root,now)
+ local function pushSafePosition(root,now,verifiedFrame)
   if not root or now-Core.LastSafeSample<0.05 then return end
   Core.LastSafeSample=now
-  Core.SafeHistory[#Core.SafeHistory+1]={CFrame=root.CFrame,Time=now}
+  Core.SafeHistory[#Core.SafeHistory+1]={CFrame=verifiedFrame or root.CFrame,Time=now}
   if #Core.SafeHistory>30 then table.remove(Core.SafeHistory,1) end
  end
 
@@ -854,19 +854,28 @@ return function(context)
    if self.FallProtectionEnabled then
     local hadSafe=#fallGuard.History>0
     local verified=fallGuard:CommitSafe(now,currentHumanoid,currentRoot,motionStable and now>=self.ThreatUntil)
-    motionStable=motionStable and verified
+    if verified then
+     -- CommitSafe has already confirmed continuous stable ground. Use its
+     -- actual latest sample for both recovery paths; do not wait another .18s.
+     local sample=fallGuard.History[#fallGuard.History]
+     if sample then
+      self.SafeCFrame=sample.CFrame
+      pushSafePosition(currentRoot,sample.Time,sample.CFrame)
+     end
+    end
     if verified and not hadSafe then
      record("FALL_SAFE_GROUND",{SafeCFrame=currentRoot.CFrame})
      if UpdateMoveAnchoredPanel then UpdateMoveAnchoredPanel()end
     end
-   end
-   if motionStable then pushSafePosition(currentRoot,now) end
-   local stable=motionStable and now>=self.ThreatUntil
-   if stable then
-    if self.StableSince==0 then self.StableSince=now end
-    if now-self.StableSince>=0.18 then self.SafeCFrame=currentRoot.CFrame end
    else
-    self.StableSince=0
+    if motionStable then pushSafePosition(currentRoot,now) end
+    local stable=motionStable and now>=self.ThreatUntil
+    if stable then
+     if self.StableSince==0 then self.StableSince=now end
+     if now-self.StableSince>=0.18 then self.SafeCFrame=currentRoot.CFrame end
+    else
+     self.StableSince=0
+    end
    end
   end)
   if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end

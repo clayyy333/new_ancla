@@ -213,7 +213,21 @@ if anchorSource then
  assert(MobileAnchorCore==original10 and MobileAnchorV11Core==original11,'independent export must never replace original cores')
  local function tick(dt)clock=clock+dt;RunService.PreSimulation:Fire(dt);RunService.Heartbeat:Fire(dt)end
  assert(core:Start())
- for i=1,20 do tick(.02)end
+ -- Walk on verified ground. The first .18s validation must update both paths
+ -- immediately, without a second .18s hold of the activation checkpoint.
+ for i=1,12 do
+  root.Position=Vector3.new(i*.2,3,0);root.CFrame=CFrame.new(root.Position)
+  tick(.02)
+ end
+ assert(core.SafeCFrame.Position.X>0,'verified walking ground must replace the activation checkpoint without a second stability delay')
+ local latest=core.SafeHistory[#core.SafeHistory]
+ assert(latest and latest.CFrame==core.SafeCFrame,'impact and fall recovery must share the same committed ground sample')
+ for i=1,18 do
+  root.Position=Vector3.new(2.4+i*.2,3,0);root.CFrame=CFrame.new(root.Position)
+  tick(.02)
+ end
+ latest=core.SafeHistory[#core.SafeHistory]
+ assert(clock-latest.Time<.13 and latest.CFrame==core.SafeCFrame and core.SafeCFrame.Position.X>5,'walking must keep both recovery paths current')
  assert(core.Running and core.FallProtectionEnabled and core:GetFallProtectionStatus().SafePoints>0,'main activation automatically enables fall protection and ground sampling')
  core:ResetFallProtectionReference()
  for i=1,30 do tick(.02)end
