@@ -1,16 +1,17 @@
--- Timed target contact followed by free diagonal launch. Own rig only.
+-- Classic diagonal contact, predictive tracking and distance-limited outgoing phase.
 return function(context)
 	setfenv(1,context)
-	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000,ContactTime=.20,LaunchTime=.10}}
+	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000,ContactTime=.20,LaunchTime=.10,LaunchDistance=1000}}
 	HybridFlingCore=core
 	local connections,collisions={},{}
-	local character,humanoid,root,checkpoint,saved,spin,target,phaseStart
+	local character,humanoid,root,checkpoint,saved,spin,target,phaseStart,launchOrigin
+	local cachedPing,nextPing=0,0
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Spin={0,150000},DiagonalSpeed={0,150000},ContactTime={.05,2},LaunchTime={.05,2}}
+		local limits={Spin={0,150000},DiagonalSpeed={0,150000},ContactTime={.05,2},LaunchTime={.05,2},LaunchDistance={.5,1000000}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -30,7 +31,7 @@ return function(context)
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,saved.Seated)
 		end
 		for part,value in pairs(collisions)do if part.Parent then part.CanCollide=value end end
-		table.clear(collisions);target=nil
+		table.clear(collisions);target=nil;launchOrigin=nil
 		refresh(message or "Fling hibrido detenido; velocidades limpiadas.");return true
 	end
 	local function suppress(part)
@@ -51,20 +52,33 @@ return function(context)
 			spin.AngularVelocity=Vector3.zero
 			return
 		end
-		if not vector(tr.Position)or not vector(tr.AssemblyLinearVelocity)then core:Stop("Datos del objetivo no validos.");return end
+		if not vector(root.Position)or not vector(tr.Position)or not vector(tr.AssemblyLinearVelocity)then core:Stop("Datos de posicion no validos.");return end
 		local now=os.clock()
 		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";phaseStart=now;refresh()end
 		local cfg=core.Config
-		if core.Phase=="LAUNCH"and now-phaseStart>=cfg.LaunchTime then
+		-- Measure from the departure point, not the activation checkpoint or a moving target.
+		local reached=launchOrigin and(root.Position-launchOrigin).Magnitude>=cfg.LaunchDistance
+		if core.Phase=="LAUNCH"and(reached or now-phaseStart>=cfg.LaunchTime)then
 			zero();core.Phase="CONTACT";phaseStart=now
+			launchOrigin=nil
 		end
 		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
 		if core.Phase=="CONTACT"then
-			-- Exact half-stud offset from the current target, without prediction drift.
-			local destination=tr.Position+tr.CFrame.RightVector*.5
+			if now>=nextPing then
+				nextPing=now+.5
+				local ok,value=pcall(function()return player:GetNetworkPing()end)
+				cachedPing=ok and finite(value)and math.clamp(value,0,.15)or 0
+			end
+			local lead=tr.AssemblyLinearVelocity*cachedPing
+			if lead.Magnitude>6 then lead=lead.Unit*6 end
+			local destination=tr.Position+lead+tr.CFrame.RightVector*.5
 			root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
-			root.AssemblyLinearVelocity=Vector3.zero
-			if now-phaseStart>=cfg.ContactTime then core.Phase="LAUNCH";phaseStart=now end
+			-- Preserve classic XYZ velocity even while repeatedly tracking the target.
+			local speed=cfg.DiagonalSpeed
+			root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
+			if now-phaseStart>=cfg.ContactTime then
+				core.Phase="LAUNCH";phaseStart=now;launchOrigin=destination
+			end
 		end
 		if core.Phase=="LAUNCH"then
 			-- World XYZ, as in the classic. No position writes during outgoing flight.
@@ -79,7 +93,7 @@ return function(context)
 		if not selected or selected==player or selected.Parent~=Players then return false,"Selecciona un jugador."end
 		character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid");root=character and character:FindFirstChild("HumanoidRootPart")
 		if not root or not humanoid or humanoid.Health<=0 then return false,"Tu personaje no esta disponible."end
-		checkpoint=root.CFrame;target=selected
+		checkpoint=root.CFrame;target=selected;launchOrigin=nil;cachedPing=0;nextPing=0
 		saved={PlatformStand=humanoid.PlatformStand,AutoRotate=humanoid.AutoRotate,Seated=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)}
 		self.Running=true;self.Phase="CONTACT";phaseStart=os.clock()
 		local ok,err=xpcall(function()
