@@ -1,16 +1,16 @@
--- Classic spin + predictive tracking + timed contact/recovery. Own rig only.
+-- Timed target contact followed by free diagonal launch. Own rig only.
 return function(context)
 	setfenv(1,context)
-	local core={Running=false,Phase="IDLE",Config={Spin=10000,Force=9999,ContactTime=.20,RecoveryTime=.10}}
+	local core={Running=false,Phase="IDLE",Config={Spin=10000,DiagonalSpeed=9000,ContactTime=.20,LaunchTime=.10}}
 	HybridFlingCore=core
 	local connections,collisions={},{}
-	local character,humanoid,root,checkpoint,saved,spin,thrust,target,phaseStart
+	local character,humanoid,root,checkpoint,saved,spin,target,phaseStart
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Spin={0,150000},Force={0,150000},ContactTime={.05,2},RecoveryTime={.05,2}}
+		local limits={Spin={0,150000},DiagonalSpeed={0,150000},ContactTime={.05,2},LaunchTime={.05,2}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -23,7 +23,6 @@ return function(context)
 		self.Running=false;self.Phase="IDLE"
 		for _,c in ipairs(connections)do c:Disconnect()end;table.clear(connections)
 		if spin then spin:Destroy();spin=nil end
-		if thrust then thrust:Destroy();thrust=nil end
 		if character==player.Character and root and root.Parent and humanoid and humanoid.Parent then
 			zero()
 			if humanoid.Health>0 and checkpoint then root.CFrame=checkpoint end
@@ -49,30 +48,29 @@ return function(context)
 		local th=tc and tc:FindFirstChildOfClass("Humanoid")
 		if not tr or not th or th.Health<=0 then
 			if core.Phase~="WAIT_TARGET"then zero();root.CFrame=checkpoint;core.Phase="WAIT_TARGET";refresh("Esperando la reaparicion del jugador seleccionado.")end
-			if thrust then thrust.Force=Vector3.zero;spin.AngularVelocity=Vector3.zero end
+			spin.AngularVelocity=Vector3.zero
 			return
 		end
 		if not vector(tr.Position)or not vector(tr.AssemblyLinearVelocity)then core:Stop("Datos del objetivo no validos.");return end
 		local now=os.clock()
 		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";phaseStart=now;refresh()end
 		local cfg=core.Config
-		if core.Phase=="CONTACT"and now-phaseStart>=cfg.ContactTime then
-			core.Phase="RECOVERY";phaseStart=now;zero()
-		elseif core.Phase=="RECOVERY"and now-phaseStart>=cfg.RecoveryTime then core.Phase="CONTACT";phaseStart=now end
-		local ping=0
-		local ok,value=pcall(function()return player:GetNetworkPing()end)
-		if ok and finite(value)then ping=math.clamp(value,0,.15)end
-		local lead=tr.AssemblyLinearVelocity*ping
-		if lead.Magnitude>6 then lead=lead.Unit*6 end
-		local destination=tr.Position+lead+tr.CFrame.RightVector*.5
-		root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
-		local active=core.Phase=="CONTACT"
-		spin.AngularVelocity=active and Vector3.new(0,cfg.Spin,0)or Vector3.zero
-		-- BodyThrust is the only linear force; no competing velocity assignment.
-		local direction=tr.Position-root.Position
-		if direction.Magnitude<.001 then direction=tr.CFrame.LookVector end
-		thrust.Location=Vector3.zero
-		thrust.Force=active and root.CFrame:VectorToObjectSpace(direction.Unit*cfg.Force)or Vector3.zero
+		if core.Phase=="LAUNCH"and now-phaseStart>=cfg.LaunchTime then
+			zero();core.Phase="CONTACT";phaseStart=now
+		end
+		spin.AngularVelocity=Vector3.new(0,cfg.Spin,0)
+		if core.Phase=="CONTACT"then
+			-- Exact half-stud offset from the current target, without prediction drift.
+			local destination=tr.Position+tr.CFrame.RightVector*.5
+			root.CFrame=CFrame.new(destination)*root.CFrame.Rotation
+			root.AssemblyLinearVelocity=Vector3.zero
+			if now-phaseStart>=cfg.ContactTime then core.Phase="LAUNCH";phaseStart=now end
+		end
+		if core.Phase=="LAUNCH"then
+			-- World XYZ, as in the classic. No position writes during outgoing flight.
+			local speed=cfg.DiagonalSpeed
+			root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
+		end
 		humanoid.PlatformStand=true;humanoid.Sit=false
 	end
 	function core:Start(selected)
@@ -88,7 +86,6 @@ return function(context)
 			humanoid.AutoRotate=false;humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
 			for _,part in ipairs(character:GetDescendants())do suppress(part)end
 			spin=Instance.new("BodyAngularVelocity");spin.Name="VR7HybridSpin";spin.MaxTorque=Vector3.new(1e9,1e9,1e9);spin.AngularVelocity=Vector3.zero;spin.Parent=root
-			thrust=Instance.new("BodyThrust");thrust.Name="VR7HybridThrust";thrust.Force=Vector3.zero;thrust.Parent=root
 			connections[#connections+1]=character.DescendantAdded:Connect(suppress)
 			connections[#connections+1]=humanoid.Died:Connect(function()self:Stop("Personaje sin vida.")end)
 			connections[#connections+1]=RunService.PreSimulation:Connect(function()
