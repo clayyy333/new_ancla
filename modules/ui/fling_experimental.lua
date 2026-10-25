@@ -34,6 +34,22 @@ return function(context)
 	moto2Toggle.LayoutOrder=6
 	local moto2Auto=button(tr("Activacion automatica No motos 2: OFF","No motorcycles 2 automatic activation: OFF"))
 	moto2Auto.LayoutOrder=7
+	local hybridToggle=button(tr("Activar Fling hibrido","Enable hybrid Fling"))
+	hybridToggle.LayoutOrder=8
+	local hybridParams=Instance.new("Frame",panel)
+	hybridParams.Size=UDim2.new(1,-4,0,112);hybridParams.LayoutOrder=9;hybridParams.BackgroundTransparency=1
+	local paramLayout=Instance.new("UIListLayout",hybridParams);paramLayout.Padding=UDim.new(0,4)
+	for _,spec in ipairs({{"Spin",tr("Giro","Spin")},{"Force",tr("Empuje","Thrust")},{"ContactTime",tr("Contacto (s)","Contact (s)")},{"RecoveryTime",tr("Recuperacion (s)","Recovery (s)")}})do
+		local key=spec[1]
+		local row=Instance.new("Frame",hybridParams);row.Size=UDim2.new(1,0,0,24);row.BackgroundTransparency=1
+		local label=Instance.new("TextLabel",row);label.Size=UDim2.new(.6,0,1,0);label.BackgroundTransparency=1;label.Text=spec[2];label.TextColor3=currentTheme.textDim;label.Font=Enum.Font.Gotham;label.TextSize=12;label.ZIndex=8;label.TextXAlignment=Enum.TextXAlignment.Left;RegisterTheme(label,"TextColor3","textDim")
+		local box=Instance.new("TextBox",row);box.Size=UDim2.new(.4,0,1,0);box.Position=UDim2.fromScale(.6,0);box.Text=tostring(HybridFlingCore.Config[key]);box.ClearTextOnFocus=false;box.BackgroundColor3=currentTheme.tertiary;box.TextColor3=currentTheme.text;box.Font=Enum.Font.Code;box.TextSize=12;box.ZIndex=8;box.BorderSizePixel=0
+		Instance.new("UICorner",box).CornerRadius=UDim.new(0,6);RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
+		box.FocusLost:Connect(function()
+			local ok=HybridFlingCore:SetParameter(key,tonumber(box.Text));box.Text=tostring(HybridFlingCore.Config[key])
+			if not ok then UpdateExperimentalFlingPanel(tr("Valor fuera de rango: giro/empuje 0–150000; tiempos 0.05–2 s.","Out of range: spin/thrust 0–150000; times 0.05–2 s."))end
+		end)
+	end
 	local motoFeedback=Instance.new("TextLabel")
 	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=8
 	motoFeedback.BackgroundTransparency=1;motoFeedback.TextWrapped=true
@@ -64,6 +80,8 @@ return function(context)
 	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
+		hybridToggle.Text=HybridFlingCore.Running and tr("Desactivar Fling hibrido","Disable hybrid Fling")or tr("Activar Fling hibrido","Enable hybrid Fling")
+		hybridToggle.BackgroundColor3=HybridFlingCore.Running and currentTheme.critical or currentTheme.tertiary
 		local motos=NoMotosCore.Running
 		local motos2=NoMotos2Core.Running
 		moto2Auto.Text=NoMotos2Core.AutoEnabled and tr("Activacion automatica No motos 2: ON","No motorcycles 2 automatic activation: ON")or tr("Activacion automatica No motos 2: OFF","No motorcycles 2 automatic activation: OFF")
@@ -91,9 +109,16 @@ return function(context)
 		if not message and c.Running and c.MicroMovementEnabled then status.Text=tr("Contacto: arriba, abajo, delante y detrás a 0.5 studs. Sin alejamiento; no requiere moto. Velocidades extremas: estabilidad no garantizada.","Contact: up, down, front and back at 0.5 studs. No far travel; no bike required. Extreme velocities: stability not guaranteed.") end
 		if not message and motos then status.Text=tr("No motos: vigilando motos libres de ","No motorcycles: monitoring unoccupied bikes owned by ")..NoMotosCore.Owner.Name..". "..tr("Contacto en Body; regreso al checkpoint. No garantiza desplazamiento.","Body contact; returns to checkpoint. Displacement is not guaranteed.") end
 		if not message and motos2 then status.Text=tr("No motos 2: vehiculos del propietario seleccionado, sin filtro de modelo. Contacto por ensamblaje; incluye ocupados durante la prueba.","No motorcycles 2: selected owner's vehicles, no model filter. Assembly-based contact; includes occupied vehicles during the test.")end
+		if not message and HybridFlingCore.Running then status.Text=tr("Hibrido activo: seguimiento anticipado, giro clasico y fases de contacto/recuperacion. Sin viajes lejanos.","Hybrid active: predictive tracking, classic spin and contact/recovery phases. No far travel.")end
 	end
-	status.LayoutOrder=10
-	copyDiagnostic.LayoutOrder=11;copyMotos.LayoutOrder=12;report.LayoutOrder=13
+	motoFeedback.LayoutOrder=10;back.LayoutOrder=11;status.LayoutOrder=12
+	copyDiagnostic.LayoutOrder=13;copyMotos.LayoutOrder=14;report.LayoutOrder=15
+	hybridToggle.Activated:Connect(function()
+		choices.Visible=false
+		if HybridFlingCore.Running then HybridFlingCore:Stop();return end
+		local ok,err=HybridFlingCore:Start(ExperimentalFlingCore:GetTarget())
+		if ok then lastMode="hybrid"else UpdateExperimentalFlingPanel(err)end
+	end)
 	moto2Auto.Activated:Connect(function()
 		local ok,err=NoMotos2Core:SetAutoEnabled(not NoMotos2Core.AutoEnabled,ExperimentalFlingCore:GetTarget())
 		if ok and NoMotos2Core.AutoEnabled then lastMode="motos2"end
@@ -166,7 +191,7 @@ return function(context)
 		choices.CanvasPosition=Vector2.zero
 	end
 	selectTarget.Activated:Connect(function()
-		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping then return end
+		if HybridFlingCore.Running or ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping then return end
 		choices.Visible=not choices.Visible
 		if choices.Visible then refreshTargets() end
 	end)
@@ -207,6 +232,7 @@ return function(context)
 		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	back.Activated:Connect(function()
+		if lastMode=="hybrid"then HybridFlingCore:Stop();return end
 		if lastMode=="motos2"then
 			if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 			local ok,err=NoMotos2Core:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso de No motos 2 solicitado.","No motorcycles 2 return requested.")or err);return
@@ -217,6 +243,7 @@ return function(context)
 		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
 	end)
 	gui.Destroying:Connect(function()
+		HybridFlingCore:Destroy()
 		NoMotos2Core:Destroy()
 		NoMotosCore:Destroy()
 		targetAdded:Disconnect();targetRemoved:Disconnect()
