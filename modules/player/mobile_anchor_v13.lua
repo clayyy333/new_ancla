@@ -867,8 +867,40 @@ return function(context)
    end
   end)
 
+  -- One current SeatPart observer; no per-player or Workspace polling.
+  local watchedSeat,seatConnections=nil,{}
+  local function clearSeatWatch()
+   for _,connection in ipairs(seatConnections)do connection:Disconnect()end
+   table.clear(seatConnections);watchedSeat=nil
+  end
+  runtime[#runtime+1]={Disconnect=clearSeatWatch}
+  local function watchSeat(seat)
+   if watchedSeat==seat then return end
+   clearSeatWatch()
+   if not seat or not seat.Parent or not(seat:IsA("Seat")or seat:IsA("VehicleSeat"))then return end
+   watchedSeat=seat
+   seatConnections[#seatConnections+1]=seat.ChildAdded:Connect(function(object)
+    if self.Running and watchedSeat==seat then releaseSeatWeld(object,seat)end
+   end)
+   seatConnections[#seatConnections+1]=seat.AncestryChanged:Connect(function()
+    if not seat.Parent then clearSeatWatch()end
+   end)
+  end
+  local function earlySeatPart()
+   if not self.Running then return end
+   local seat=humanoid.SeatPart
+   watchSeat(seat)
+   if not watchedSeat then return end
+   self:RecordDiagnostic("SEATPART_EARLY")
+   if not releaseKnownSeat(seat)then queueSeatIsolation(seat,true)end
+   humanoid.Sit=false
+   pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+  end
+  runtime[#runtime+1]=humanoid:GetPropertyChangedSignal("SeatPart"):Connect(earlySeatPart)
+  earlySeatPart()
   runtime[#runtime+1]=humanoid.Seated:Connect(function(active,seat)
    if not self.Running or not active or not seat then return end
+   watchSeat(seat)
    if not releaseKnownSeat(seat)then
     queueSeatIsolation(seat,true)
     humanoid.Sit=false

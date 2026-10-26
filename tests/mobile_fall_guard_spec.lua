@@ -181,6 +181,8 @@ if anchorSource then
  root.CFrame=CFrame.new(root.Position)
  h.MoveDirection=Vector3.zero;h.WalkSpeed=16;h.FloorMaterial='Concrete';h.Parent=character
  h.Seated=signal()
+ local seatPartChanged=signal()
+ function h:GetPropertyChangedSignal(name)assert(name=='SeatPart');return seatPartChanged end
  function h:ChangeState(state)self.State=state end
  root.Touched=signal()
  local jointScans=0
@@ -270,6 +272,7 @@ if anchorSource then
  assert(core.FallProtectionEnabled,'each main activation enables integrated protection again')
  -- Urgent seat handling must break the exact local weld before any scan.
  local forcedSeat=instance('Seat','ForcedSeat',workspace)
+ forcedSeat.ChildAdded=signal();forcedSeat.AncestryChanged=signal()
  forcedSeat.Position=root.Position;forcedSeat.AssemblyRootPart=forcedSeat
  local connected={forcedSeat}
  for i=1,6 do
@@ -334,6 +337,7 @@ if anchorSource then
  local function customSeat()
   local model=instance('Model','Stroller',workspace)
   local seat=instance('Seat','PassengerSeat',model)
+  seat.ChildAdded=signal();seat.AncestryChanged=signal()
   seat.Position=root.Position;seat.AssemblyRootPart=seat
   function seat:GetConnectedParts()return {}end
   local holder=instance('Folder','Connections',model)
@@ -354,6 +358,15 @@ if anchorSource then
  local foreignSeat,foreignJoint=customSeat();foreignJoint.Part1=foreignRoot
  h.Seated:Fire(true,foreignSeat)
  assert(not foreignJoint.Destroyed,'cached path never bypasses character endpoint verification')
+ local earlySeat,earlyJoint=customSeat()
+ h.SeatPart=earlySeat;h.Sit=true
+ seatPartChanged:Fire()
+ assert(earlyJoint.Destroyed and not h.Sit,'SeatPart must release before Seated fires')
+ local repeatJoint=instance('Weld','SeatWeld',earlySeat);repeatJoint.Part0=earlySeat;repeatJoint.Part1=root
+ earlySeat.ChildAdded:Fire(repeatJoint)
+ assert(repeatJoint.Destroyed,'direct seat watcher releases each new weld')
+ h.SeatPart=nil;seatPartChanged:Fire()
+ assert(earlySeat.ChildAdded:Count()==0 and earlySeat.AncestryChanged:Count()==0,'clearing SeatPart disconnects seat observers')
  root.AssemblyLinearVelocity=Vector3.new(15,0,0)
  tick(.02)
  assert(root.AssemblyLinearVelocity.Magnitude==0,'short post-release stabilization clears residual impulse')
