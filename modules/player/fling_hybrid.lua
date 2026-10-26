@@ -5,6 +5,10 @@ return function(context)
 	HybridFlingCore=core
 	local connections,collisions={},{}
 	local character,humanoid,root,checkpoint,saved,target
+	local settling
+	local function cancelSettling()
+		if settling then settling:Disconnect();settling=nil end
+	end
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
 	local function vector(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
@@ -18,15 +22,44 @@ return function(context)
 	local function zero()
 		if root and root.Parent then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
 	end
+	local function zeroRig(parts)
+		for _,part in ipairs(parts)do
+			if part.Parent then part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero end
+		end
+	end
 	function core:Stop(message)
 		if not self.Running then return false end
 		self.Running=false;self.Phase="IDLE"
 		for _,c in ipairs(connections)do c:Disconnect()end;table.clear(connections)
+		cancelSettling()
 		if character==player.Character and root and root.Parent and humanoid and humanoid.Parent then
-			zero()
+			local parts={root}
+			for _,part in ipairs(character:GetDescendants())do
+				if part~=root and part:IsA("BasePart")then parts[#parts+1]=part end
+			end
+			zeroRig(parts)
 			if humanoid.Health>0 and checkpoint then root.CFrame=checkpoint end
+			zeroRig(parts)
 			humanoid.PlatformStand=saved.PlatformStand;humanoid.AutoRotate=saved.AutoRotate
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,saved.Seated)
+			if humanoid.Health>0 then
+				local stoppedCharacter,stoppedRoot,stoppedHumanoid=character,root,humanoid
+				local returnFrame=checkpoint
+				local started=os.clock()
+				local untilTime,deadline=started+.25,started+1.5
+				settling=RunService.Heartbeat:Connect(function()
+					local now=os.clock()
+					if self.Running or player.Character~=stoppedCharacter or not stoppedRoot.Parent or stoppedHumanoid.Health<=0 or now>=deadline then cancelSettling();return end
+					local position=stoppedRoot.Position
+					local displaced=returnFrame and(not vector(position)or(position-returnFrame.Position).Magnitude>.5)
+					if displaced then
+						zeroRig(parts)
+						stoppedRoot.CFrame=returnFrame
+						untilTime=now+.25
+					elseif now>=untilTime then cancelSettling();return end
+					zeroRig(parts)
+				end)
+			end
 		end
 		for part,value in pairs(collisions)do if part.Parent then part.CanCollide=value end end
 		table.clear(collisions);target=nil
@@ -108,6 +141,7 @@ return function(context)
 		if not selected or selected==player or selected.Parent~=Players then return false,"Selecciona un jugador."end
 		character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid");root=character and character:FindFirstChild("HumanoidRootPart")
 		if not root or not humanoid or humanoid.Health<=0 then return false,"Tu personaje no esta disponible."end
+		cancelSettling()
 		checkpoint=root.CFrame;target=selected
 		saved={PlatformStand=humanoid.PlatformStand,AutoRotate=humanoid.AutoRotate,Seated=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)}
 		self.Running=true;self.Phase="CONTACT"
@@ -125,6 +159,6 @@ return function(context)
 		if not ok then self:Stop();return false,tostring(err)end
 		refresh();return true
 	end
-	function core:Destroy()self:Stop()end
+	function core:Destroy()self:Stop();cancelSettling()end
 	return true
 end

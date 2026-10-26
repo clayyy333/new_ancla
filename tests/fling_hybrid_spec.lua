@@ -73,6 +73,14 @@ target.Character=nil;RunService.Heartbeat:Fire();assert(c.Running and c.Phase=="
 target.Character=tc;RunService.Heartbeat:Fire();assert(c.Phase=="CONTACT")
 assert(c:Stop());assert(not c.Running and limb.CanCollide and root.CanCollide==false)
 assert(hum.AutoRotate and not hum.PlatformStand and hum.SeatedEnabled and root.CFrame==initial)
+root.AssemblyLinearVelocity=vec(500,500,500);limb.AssemblyAngularVelocity=vec(100,100,100)
+root.Position=vec(100,100,100);root.CFrame=airborne
+now=now+.02;RunService.Heartbeat:Fire()
+assert(root.AssemblyLinearVelocity.Magnitude==0 and limb.AssemblyAngularVelocity.Magnitude==0,'stop must clear renewed momentum across the rig briefly')
+assert(root.CFrame==initial,'residual impulse must return to the activation checkpoint again')
+root.Position=initial.Position
+now=now+.3;RunService.Heartbeat:Fire();root.AssemblyLinearVelocity=vec(1,0,0)
+RunService.Heartbeat:Fire();assert(root.AssemblyLinearVelocity.X==1,'settling must expire instead of freezing ordinary movement')
 -- Passenger escape requires owner, occupant, verified weld and our physical connection.
 local cars={}
 local reference={Value=player,IsA=function(_,class)return class=='ObjectValue'end}
