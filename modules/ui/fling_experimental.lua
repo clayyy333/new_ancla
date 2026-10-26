@@ -37,21 +37,31 @@ return function(context)
 	local hybridToggle=button(tr("Activar Fling hibrido","Enable hybrid Fling"))
 	hybridToggle.LayoutOrder=8
 	local v8Toggle=button(tr("Activar V8 persistente","Enable persistent V8"))
-	v8Toggle.LayoutOrder=9
-	local hybridParams=Instance.new("Frame",panel)
-	hybridParams.Size=UDim2.new(1,-4,0,56);hybridParams.LayoutOrder=10;hybridParams.BackgroundTransparency=1
-	local paramLayout=Instance.new("UIListLayout",hybridParams);paramLayout.Padding=UDim.new(0,4)
-	for _,spec in ipairs({{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}})do
-		local key=spec[1]
-		local row=Instance.new("Frame",hybridParams);row.Size=UDim2.new(1,0,0,24);row.BackgroundTransparency=1
-		local label=Instance.new("TextLabel",row);label.Size=UDim2.new(.6,0,1,0);label.BackgroundTransparency=1;label.Text=spec[2];label.TextColor3=currentTheme.textDim;label.Font=Enum.Font.Gotham;label.TextSize=12;label.ZIndex=8;label.TextXAlignment=Enum.TextXAlignment.Left;RegisterTheme(label,"TextColor3","textDim")
-		local box=Instance.new("TextBox",row);box.Size=UDim2.new(.4,0,1,0);box.Position=UDim2.fromScale(.6,0);box.Text=tostring(HybridFlingCore.Config[key]);box.ClearTextOnFocus=false;box.BackgroundColor3=currentTheme.tertiary;box.TextColor3=currentTheme.text;box.Font=Enum.Font.Code;box.TextSize=12;box.ZIndex=8;box.BorderSizePixel=0
-		Instance.new("UICorner",box).CornerRadius=UDim.new(0,6);RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
-		box.FocusLost:Connect(function()
-			local ok=HybridFlingCore:SetParameter(key,tonumber(box.Text));box.Text=tostring(HybridFlingCore.Config[key])
-			if not ok then UpdateExperimentalFlingPanel(tr("Rango de velocidades: 0–150000.","Speed range: 0–150000."))end
-		end)
+	v8Toggle.LayoutOrder=10
+	local function parameterGroup(core,order,title,specs,errorText)
+		local group=Instance.new("Frame",panel)
+		group.Name=title;group.Size=UDim2.new(1,-4,0,24+#specs*28);group.LayoutOrder=order;group.BackgroundTransparency=1
+		local rows=Instance.new("UIListLayout",group);rows.Padding=UDim.new(0,4);rows.SortOrder=Enum.SortOrder.LayoutOrder
+		local heading=Instance.new("TextLabel",group);heading.Size=UDim2.new(1,0,0,20);heading.LayoutOrder=0;heading.BackgroundTransparency=1;heading.Text=title;heading.TextColor3=currentTheme.textDim;heading.Font=Enum.Font.GothamBold;heading.TextSize=12;heading.TextXAlignment=Enum.TextXAlignment.Left;heading.ZIndex=8;RegisterTheme(heading,"TextColor3","textDim")
+		for index,spec in ipairs(specs)do
+			local key=spec[1]
+			local row=Instance.new("Frame",group);row.Size=UDim2.new(1,0,0,24);row.LayoutOrder=index;row.BackgroundTransparency=1
+			local label=Instance.new("TextLabel",row);label.Size=UDim2.new(.55,0,1,0);label.BackgroundTransparency=1;label.Text=spec[2];label.TextColor3=currentTheme.textDim;label.Font=Enum.Font.Gotham;label.TextSize=isMobile and 10 or 12;label.ZIndex=8;label.TextXAlignment=Enum.TextXAlignment.Left;RegisterTheme(label,"TextColor3","textDim")
+			local box=Instance.new("TextBox",row);box.Name=key;box.Size=UDim2.new(.45,0,1,0);box.Position=UDim2.fromScale(.55,0);box.Text=tostring(core.Config[key]);box.ClearTextOnFocus=false;box.BackgroundColor3=currentTheme.tertiary;box.TextColor3=currentTheme.text;box.Font=Enum.Font.Code;box.TextSize=isMobile and 10 or 12;box.ZIndex=8;box.BorderSizePixel=0
+			Instance.new("UICorner",box).CornerRadius=UDim.new(0,6);RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
+			box.FocusLost:Connect(function()
+				local ok=core:SetParameter(key,tonumber(box.Text));box.Text=tostring(core.Config[key])
+				if not ok then UpdateExperimentalFlingPanel(errorText)end
+			end)
+		end
 	end
+	parameterGroup(HybridFlingCore,9,tr("Ajustes Fling hibrido","Hybrid Fling settings"),{
+		{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}
+	},tr("Hibrido: velocidades entre 0 y 150000.","Hybrid: speeds between 0 and 150000."))
+	parameterGroup(V8PersistentFlingCore,11,tr("Ajustes V8 persistente · sin giro","Persistent V8 settings · no spin"),{
+		{"Speed",tr("Velocidad lineal","Linear speed")},{"Distance",tr("Alejamiento (studs)","Outgoing distance (studs)")},
+		{"ContactTime",tr("Contacto (s)","Contact (s)")},{"LaunchTime",tr("Salida (s)","Launch (s)")},{"ReturnTime",tr("Regreso (s)","Return (s)")}
+	},tr("V8: velocidad 0–1000000000; distancia 0.5–2000000000; tiempos 0.01–10 s.","V8: speed 0–1000000000; distance 0.5–2000000000; times 0.01–10 s."))
 	local motoFeedback=Instance.new("TextLabel")
 	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=8
 	motoFeedback.BackgroundTransparency=1;motoFeedback.TextWrapped=true
@@ -120,8 +130,8 @@ return function(context)
 			status.Text=phases[V8PersistentFlingCore.Phase]or tr("V8 persistente: contacto, salida y regreso; retoma el target despues de reaparecer. Conserva los valores y desplazamientos del V8.","Persistent V8: contact, launch and return; reacquires the target after respawn. Preserves V8 values and travel.")
 		end
 	end
-	motoFeedback.LayoutOrder=11;back.LayoutOrder=12;status.LayoutOrder=13
-	copyDiagnostic.LayoutOrder=14;copyMotos.LayoutOrder=15;report.LayoutOrder=16
+	motoFeedback.LayoutOrder=12;back.LayoutOrder=13;status.LayoutOrder=14
+	copyDiagnostic.LayoutOrder=15;copyMotos.LayoutOrder=16;report.LayoutOrder=17
 	v8Toggle.Activated:Connect(function()
 		choices.Visible=false
 		if V8PersistentFlingCore.Running then V8PersistentFlingCore:Stop();return end

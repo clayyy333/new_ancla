@@ -40,12 +40,16 @@ local core=V8PersistentFlingCore
 local function tick(dt)now=now+dt;RunService.Heartbeat:Fire()end
 authorized=false;assert(not core:Start(target));authorized=true
 assert(not core:SetParameter('Speed',0/0));assert(core:SetParameter('Distance',1000))
+assert(not core:SetParameter('AngularSpeed',32768),'V8 must not expose a spin setting')
 local home=r.CFrame
 assert(core:Start(target));assert(core.Phase=='CONTACT'and core.Cycles==1 and r.CanCollide and not h.AutoRotate)
 for i=1,6 do
 	tick(.21);assert(core.Phase=='LAUNCH')
+	assert(r.AssemblyAngularVelocity.Magnitude==0,'launch must not impose spin')
 	tick(.26);assert(core.Phase=='RETURN')
+	assert(r.AssemblyAngularVelocity.Magnitude==0,'return must not impose spin')
 	tick(.26);assert(core.Phase=='CONTACT'and core.Cycles==i+1)
+	assert(r.AssemblyAngularVelocity.Magnitude==0,'contact must not impose spin')
 	assert((r.CFrame.Position-tr.Position).Magnitude<.501,'every cycle must reacquire the current target')
 end
 th.Health=0;tick(.01);assert(core.Running and core.Phase=='WAIT_TARGET')

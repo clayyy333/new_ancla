@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local core={Running=false,Phase="IDLE",Cycles=0,Recoveries=0,LastError=nil,
-		Config={Speed=174463.14492872442,Distance=1828025672.522707,AngularSpeed=32768,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
+		Config={Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
 	local phaseStart,direction,launchPosition,retryAt=0,nil,nil,0
@@ -15,7 +15,7 @@ return function(context)
 	end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Speed={0,1000000000},Distance={.5,2000000000},AngularSpeed={0,1000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
+		local limits={Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -80,7 +80,7 @@ return function(context)
 		local duration=core.Phase=="CONTACT"and cfg.ContactTime or core.Phase=="LAUNCH"and cfg.LaunchTime or cfg.ReturnTime
 		if now-phaseStart>duration+1 then core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
 		local elapsed=now-phaseStart
-		local angular=Vector3.new(cfg.AngularSpeed,cfg.AngularSpeed,cfg.AngularSpeed)
+		local angular=Vector3.zero
 		if core.Phase=="CONTACT"then
 			r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation
 			r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=angular
