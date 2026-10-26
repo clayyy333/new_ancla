@@ -4,6 +4,11 @@ return function(context)
 	local blocked=false
 	local buttons={}
 	local cores={}
+	if V8PersistentFlingCore then
+		local start=V8PersistentFlingCore.Start
+		V8PersistentFlingCore.Start=function(self,...)if blocked then return false,"Funcion no disponible."end;return start(self,...)end
+		cores[#cores+1]=V8PersistentFlingCore
+	end
 	if HybridFlingCore then
 		local start=HybridFlingCore.Start
 		HybridFlingCore.Start=function(self,...)if blocked then return false,"Funcion no disponible."end;return start(self,...)end

@@ -1,0 +1,128 @@
+-- Independent V8 phase flow. Keeps the selected Player across character replacement.
+return function(context)
+	setfenv(1,context)
+	local core={Running=false,Phase="IDLE",Cycles=0,Recoveries=0,LastError=nil,
+		Config={Speed=174463.14492872442,Distance=1828025672.522707,AngularSpeed=32768,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
+	V8PersistentFlingCore=core
+	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
+	local phaseStart,direction,launchPosition,retryAt=0,nil,nil,0
+	local directions={Vector3.new(1,0,0),Vector3.new(-1,0,0),Vector3.new(0,1,0),Vector3.new(0,-1,0),Vector3.new(0,0,1),Vector3.new(0,0,-1),Vector3.new(1,1,0).Unit,Vector3.new(-1,1,0).Unit}
+	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
+	local function finite(v)return type(v)=="number"and v==v and math.abs(v)<math.huge end
+	local function valid(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
+	local function zero()
+		if root and root.Parent then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
+	end
+	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
+	function core:SetParameter(name,value)
+		local limits={Speed={0,1000000000},Distance={.5,2000000000},AngularSpeed={0,1000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
+		local range=limits[name]
+		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
+		self.Config[name]=value;return true
+	end
+	function core:Stop(message)
+		local wasRunning=self.Running;self.Running=false;self.Phase="IDLE"
+		if connection then connection:Disconnect();connection=nil end
+		if saved and root and root.Parent then
+			zero();root.CanCollide=saved.CanCollide
+			if humanoid and humanoid.Parent then humanoid.AutoRotate=saved.AutoRotate end
+			if player.Character==character and humanoid and humanoid.Health>0 and checkpoint then root.CFrame=checkpoint;zero()end
+		end
+		saved=nil;targetCharacter=nil;targetRoot=nil;launchPosition=nil
+		if wasRunning then refresh(message or "V8 persistente detenido; regreso al checkpoint.")end
+		return wasRunning
+	end
+	local function beginContact(tr,now)
+		zero();core.Cycles=core.Cycles+1
+		direction=directions[(core.Cycles-1)%#directions+1]
+		targetCharacter=selected.Character;targetRoot=tr;launchPosition=nil
+		phaseStart=now;core.Phase="CONTACT"
+	end
+	local function bindCharacter(c,h,r)
+		character=c;humanoid=h;root=r
+		saved={CanCollide=r.CanCollide,AutoRotate=h.AutoRotate}
+		r.CanCollide=true;h.AutoRotate=false
+	end
+	local function waitFor(phase)
+		if core.Phase~=phase then
+			zero();core.Phase=phase;targetCharacter=nil;targetRoot=nil;launchPosition=nil
+			refresh()
+		end
+	end
+	function core:SetTarget(value)
+		if not self:IsAuthorized()or not value or value==player or value.Parent~=Players then return false end
+		selected=value;zero();self.Phase="WAIT_TARGET";targetCharacter=nil;targetRoot=nil;launchPosition=nil
+		return true
+	end
+	local function step()
+		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
+		if not selected or selected.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
+		local c=player.Character
+		local h=c and c:FindFirstChildOfClass("Humanoid")
+		local r=c and c:FindFirstChild("HumanoidRootPart")
+		if not r or not h or h.Health<=0 then waitFor("WAIT_LOCAL");return end
+		if r~=root or c~=character then
+			-- Restore the previous rig without moving the new life to old physics state.
+			if saved and root and root.Parent then zero();root.CanCollide=saved.CanCollide end
+			if saved and humanoid and humanoid.Parent then humanoid.AutoRotate=saved.AutoRotate end
+			bindCharacter(c,h,r);core.Phase="WAIT_TARGET";targetRoot=nil;targetCharacter=nil
+		end
+		local tc=selected.Character
+		local tr=tc and tc:FindFirstChild("HumanoidRootPart")
+		local th=tc and tc:FindFirstChildOfClass("Humanoid")
+		if not tr or not th or th.Health<=0 then waitFor("WAIT_TARGET");return end
+		if not valid(tr.Position)then waitFor("WAIT_TARGET");return end
+		local now=os.clock();if now<retryAt then return end
+		if tc~=targetCharacter or tr~=targetRoot or core.Phase=="WAIT_TARGET"or core.Phase=="WAIT_LOCAL"or core.Phase=="RECOVERING"then beginContact(tr,now)end
+		local cfg=core.Config
+		if not valid(r.Position)then beginContact(tr,now)end
+		-- A stalled/outdated phase always reacquires the live target.
+		local duration=core.Phase=="CONTACT"and cfg.ContactTime or core.Phase=="LAUNCH"and cfg.LaunchTime or cfg.ReturnTime
+		if now-phaseStart>duration+1 then core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
+		local elapsed=now-phaseStart
+		local angular=Vector3.new(cfg.AngularSpeed,cfg.AngularSpeed,cfg.AngularSpeed)
+		if core.Phase=="CONTACT"then
+			r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation
+			r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=angular
+			if elapsed>=cfg.ContactTime then
+				launchPosition=tr.Position+direction*cfg.Distance
+				r.AssemblyLinearVelocity=direction*cfg.Speed
+				core.Phase="LAUNCH";phaseStart=now
+			end
+		elseif core.Phase=="LAUNCH"then
+			r.AssemblyLinearVelocity=direction*cfg.Speed;r.AssemblyAngularVelocity=angular
+			if elapsed>=cfg.LaunchTime then
+				-- Preserve the supplied V8's far placement at the return transition.
+				r.CFrame=CFrame.new(launchPosition)*r.CFrame.Rotation
+				r.AssemblyLinearVelocity=direction*(-cfg.Speed)
+				core.Phase="RETURN";phaseStart=now
+			end
+		elseif core.Phase=="RETURN"then
+			r.AssemblyLinearVelocity=direction*(-cfg.Speed);r.AssemblyAngularVelocity=angular
+			if elapsed>=cfg.ReturnTime then
+				beginContact(tr,now)
+				r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation;r.AssemblyAngularVelocity=angular
+			end
+		else core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
+	end
+	local function protectedStep()
+		local ok,err=xpcall(step,debug.traceback)
+		if not ok then
+			core.LastError=tostring(err);core.Recoveries=core.Recoveries+1
+			core.Phase="RECOVERING";targetCharacter=nil;targetRoot=nil;launchPosition=nil;retryAt=os.clock()+.1
+			pcall(zero);refresh("V8: recuperando contacto tras un error; reintento automatico.")
+		end
+	end
+	function core:Start(value)
+		if not self:IsAuthorized()then return false,"Prueba exclusiva para owners."end
+		if self.Running then return self:SetTarget(value)end
+		if not value or value==player or value.Parent~=Players then return false,"Selecciona un jugador."end
+		local c=player.Character;local h=c and c:FindFirstChildOfClass("Humanoid");local r=c and c:FindFirstChild("HumanoidRootPart")
+		if not r or not h or h.Health<=0 then return false,"Tu personaje no esta disponible."end
+		checkpoint=r.CFrame;bindCharacter(c,h,r);selected=value
+		self.Running=true;self.Phase="WAIT_TARGET";self.Cycles=0;self.Recoveries=0;self.LastError=nil;retryAt=0
+		connection=RunService.Heartbeat:Connect(protectedStep);protectedStep();refresh();return true
+	end
+	function core:Destroy()self:Stop()end
+	return true
+end

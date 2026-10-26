@@ -36,8 +36,10 @@ return function(context)
 	moto2Auto.LayoutOrder=7
 	local hybridToggle=button(tr("Activar Fling hibrido","Enable hybrid Fling"))
 	hybridToggle.LayoutOrder=8
+	local v8Toggle=button(tr("Activar V8 persistente","Enable persistent V8"))
+	v8Toggle.LayoutOrder=9
 	local hybridParams=Instance.new("Frame",panel)
-	hybridParams.Size=UDim2.new(1,-4,0,56);hybridParams.LayoutOrder=9;hybridParams.BackgroundTransparency=1
+	hybridParams.Size=UDim2.new(1,-4,0,56);hybridParams.LayoutOrder=10;hybridParams.BackgroundTransparency=1
 	local paramLayout=Instance.new("UIListLayout",hybridParams);paramLayout.Padding=UDim.new(0,4)
 	for _,spec in ipairs({{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}})do
 		local key=spec[1]
@@ -80,6 +82,8 @@ return function(context)
 	end)
 	local status=Instance.new("TextLabel");status.Size=UDim2.new(1,-12,0,68);status.TextWrapped=true;status.BackgroundTransparency=1;status.Font=Enum.Font.Gotham;status.TextSize=12;status.TextColor3=currentTheme.textDim;status.ZIndex=8;status.Parent=panel;RegisterTheme(status,"TextColor3","textDim")
 	UpdateExperimentalFlingPanel=function(message)
+		v8Toggle.Text=V8PersistentFlingCore.Running and tr("Desactivar V8 persistente","Disable persistent V8")or tr("Activar V8 persistente","Enable persistent V8")
+		v8Toggle.BackgroundColor3=V8PersistentFlingCore.Running and currentTheme.critical or currentTheme.tertiary
 		hybridToggle.Text=HybridFlingCore.Running and tr("Desactivar Fling hibrido","Disable hybrid Fling")or tr("Activar Fling hibrido","Enable hybrid Fling")
 		hybridToggle.BackgroundColor3=HybridFlingCore.Running and currentTheme.critical or currentTheme.tertiary
 		local motos=NoMotosCore.Running
@@ -111,21 +115,41 @@ return function(context)
 		if not message and motos2 then status.Text=tr("No motos 2: vehiculos del propietario seleccionado, sin filtro de modelo. Contacto por ensamblaje; incluye ocupados durante la prueba.","No motorcycles 2: selected owner's vehicles, no model filter. Assembly-based contact; includes occupied vehicles during the test.")end
 		if not message and HybridFlingCore.Running then status.Text=tr("Hibrido sin giro: contacto a 0.5 studs y velocidad XYZ; al confirmar copiloto inicia descenso sin retorno automatico.","Hybrid without spin: contact at 0.5 studs and XYZ velocity; confirmed passenger starts descent without automatic return.")end
 		if not message and HybridFlingCore.Phase=="ESCAPE"then status.Text=tr("Copiloto confirmado: descenso sin giro mientras siga conectado. Si se baja, vuelve al contacto; si se sienta otra vez, repite el descenso.","Passenger confirmed: descent without spin while connected. Leaving resumes contact; sitting again repeats the descent.")end
+		if not message and V8PersistentFlingCore.Running then
+			local phases={WAIT_TARGET=tr("Esperando al target","Waiting for target"),WAIT_LOCAL=tr("Esperando tu personaje","Waiting for your character"),RECOVERING=tr("Recuperando contacto","Recovering contact")}
+			status.Text=phases[V8PersistentFlingCore.Phase]or tr("V8 persistente: contacto, salida y regreso; retoma el target despues de reaparecer. Conserva los valores y desplazamientos del V8.","Persistent V8: contact, launch and return; reacquires the target after respawn. Preserves V8 values and travel.")
+		end
 	end
-	motoFeedback.LayoutOrder=10;back.LayoutOrder=11;status.LayoutOrder=12
-	copyDiagnostic.LayoutOrder=13;copyMotos.LayoutOrder=14;report.LayoutOrder=15
+	motoFeedback.LayoutOrder=11;back.LayoutOrder=12;status.LayoutOrder=13
+	copyDiagnostic.LayoutOrder=14;copyMotos.LayoutOrder=15;report.LayoutOrder=16
+	v8Toggle.Activated:Connect(function()
+		choices.Visible=false
+		if V8PersistentFlingCore.Running then V8PersistentFlingCore:Stop();return end
+		if ExperimentalFlingCore.Running or ExperimentalFlingCore.Stopping or NoMotosCore.Running or NoMotosCore.Stopping or NoMotos2Core.Running or NoMotos2Core.AutoEnabled then
+			UpdateExperimentalFlingPanel(tr("Desactiva el otro flujo de este panel antes de iniciar V8.","Disable the other flow in this panel before starting V8."));return
+		end
+		local target=ExperimentalFlingCore:GetTarget()
+		if not target then UpdateExperimentalFlingPanel(tr("Selecciona un jugador arriba.","Select a player above."));return end
+		HybridFlingCore:Stop()
+		HybridFlingCore:Destroy() -- Cancel its pending checkpoint stabilization before V8 writes.
+		local ok,err=V8PersistentFlingCore:Start(target)
+		if ok then lastMode="v8"else UpdateExperimentalFlingPanel(err)end
+	end)
 	hybridToggle.Activated:Connect(function()
 		choices.Visible=false
 		if HybridFlingCore.Running then HybridFlingCore:Stop();return end
+		V8PersistentFlingCore:Stop()
 		local ok,err=HybridFlingCore:Start(ExperimentalFlingCore:GetTarget())
 		if ok then lastMode="hybrid"else UpdateExperimentalFlingPanel(err)end
 	end)
 	moto2Auto.Activated:Connect(function()
+		if not NoMotos2Core.AutoEnabled then V8PersistentFlingCore:Stop()end
 		local ok,err=NoMotos2Core:SetAutoEnabled(not NoMotos2Core.AutoEnabled,ExperimentalFlingCore:GetTarget())
 		if ok and NoMotos2Core.AutoEnabled then lastMode="motos2"end
 		if not ok then UpdateExperimentalFlingPanel(err)end
 	end)
 	moto2Toggle.Activated:Connect(function()
+		V8PersistentFlingCore:Stop()
 		choices.Visible=false
 		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop();return end
@@ -137,6 +161,7 @@ return function(context)
 		else lastMode="motos2"end
 	end)
 	motoToggle.Activated:Connect(function()
+		V8PersistentFlingCore:Stop()
 		choices.Visible=false
 		if NoMotosCore.Stopping then
 			UpdateExperimentalFlingPanel(tr("Espera a que termine la estabilizacion.","Wait for stabilization to finish."));return
@@ -179,6 +204,7 @@ return function(context)
 			b.Activated:Connect(function()
 				if p.Parent==Players and ExperimentalFlingCore:SetTarget(p) then
 					choices.Visible=false
+					if V8PersistentFlingCore.Running then V8PersistentFlingCore:SetTarget(p)end
 					local ok,err=NoMotos2Core:SetTargetOwner(p)
 					UpdateExperimentalFlingPanel(ok and nil or err)
 				end
@@ -209,6 +235,7 @@ return function(context)
 		if choices.Visible then task.defer(function()if gui.Parent then refreshTargets() end end) end
 	end)
 	toggle.Activated:Connect(function()
+		V8PersistentFlingCore:Stop()
 		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
@@ -221,6 +248,7 @@ return function(context)
 		else c.MicroMovementEnabled=false;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	microToggle.Activated:Connect(function()
+		V8PersistentFlingCore:Stop()
 		if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
 		if NoMotos2Core.Running then NoMotos2Core:Stop("Cambio de flujo.");return end
 		if NoMotosCore.Running then NoMotosCore:Stop("Cambio de flujo.");return end
@@ -233,6 +261,7 @@ return function(context)
 		else c.MicroMovementEnabled=true;local ok,err=c:Start();UpdateExperimentalFlingPanel(ok and nil or err) end
 	end)
 	back.Activated:Connect(function()
+		if lastMode=="v8"then V8PersistentFlingCore:Stop();return end
 		if lastMode=="hybrid"then HybridFlingCore:Stop();return end
 		if lastMode=="motos2"then
 			if NoMotos2Core.AutoEnabled then NoMotos2Core:SetAutoEnabled(false);return end
@@ -244,6 +273,7 @@ return function(context)
 		local ok,err=ExperimentalFlingCore:ForceReturn();UpdateExperimentalFlingPanel(ok and tr("Regreso completado.","Return complete.") or err)
 	end)
 	gui.Destroying:Connect(function()
+		V8PersistentFlingCore:Destroy()
 		HybridFlingCore:Destroy()
 		NoMotos2Core:Destroy()
 		NoMotosCore:Destroy()
