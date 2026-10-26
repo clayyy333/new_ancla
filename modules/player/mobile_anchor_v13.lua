@@ -21,6 +21,26 @@ return function(context)
  local recentSeats=setmetatable({},{__mode="k"})
  local recentSeatBreaks=setmetatable({},{__mode="k"})
  local handledSeatWelds=setmetatable({},{__mode="k"})
+ -- Session-only structural hints: strings/numbers, never retained Instances.
+ local seatPatterns,seatPatternOrder={},{}
+ local function seatScope(seat)
+  local scope=seat.Parent
+  if not scope or scope==workspace then scope=seat end
+  return scope,scope.ClassName..":"..scope.Name..":"..seat.ClassName..":"..seat.Name
+ end
+ local function rememberSeatJoint(seat,joint)
+  local scope,key=seatScope(seat)
+  local path,node={},joint
+  while node and node~=scope and #path<8 do
+   table.insert(path,1,node.Name);node=node.Parent
+  end
+  if node~=scope or #path==0 then return end
+  if not seatPatterns[key]then
+   if #seatPatternOrder>=64 then seatPatterns[table.remove(seatPatternOrder,1)]=nil end
+   seatPatternOrder[#seatPatternOrder+1]=key
+  end
+  seatPatterns[key]={Path=path,Class=joint.ClassName}
+ end
  local lastSpatialScan=0
  local lastBridgeScan=0
  local lastSupportScan=0
@@ -406,7 +426,7 @@ return function(context)
  local function releaseSeatWeld(weld,expectedSeat)
   if not Core.Running or not weld then return false end
   if handledSeatWelds[weld]then return true end
-  if not weld.Parent or weld.Name~="SeatWeld"then return false end
+  if not weld.Parent or weld:IsA("Motor6D")or weld.Name=="AccessoryWeld"then return false end
   if not (weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
   local character,humanoid=rig()
   if not character or not humanoid then return false end
@@ -416,6 +436,7 @@ return function(context)
   if insideP==insideQ then return false end
   local seat=insideP and q or p
   if not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or (expectedSeat and seat~=expectedSeat)then return false end
+  rememberSeatJoint(seat,weld)
   handledSeatWelds[weld]=true
   lastCaptureScan=-math.huge
   safeCaptureBlockedUntil=os.clock()+.18
@@ -433,6 +454,21 @@ return function(context)
   record("FAST_SEAT_RELEASE",{DirectBridge=weld,ExternalEndpoint=seat})
   queueSeatIsolation(seat,false)
   return true
+ end
+
+ local function releaseKnownSeat(seat)
+  if releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)then return true end
+  local scope,key=seatScope(seat)
+  local pattern=seatPatterns[key]
+  if not pattern then return false end
+  local joint=scope
+  for _,name in ipairs(pattern.Path)do
+   joint=joint:FindFirstChild(name)
+   if not joint then return false end
+  end
+  -- A path match is only a hint; releaseSeatWeld revalidates both endpoints.
+  if joint.ClassName~=pattern.Class then return false end
+  return releaseSeatWeld(joint,seat)
  end
 
  local function inspectBridge(connection)
@@ -522,7 +558,7 @@ return function(context)
   pendingSeats[seat]=nil
   if not seat.Parent then return end
   recentSeats[seat]=now
-  local broken=releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)
+  local broken=releaseKnownSeat(seat)
   if entry.NeedsScan and not broken then
    Core.DeferredSeatScans=Core.DeferredSeatScans+1
    scanCharacterBridges(player.Character)
@@ -786,7 +822,7 @@ return function(context)
 
   runtime[#runtime+1]=humanoid.Seated:Connect(function(active,seat)
    if not self.Running or not active or not seat then return end
-   if not releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)then
+   if not releaseKnownSeat(seat)then
     queueSeatIsolation(seat,true)
     humanoid.Sit=false
     pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
@@ -937,6 +973,7 @@ return function(context)
  function Core:Toggle()if self.Running then return self:Stop()end;return self:Start()end
  function Core:Destroy()
   self:Stop()
+  table.clear(seatPatterns);table.clear(seatPatternOrder)
   for _,connection in ipairs(persistent) do connection:Disconnect() end
   table.clear(persistent)
  end

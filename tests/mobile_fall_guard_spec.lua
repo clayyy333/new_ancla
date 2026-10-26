@@ -330,6 +330,27 @@ if anchorSource then
  assert(jointScans==beforeJoints,'missing-weld event does not immediately scan the character')
  tick(.10)
  assert(core.DeferredSeatScans>=1 and jointScans>beforeJoints,'one coalesced fallback scan remains for delayed/unusual seat connections')
+ -- Learn a custom object joint, then resolve the same structure on a new instance.
+ local function customSeat()
+  local model=instance('Model','Stroller',workspace)
+  local seat=instance('Seat','PassengerSeat',model)
+  seat.Position=root.Position;seat.AssemblyRootPart=seat
+  function seat:GetConnectedParts()return {}end
+  local holder=instance('Folder','Connections',model)
+  local joint=instance('Weld','PassengerLink',holder)
+  joint.Part0=seat;joint.Part1=root
+  return seat,joint
+ end
+ local custom,joint=customSeat()
+ beforeJoints=jointScans
+ workspace.DescendantAdded:Fire(joint)
+ assert(joint.Destroyed and jointScans==beforeJoints,'custom seat joint releases immediately and learns its relative path')
+ local newSeat,newJoint=customSeat()
+ h.Seated:Fire(true,newSeat)
+ assert(newJoint.Destroyed and jointScans==beforeJoints,'new object uses learned path without character traversal')
+ local foreignSeat,foreignJoint=customSeat();foreignJoint.Part1=foreignRoot
+ h.Seated:Fire(true,foreignSeat)
+ assert(not foreignJoint.Destroyed,'cached path never bypasses character endpoint verification')
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
  core:Destroy()
