@@ -343,14 +343,20 @@ if anchorSource then
  end
  local custom,joint=customSeat()
  beforeJoints=jointScans
+ root.AssemblyLinearVelocity=Vector3.new(120,40,0)
+ root.AssemblyAngularVelocity=Vector3.new(0,80,0)
  workspace.DescendantAdded:Fire(joint)
  assert(joint.Destroyed and jointScans==beforeJoints,'custom seat joint releases immediately and learns its relative path')
+ assert(root.AssemblyLinearVelocity.Magnitude==0 and root.AssemblyAngularVelocity.Magnitude==0,'release must immediately clear residual motion')
  local newSeat,newJoint=customSeat()
  h.Seated:Fire(true,newSeat)
  assert(newJoint.Destroyed and jointScans==beforeJoints,'new object uses learned path without character traversal')
  local foreignSeat,foreignJoint=customSeat();foreignJoint.Part1=foreignRoot
  h.Seated:Fire(true,foreignSeat)
  assert(not foreignJoint.Destroyed,'cached path never bypasses character endpoint verification')
+ root.AssemblyLinearVelocity=Vector3.new(15,0,0)
+ tick(.02)
+ assert(root.AssemblyLinearVelocity.Magnitude==0,'short post-release stabilization clears residual impulse')
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
  core:Destroy()

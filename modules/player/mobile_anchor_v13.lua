@@ -21,6 +21,16 @@ return function(context)
  local recentSeats=setmetatable({},{__mode="k"})
  local recentSeatBreaks=setmetatable({},{__mode="k"})
  local handledSeatWelds=setmetatable({},{__mode="k"})
+ local pendingBridges=setmetatable({},{__mode="k"})
+ local releaseRecovery=nil
+ local function stabilizeReleased(character,root)
+  if not root or not root.Parent then return end
+  local safe=Core.SafeCFrame
+  local displaced=safe and (root.Position-safe.Position).Magnitude>6
+  root.AssemblyLinearVelocity=Vector3.zero
+  root.AssemblyAngularVelocity=Vector3.zero
+  releaseRecovery={Character=character,Root=root,Until=os.clock()+.18,Correct=displaced and true or false}
+ end
  -- Session-only structural hints: strings/numbers, never retained Instances.
  local seatPatterns,seatPatternOrder={},{}
  local function seatScope(seat)
@@ -428,7 +438,7 @@ return function(context)
   if handledSeatWelds[weld]then return true end
   if not weld.Parent or weld:IsA("Motor6D")or weld.Name=="AccessoryWeld"then return false end
   if not (weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
-  local character,humanoid=rig()
+  local character,humanoid,root=rig()
   if not character or not humanoid then return false end
   local p,q=endpoints(weld)
   if not p or not q then return false end
@@ -442,6 +452,7 @@ return function(context)
   safeCaptureBlockedUntil=os.clock()+.18
   local ok=pcall(function()weld:Destroy()end)
   if not ok then handledSeatWelds[weld]=nil;return false end
+  stabilizeReleased(character,root)
   recentSeatBreaks[seat]=os.clock()
   -- Urgent path: no GetConnectedParts, character scan or constraint creation.
   humanoid.Sit=false
@@ -514,8 +525,11 @@ return function(context)
    ExternalContainer=externalContainer(externalEndpoint),
    ConnectionType="CHARACTER_EXTERNAL_BRIDGE",
   }
-  isolateAssembly(externalEndpoint,"DIRECT_BRIDGE")
-  pcall(function()connection:Destroy()end)
+  -- Release first. Assembly discovery must never delay breaking the bridge.
+  local removed=pcall(function()connection:Destroy()end)
+  if not removed then return false end
+  stabilizeReleased(character,character:FindFirstChild("HumanoidRootPart"))
+  pendingBridges[externalEndpoint]=true
   Core.BrokenBridges+=1
   Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+0.65)
   record("DIRECT_EXTERNAL_BRIDGE",report)
@@ -837,7 +851,26 @@ return function(context)
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
     local now=os.clock()
+    local recovery=releaseRecovery
+    if recovery then
+     if recovery.Character~=currentCharacter or recovery.Root~=currentRoot or now>=recovery.Until then
+      releaseRecovery=nil
+     else
+      local unsafe=currentRoot.AssemblyLinearVelocity.Magnitude>58 or currentRoot.AssemblyAngularVelocity.Magnitude>16
+      if recovery.Correct or unsafe then
+       self:Correct(nil,"EXTERNAL_BRIDGE_RELEASE")
+       recovery.Correct=false
+      end
+      currentRoot.AssemblyLinearVelocity=Vector3.zero
+      currentRoot.AssemblyAngularVelocity=Vector3.zero
+     end
+    end
     processPendingSeat(now)
+    local external=next(pendingBridges)
+    if external then
+     pendingBridges[external]=nil
+     if external.Parent then isolateAssembly(external,"DIRECT_BRIDGE")end
+    end
     finishPendingPhases(now)
     refreshSupports(now,currentCharacter,currentHumanoid,currentRoot)
     -- Run before the existing clamp can hide the incoming downward speed.
@@ -942,6 +975,7 @@ return function(context)
  end
 
  function Core:Stop()
+  releaseRecovery=nil;table.clear(pendingBridges)
   if not self.Running then return true end
   self.Running=false
   self.FallProtectionEnabled=false
