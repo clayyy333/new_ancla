@@ -81,6 +81,32 @@ return function(context)
   Core.LastReport=report
   Core.History[#Core.History+1]=report
   if #Core.History>40 then table.remove(Core.History,1) end
+  if Core.RecordDiagnostic then Core:RecordDiagnostic(kind,data)end
+ end
+ local diagnosticLines,deathReport={},nil
+ local lastDiagnosticSample=-math.huge
+ local function diagnosticOwner()
+  return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()
+ end
+ function Core:RecordDiagnostic(kind,data)
+  if not diagnosticOwner()then return end
+  local c,h,r=rig()
+  local fields={string.format("t=%.4f %s",os.clock(),kind),"Health="..tostring(h and h.Health),
+   "Position="..tostring(r and r.Position),"Linear="..tostring(r and r.AssemblyLinearVelocity),
+   "Angular="..tostring(r and r.AssemblyAngularVelocity),"Anchored="..tostring(r and r.Anchored),
+   "Seat="..tostring(h and h.SeatPart),"Sit="..tostring(h and h.Sit),"Safe="..tostring(self.SafeCFrame)}
+  if h then fields[#fields+1]="State="..tostring(h:GetState())end
+  for key,value in pairs(data or {})do fields[#fields+1]=tostring(key).."="..tostring(value)end
+  diagnosticLines[#diagnosticLines+1]=table.concat(fields," | ")
+  if #diagnosticLines>180 then table.remove(diagnosticLines,1)end
+  if kind=="DIED"then deathReport=table.concat(diagnosticLines,"\n")end
+ end
+ function Core:GetDiagnosticReport()
+  if not diagnosticOwner()then return "Solo owners."end
+  return "MUEVETE ANCLADO 1.3 | Observaciones locales; no demuestran causa del servidor\n"..
+   "Running="..tostring(self.Running).." | muestras cada 0.1 s; eventos inmediatos\n"..
+   (deathReport and "ULTIMA MUERTE (conservada):\n"..deathReport.."\n"or "Sin muerte registrada.\n")..
+   "EVENTOS RECIENTES:\n"..table.concat(diagnosticLines,"\n")
  end
  local function setState(state,duration,reason)
   local now=os.clock()
@@ -446,6 +472,7 @@ return function(context)
   if insideP==insideQ then return false end
   local seat=insideP and q or p
   if not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or (expectedSeat and seat~=expectedSeat)then return false end
+  if diagnosticOwner()then Core:RecordDiagnostic("BEFORE_SEAT_RELEASE",{Joint=weld:GetFullName(),Class=weld.ClassName,Part0=p:GetFullName(),Part1=q:GetFullName()})end
   rememberSeatJoint(seat,weld)
   handledSeatWelds[weld]=true
   lastCaptureScan=-math.huge
@@ -518,6 +545,7 @@ return function(context)
   safeCaptureBlockedUntil=os.clock()+.18
   local characterEndpoint=inside0 and part0 or part1
   local externalEndpoint=inside0 and part1 or part0
+  if diagnosticOwner()then Core:RecordDiagnostic("BEFORE_BRIDGE_RELEASE",{Joint=connection:GetFullName(),Class=connection.ClassName,Part0=part0:GetFullName(),Part1=part1:GetFullName()})end
   local report={
    DirectBridge=connection,BridgeClass=connection.ClassName,
    CharacterEndpoint=characterEndpoint,ExternalEndpoint=externalEndpoint,
@@ -824,6 +852,11 @@ return function(context)
   bindPlayers()
   bindCharacter(character)
   scanCharacterBridges(character)
+  if diagnosticOwner()then
+   self:RecordDiagnostic("START")
+   runtime[#runtime+1]=humanoid.HealthChanged:Connect(function(value)self:RecordDiagnostic("HEALTH_CHANGED",{HealthEvent=value})end)
+   runtime[#runtime+1]=humanoid.Died:Connect(function()self:RecordDiagnostic("DIED")end)
+  end
 
   runtime[#runtime+1]=workspace.DescendantAdded:Connect(function(object)
    if not self.Running then return end
@@ -851,6 +884,9 @@ return function(context)
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
     local now=os.clock()
+    if diagnosticOwner()and now-lastDiagnosticSample>=.1 then
+     lastDiagnosticSample=now;self:RecordDiagnostic("SAMPLE")
+    end
     local recovery=releaseRecovery
     if recovery then
      if recovery.Character~=currentCharacter or recovery.Root~=currentRoot or now>=recovery.Until then
@@ -1008,6 +1044,7 @@ return function(context)
  function Core:Destroy()
   self:Stop()
   table.clear(seatPatterns);table.clear(seatPatternOrder)
+  table.clear(diagnosticLines);deathReport=nil
   for _,connection in ipairs(persistent) do connection:Disconnect() end
   table.clear(persistent)
  end

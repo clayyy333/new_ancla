@@ -166,10 +166,31 @@ return function(context)
 	status.Parent=card
 	RegisterTheme(status,"TextColor3","textDim")
 
+	local diagnosticButton
+	if ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()then
+		diagnosticButton=Instance.new("TextButton")
+		diagnosticButton.Size=UDim2.new(1,0,0,32)
+		diagnosticButton.BackgroundColor3=currentTheme.tertiary
+		diagnosticButton.TextColor3=currentTheme.text
+		diagnosticButton.Font=Enum.Font.GothamMedium
+		diagnosticButton.TextSize=isMobile and 10 or 12
+		diagnosticButton.Text="Copiar registro Muévete anclado 1.3"
+		diagnosticButton.ZIndex=8;diagnosticButton.Parent=card
+		Instance.new("UICorner",diagnosticButton).CornerRadius=UDim.new(0,8)
+		RegisterTheme(diagnosticButton,"BackgroundColor3","tertiary")
+		RegisterTheme(diagnosticButton,"TextColor3","text")
+		diagnosticButton.Activated:Connect(function()
+			if not ExperimentalFlingCore:IsAuthorized()then return end
+			local copy=setclipboard or toclipboard
+			local ok=copy and pcall(copy,MobileAnchorV13Core:GetDiagnosticReport())
+			UpdateMoveAnchoredPanel(ok and "Registro 1.3 copiado."or "No se pudo copiar el registro en este ejecutor.")
+		end)
+	end
 	UpdateMoveAnchoredPanel=function(message)
 		local row=148
 		deploymentToggle.Position=UDim2.fromOffset(0,row)
 		if deploymentAvailable then row=row+40 end
+		if diagnosticButton then diagnosticButton.Position=UDim2.fromOffset(0,row);row=row+40 end
 		status.Position=UDim2.fromOffset(0,row+2)
 		card.Size=UDim2.new(1,0,0,row+72)
 		deploymentToggle.Text=DeploymentSafetyCore.MobileEnabled and (isES and "Desactivar seguridad de despliegue" or "Disable deployment safety") or (isES and "Activar seguridad de despliegue" or "Enable deployment safety")

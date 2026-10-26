@@ -359,6 +359,12 @@ if anchorSource then
  assert(root.AssemblyLinearVelocity.Magnitude==0,'short post-release stabilization clears residual impulse')
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
+ ExperimentalFlingCore={IsAuthorized=function()return true end}
+ core:RecordDiagnostic('DIED',{Marker='retained-death'})
+ for i=1,200 do core:RecordDiagnostic('SAMPLE')end
+ assert(core:GetDiagnosticReport():find('retained%-death'),'death snapshot survives bounded sample eviction')
+ ExperimentalFlingCore.IsAuthorized=function()return false end
+ assert(core:GetDiagnosticReport()=='Solo owners.','diagnostic access is owner only')
  core:Destroy()
  for _,s in ipairs(signals)do assert(s:Count()==0,'v1.3 must clean up its callbacks')end
  print('mobile_anchor_v13 integration OK: independent version, integrated fall guard, fast verified seat release, deduplication, bounded secondary work, fallback and cleanup')
