@@ -5,6 +5,36 @@ return function(context)
 		Config={Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
+	local pulseConnection,renderConnection,pulseRoot,pulseVelocity
+	local function restorePulse()
+		local r,v=pulseRoot,pulseVelocity;pulseRoot=nil;pulseVelocity=nil
+		if r and r.Parent and v then r.AssemblyLinearVelocity=v end
+	end
+	-- Only a physically connected, locally owned vehicle enables the passenger gate.
+	local function connectedVehicle()
+		local cars=workspace:FindFirstChild("Cars")
+		if not cars then return nil end
+		for _,part in ipairs(root:GetConnectedParts(true))do
+			local vehicle=part
+			while vehicle and vehicle.Parent~=cars do vehicle=vehicle.Parent end
+			if vehicle then
+				local owner=vehicle:FindFirstChild("VehicleOwner")
+				local owned=owner and owner:IsA("ObjectValue")and owner.Value==player
+				if not owner or not owner:IsA("ObjectValue")or not owner.Value then
+					owned=tonumber(vehicle:GetAttribute("VehicleOwner"))==player.UserId
+				end
+				if owned then return vehicle end
+			end
+		end
+	end
+	local function passengerReady(vehicle,tc,th)
+		local seat=th.SeatPart
+		if not seat or not seat:IsDescendantOf(vehicle)or seat.Occupant~=th then return false end
+		local weld=seat:FindFirstChild("SeatWeld")
+		if not weld or not(weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
+		local a,b=weld.Part0,weld.Part1
+		return(a==seat and b and b:IsDescendantOf(tc))or(b==seat and a and a:IsDescendantOf(tc))or false
+	end
 	local phaseStart,direction,launchPosition,retryAt=0,nil,nil,0
 	-- Only XYZ diagonals, alternating sides. Normalize to preserve configured speed/distance.
 	local directions={Vector3.new(1,1,1).Unit,Vector3.new(-1,1,1).Unit,Vector3.new(-1,1,-1).Unit,Vector3.new(1,1,-1).Unit}
@@ -22,7 +52,10 @@ return function(context)
 		self.Config[name]=value;return true
 	end
 	function core:Stop(message)
-		local wasRunning=self.Running;self.Running=false;self.Phase="IDLE"
+		restorePulse()
+		if pulseConnection then pulseConnection:Disconnect();pulseConnection=nil end
+		if renderConnection then renderConnection:Disconnect();renderConnection=nil end
+		local wasRunning=self.Running;self.Running=false;self.Phase="IDLE";self.WaitingForPassenger=false
 		if connection then connection:Disconnect();connection=nil end
 		if saved and root and root.Parent then
 			zero();root.CanCollide=saved.CanCollide
@@ -34,6 +67,7 @@ return function(context)
 		return wasRunning
 	end
 	local function beginContact(tr,now)
+		core.WaitingForPassenger=false
 		zero();core.Cycles=core.Cycles+1
 		direction=directions[(core.Cycles-1)%#directions+1]
 		targetCharacter=selected.Character;targetRoot=tr;launchPosition=nil
@@ -56,6 +90,7 @@ return function(context)
 		return true
 	end
 	local function step()
+		restorePulse()
 		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
 		if not selected or selected.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
 		local c=player.Character
@@ -79,13 +114,15 @@ return function(context)
 		if not valid(r.Position)then beginContact(tr,now)end
 		-- A stalled/outdated phase always reacquires the live target.
 		local duration=core.Phase=="CONTACT"and cfg.ContactTime or core.Phase=="LAUNCH"and cfg.LaunchTime or cfg.ReturnTime
-		if now-phaseStart>duration+1 then core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
+		if not core.WaitingForPassenger and now-phaseStart>duration+1 then core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
 		local elapsed=now-phaseStart
 		local angular=Vector3.zero
 		if core.Phase=="CONTACT"then
+			local vehicle=connectedVehicle()
+			core.WaitingForPassenger=vehicle~=nil and not passengerReady(vehicle,tc,th)
 			r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation
 			r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=angular
-			if elapsed>=cfg.ContactTime then
+			if elapsed>=cfg.ContactTime and not core.WaitingForPassenger then
 				launchPosition=tr.Position+direction*cfg.Distance
 				r.AssemblyLinearVelocity=direction*cfg.Speed
 				core.Phase="LAUNCH";phaseStart=now
@@ -122,7 +159,18 @@ return function(context)
 		if not r or not h or h.Health<=0 then return false,"Tu personaje no esta disponible."end
 		checkpoint=r.CFrame;bindCharacter(c,h,r);selected=value
 		self.Running=true;self.Phase="WAIT_TARGET";self.Cycles=0;self.Recoveries=0;self.LastError=nil;retryAt=0
-		connection=RunService.Heartbeat:Connect(protectedStep);protectedStep();refresh();return true
+		connection=RunService.Heartbeat:Connect(protectedStep)
+		-- Independent contact pulse; never overwrites launch/return velocities.
+		pulseConnection=RunService.PostSimulation:Connect(function()
+			restorePulse()
+			if self.Running and self.Phase=="CONTACT"and root and root.Parent and player.Character==character and humanoid.Health>0 then
+				pulseRoot=root;pulseVelocity=root.AssemblyLinearVelocity
+				root.AssemblyLinearVelocity=Vector3.new(100000,100000,100000)
+				root.AssemblyAngularVelocity=Vector3.zero
+			end
+		end)
+		renderConnection=RunService.RenderStepped:Connect(restorePulse)
+		protectedStep();refresh();return true
 	end
 	function core:Destroy()self:Stop()end
 	return true
