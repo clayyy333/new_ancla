@@ -45,67 +45,49 @@ local function tick(dt)now=now+dt;RunService.Heartbeat:Fire()end
 authorized=false;assert(not core:Start(target));authorized=true
 assert(not core:SetParameter('Speed',0/0));assert(core:SetParameter('Distance',1000))
 assert(not core:SetParameter('AngularSpeed',32768),'V8 must not expose a spin setting')
+
 local home=r.CFrame
-assert(core:Start(target));assert(core.Phase=='CONTACT'and core.Cycles==1 and r.CanCollide and not h.AutoRotate)
-RunService.PostSimulation:Fire();assert(r.AssemblyLinearVelocity.X==100000)
-RunService.RenderStepped:Fire();assert(r.AssemblyLinearVelocity.Magnitude==0)
-local launchSpeed=core.Config.Speed
-assert(core:SetParameter('ContactSpeed',200000))
-assert(not core:SetParameter('ContactSpeed',-1))
-assert(not core:SetParameter('ContactSpeed',math.huge))
-RunService.PostSimulation:Fire()
-assert(r.AssemblyLinearVelocity.X==200000 and r.AssemblyLinearVelocity.Y==200000 and r.AssemblyLinearVelocity.Z==200000)
-RunService.RenderStepped:Fire()
-assert(r.AssemblyLinearVelocity.Magnitude==0 and core.Config.Speed==launchSpeed,'contact setting must preserve pulse restoration and launch speed')
+assert(core:Start(target));assert(core.Phase=='PREPARE')
+-- Simulate observed physics positions separately from CFrame writes.
 for i=1,6 do
-	tick(.21);assert(core.Phase=='LAUNCH')
-	local v=r.AssemblyLinearVelocity
-	RunService.PostSimulation:Fire();RunService.RenderStepped:Fire()
-	assert(r.AssemblyLinearVelocity==v,'contact pulse must not overwrite launch')
-	assert(math.abs(v.X)>0 and math.abs(v.Y)>0 and math.abs(v.Z)>0,'every departure must be diagonal on all three axes')
-	assert(math.abs(v.Magnitude-core.Config.Speed)<.001,'diagonal must preserve configured total speed')
-	assert(r.AssemblyAngularVelocity.Magnitude==0,'launch must not impose spin')
-	tick(.26);assert(core.Phase=='RETURN')
-	local returning=r.AssemblyLinearVelocity
-	assert((returning+v).Magnitude<.001,'return must reverse the same diagonal')
-	assert(r.AssemblyAngularVelocity.Magnitude==0,'return must not impose spin')
-	tick(.26);assert(core.Phase=='CONTACT'and core.Cycles==i+1)
-	assert(r.AssemblyAngularVelocity.Magnitude==0,'contact must not impose spin')
-	assert((r.CFrame.Position-tr.Position).Magnitude<.501,'every cycle must reacquire the current target')
+ r.Position=r.CFrame.Position
+ assert(math.abs((r.Position-tr.Position).Magnitude-1000)<.001)
+ tick(.21);assert(core.Phase=='INBOUND')
+ local v=r.AssemblyLinearVelocity
+ assert(math.abs(v.Magnitude-core.Config.Speed)<.001)
+ assert(v.X~=0 and v.Y~=0 and v.Z~=0)
+ local frame=r.CFrame
+ r.Position=tr.Position+v.Unit*.2
+ tick(.001);assert(core.Phase=='PASS_THROUGH')
+ assert(r.CFrame==frame,'crossing must not teleport to target')
+ assert((r.AssemblyLinearVelocity-v).Magnitude<.001,'keep heading beyond HRP')
+ assert(r.AssemblyAngularVelocity.Magnitude==0)
+ r.Position=tr.Position+v.Unit*.51
+ tick(.001);assert(core.Phase=='PREPARE'and core.Cycles==i+1,'repeat at 0.5 studs past HRP without timed hold')
 end
--- Owned vehicle exists but must be physically connected to enable the gate.
-local vehicle={Parent=cars,GetAttribute=function()return 123 end,FindFirstChild=function()return nil end}
-local body={Parent=vehicle}
-connected={body};th.SeatPart=nil
-tick(.21);assert(core.Phase=='CONTACT'and core.WaitingForPassenger)
-local cycles=core.Cycles;tick(5);assert(core.Phase=='CONTACT'and core.Cycles==cycles,'passenger wait must not time out')
-local weld={Part1={IsDescendantOf=function(_,other)return other==tc end},IsA=function(_,kind)return kind=='JointInstance' end}
-local seat={Occupant=th,IsDescendantOf=function(_,other)return other==vehicle end,FindFirstChild=function()return weld end}
-weld.Part0=seat;th.SeatPart=seat
-tick(.01);assert(core.Phase=='LAUNCH'and not core.WaitingForPassenger)
-tick(.26);tick(.26);th.SeatPart=nil
-tick(.21);assert(core.Phase=='CONTACT'and core.WaitingForPassenger,'must validate passenger on every launch')
-connected={};tick(.01);assert(core.Phase=='LAUNCH','disconnecting vehicle must restore normal V8')
-tick(.26);tick(.26)
-th.Health=0;tick(.01);assert(core.Running and core.Phase=='WAIT_TARGET')
-target.Character=nil;tick(.01);assert(core.Running and core.Phase=='WAIT_TARGET')
-tc,th,tr=rig(50);target.Character=tc;tick(.01)
-assert(core.Phase=='CONTACT'and(r.CFrame.Position-tr.Position).Magnitude<.501,'target respawn must resume automatically')
--- Replacing only HRP must invalidate the old phase as well.
-tick(.21);assert(core.Phase=='LAUNCH')
-local old=tr;tr={Parent=tc,Position=vec(80,3,0),CFrame=CFrame.new(vec(80,3,0))}
-tc.FindFirstChild=function()return tr end
-tick(.01);assert(core.Phase=='CONTACT'and(r.CFrame.Position-tr.Position).Magnitude<.501)
--- A transient engine/read error must not leave the phase frozen.
+-- A connected vehicle without a passenger must not block departure.
+function r:GetConnectedParts()error('vehicle checks must not run')end
+r.Position=r.CFrame.Position;tick(.21);assert(core.Phase=='INBOUND')
+-- Pulses follow the inbound heading and restore without lateral motion.
+local inbound=r.AssemblyLinearVelocity
+assert(core:SetParameter('ContactSpeed',300000))
+r.Position=tr.Position-inbound.Unit*.1
+RunService.PostSimulation:Fire()
+assert(math.abs(r.AssemblyLinearVelocity.Magnitude-300000)<.001)
+assert((r.AssemblyLinearVelocity.Unit-inbound.Unit).Magnitude<.001)
+RunService.RenderStepped:Fire();assert(r.AssemblyLinearVelocity==inbound)
+-- Missed arrival retries rather than inventing a successful crossing.
+r.Position=vec(900,100,0);tick(2);assert(core.Phase=='PREPARE'and core.Recoveries>0)
+th.Health=0;tick(.01);assert(core.Phase=='WAIT_TARGET')
+tc,th,tr=rig(50);target.Character=tc;tick(.01);assert(core.Phase=='PREPARE')
 local lookup=tc.FindFirstChild
-tc.FindFirstChild=function()error('transient test error')end
-tick(.01);assert(core.Running and core.Phase=='RECOVERING'and core.LastError)
-tc.FindFirstChild=lookup;tick(.11);assert(core.Phase=='CONTACT')
-tick(5);assert(core.Phase=='CONTACT'and core.Recoveries>=2,'stale phase must restart at the live target')
-local oldLocal=c;player.Character=nil;tick(.01);assert(core.Phase=='WAIT_LOCAL'and core.Running)
-c,h,r=rig(5);player.Character=c;tick(.01);assert(core.Running and core.Phase=='CONTACT')
-assert(core:Stop());assert(r.CFrame==home and not r.CanCollide and h.AutoRotate and RunService.Heartbeat:Count()==0)
-assert(core:Start(target));target.Parent=nil;tick(.01);assert(not core.Running and RunService.Heartbeat:Count()==0)
-target.Parent=Players;assert(core:Start(target));authorized=false;tick(.01);assert(not core.Running)
+tc.FindFirstChild=function()error('transient')end
+tick(.01);assert(core.Phase=='RECOVERING')
+tc.FindFirstChild=lookup;tick(.11);assert(core.Phase=='PREPARE')
+player.Character=nil;tick(.01);assert(core.Phase=='WAIT_LOCAL')
+c,h,r=rig(0);player.Character=c;tick(.01);assert(core.Phase=='PREPARE')
+core:Stop();assert(r.CFrame==home and RunService.Heartbeat:Count()==0)
+assert(RunService.PostSimulation:Count()==0 and RunService.RenderStepped:Count()==0)
+assert(core:Start(target));target.Parent=nil;tick(.01);assert(not core.Running)
 core:Destroy()
-print('V8 persistent OK: six cycles, target death/respawn, HRP replacement, transient errors, stalled phases, local respawn, restore and owner authorization')
+print('V8 reverse flow OK: six passes, no vehicle dependency, heading preserved, pulse cleanup, timeout, respawn and error recovery')

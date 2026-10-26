@@ -59,9 +59,9 @@ return function(context)
 		{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}
 	},tr("Hibrido: velocidades entre 0 y 150000.","Hybrid: speeds between 0 and 150000."))
 	parameterGroup(V8PersistentFlingCore,11,tr("Ajustes V8 persistente · sin giro","Persistent V8 settings · no spin"),{
-		{"ContactSpeed",tr("Contacto: velocidad por eje XYZ","Contact: speed per XYZ axis")},
+		{"ContactSpeed",tr("Pulso al cruzar: velocidad total","Crossing pulse: total speed")},
 		{"Speed",tr("Velocidad lineal","Linear speed")},{"Distance",tr("Alejamiento (studs)","Outgoing distance (studs)")},
-		{"ContactTime",tr("Contacto (s)","Contact (s)")},{"LaunchTime",tr("Salida (s)","Launch (s)")},{"ReturnTime",tr("Regreso (s)","Return (s)")}
+		{"ContactTime",tr("Preparación alejado (s)","Distant preparation (s)")},{"LaunchTime",tr("Margen de llegada (s)","Arrival timeout margin (s)")}
 	},tr("V8: velocidad 0–1000000000; distancia 0.5–2000000000; tiempos 0.01–10 s.","V8: speed 0–1000000000; distance 0.5–2000000000; times 0.01–10 s."))
 	local motoFeedback=Instance.new("TextLabel")
 	motoFeedback.Size=UDim2.new(1,-12,0,52);motoFeedback.LayoutOrder=8
@@ -128,7 +128,7 @@ return function(context)
 		if not message and HybridFlingCore.Phase=="ESCAPE"then status.Text=tr("Copiloto confirmado: descenso sin giro mientras siga conectado. Si se baja, vuelve al contacto; si se sienta otra vez, repite el descenso.","Passenger confirmed: descent without spin while connected. Leaving resumes contact; sitting again repeats the descent.")end
 		if not message and V8PersistentFlingCore.Running then
 			local phases={WAIT_TARGET=tr("Esperando al target","Waiting for target"),WAIT_LOCAL=tr("Esperando tu personaje","Waiting for your character"),RECOVERING=tr("Recuperando contacto","Recovering contact")}
-			status.Text=phases[V8PersistentFlingCore.Phase]or tr("V8 persistente: contacto, salida y regreso; retoma el target despues de reaparecer. Conserva los valores y desplazamientos del V8.","Persistent V8: contact, launch and return; reacquires the target after respawn. Preserves V8 values and travel.")
+			status.Text=phases[V8PersistentFlingCore.Phase]or tr("V8: punto alejado → impulso hacia HRP → continuar de largo. Sin espera de asiento; tiempo de viaje según distancia y velocidad.","V8: distant point → velocity toward HRP → pass through. No seat wait; travel time depends on distance and speed.")
 		end
 	end
 	motoFeedback.LayoutOrder=12;back.LayoutOrder=13;status.LayoutOrder=14

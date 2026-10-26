@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local core={Running=false,Phase="IDLE",Cycles=0,Recoveries=0,LastError=nil,
-		Config={ContactSpeed=100000,Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
+		Config={ContactSpeed=100000,Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25}}
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
 	local pulseConnection,renderConnection,pulseRoot,pulseVelocity
@@ -10,32 +10,10 @@ return function(context)
 		local r,v=pulseRoot,pulseVelocity;pulseRoot=nil;pulseVelocity=nil
 		if r and r.Parent and v then r.AssemblyLinearVelocity=v end
 	end
-	-- Only a physically connected, locally owned vehicle enables the passenger gate.
-	local function connectedVehicle()
-		local cars=workspace:FindFirstChild("Cars")
-		if not cars then return nil end
-		for _,part in ipairs(root:GetConnectedParts(true))do
-			local vehicle=part
-			while vehicle and vehicle.Parent~=cars do vehicle=vehicle.Parent end
-			if vehicle then
-				local owner=vehicle:FindFirstChild("VehicleOwner")
-				local owned=owner and owner:IsA("ObjectValue")and owner.Value==player
-				if not owner or not owner:IsA("ObjectValue")or not owner.Value then
-					owned=tonumber(vehicle:GetAttribute("VehicleOwner"))==player.UserId
-				end
-				if owned then return vehicle end
-			end
-		end
-	end
-	local function passengerReady(vehicle,tc,th)
-		local seat=th.SeatPart
-		if not seat or not seat:IsDescendantOf(vehicle)or seat.Occupant~=th then return false end
-		local weld=seat:FindFirstChild("SeatWeld")
-		if not weld or not(weld:IsA("JointInstance")or weld:IsA("WeldConstraint"))then return false end
-		local a,b=weld.Part0,weld.Part1
-		return(a==seat and b and b:IsDescendantOf(tc))or(b==seat and a and a:IsDescendantOf(tc))or false
-	end
 	local phaseStart,direction,launchPosition,retryAt=0,nil,nil,0
+	local incoming,previousPosition,previousTarget,flightDeadline
+	local crossingPosition
+	local function dot(a,b)return a.X*b.X+a.Y*b.Y+a.Z*b.Z end
 	-- Only XYZ diagonals, alternating sides. Normalize to preserve configured speed/distance.
 	local directions={Vector3.new(1,1,1).Unit,Vector3.new(-1,1,1).Unit,Vector3.new(-1,1,-1).Unit,Vector3.new(1,1,-1).Unit}
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
@@ -46,7 +24,7 @@ return function(context)
 	end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
+		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -70,8 +48,11 @@ return function(context)
 		core.WaitingForPassenger=false
 		zero();core.Cycles=core.Cycles+1
 		direction=directions[(core.Cycles-1)%#directions+1]
-		targetCharacter=selected.Character;targetRoot=tr;launchPosition=nil
-		phaseStart=now;core.Phase="CONTACT"
+		targetCharacter=selected.Character;targetRoot=tr
+		launchPosition=tr.Position+direction*core.Config.Distance
+		root.CFrame=CFrame.new(launchPosition)*root.CFrame.Rotation
+		incoming=direction*(-1);previousPosition=nil;previousTarget=nil;crossingPosition=nil
+		phaseStart=now;core.Phase="PREPARE"
 	end
 	local function bindCharacter(c,h,r)
 		character=c;humanoid=h;root=r
@@ -112,34 +93,44 @@ return function(context)
 		if tc~=targetCharacter or tr~=targetRoot or core.Phase=="WAIT_TARGET"or core.Phase=="WAIT_LOCAL"or core.Phase=="RECOVERING"then beginContact(tr,now)end
 		local cfg=core.Config
 		if not valid(r.Position)then beginContact(tr,now)end
-		-- A stalled/outdated phase always reacquires the live target.
-		local duration=core.Phase=="CONTACT"and cfg.ContactTime or core.Phase=="LAUNCH"and cfg.LaunchTime or cfg.ReturnTime
-		if not core.WaitingForPassenger and now-phaseStart>duration+1 then core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
 		local elapsed=now-phaseStart
 		local angular=Vector3.zero
-		if core.Phase=="CONTACT"then
-			local vehicle=connectedVehicle()
-			core.WaitingForPassenger=vehicle~=nil and not passengerReady(vehicle,tc,th)
-			r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation
-			r.AssemblyLinearVelocity=Vector3.zero;r.AssemblyAngularVelocity=angular
-			if elapsed>=cfg.ContactTime and not core.WaitingForPassenger then
-				launchPosition=tr.Position+direction*cfg.Distance
-				r.AssemblyLinearVelocity=direction*cfg.Speed
-				core.Phase="LAUNCH";phaseStart=now
+		if core.Phase=="PREPARE"then
+			r.CFrame=CFrame.new(launchPosition)*r.CFrame.Rotation;zero()
+			if elapsed>=cfg.ContactTime then
+				local offset=tr.Position-r.Position
+				if offset.Magnitude>.001 then incoming=offset.Unit end
+				previousPosition=r.Position;previousTarget=tr.Position
+				flightDeadline=now+offset.Magnitude/math.max(cfg.Speed,1)+cfg.LaunchTime
+				r.AssemblyLinearVelocity=incoming*cfg.Speed
+				core.Phase="INBOUND";phaseStart=now
 			end
-		elseif core.Phase=="LAUNCH"then
-			r.AssemblyLinearVelocity=direction*cfg.Speed;r.AssemblyAngularVelocity=angular
-			if elapsed>=cfg.LaunchTime then
-				-- Preserve the supplied V8's far placement at the return transition.
-				r.CFrame=CFrame.new(launchPosition)*r.CFrame.Rotation
-				r.AssemblyLinearVelocity=direction*(-cfg.Speed)
-				core.Phase="RETURN";phaseStart=now
-			end
-		elseif core.Phase=="RETURN"then
-			r.AssemblyLinearVelocity=direction*(-cfg.Speed);r.AssemblyAngularVelocity=angular
-			if elapsed>=cfg.ReturnTime then
+		elseif core.Phase=="INBOUND"then
+			-- Relative swept segment measures observed passage, not collision proof.
+			local offset=tr.Position-r.Position
+			local before=previousPosition-previousTarget
+			local after=r.Position-tr.Position
+			local segment=after-before
+			local length2=dot(segment,segment)
+			local t=length2>0 and math.max(0,math.min(1,-dot(before,segment)/length2))or 0
+			local near=(before+segment*t).Magnitude<=.5
+			if near and dot(after,incoming)>=0 then
+				crossingPosition=tr.Position
+				if dot(after,incoming)>=.5 then beginContact(tr,now);return end
+				core.Phase="PASS_THROUGH";phaseStart=now
+			elseif now>=flightDeadline then
+				core.Recoveries=core.Recoveries+1;beginContact(tr,now);return
+			elseif offset.Magnitude>.001 then incoming=offset.Unit end
+			r.AssemblyLinearVelocity=incoming*cfg.Speed;r.AssemblyAngularVelocity=angular
+			previousPosition=r.Position;previousTarget=tr.Position
+		elseif core.Phase=="PASS_THROUGH"then
+			-- Keep heading beyond HRP. No target teleport and no parking at HRP.
+			r.AssemblyLinearVelocity=incoming*cfg.Speed;r.AssemblyAngularVelocity=angular
+			-- Distance threshold, not an extra timed flight. A physics step can overshoot.
+			if dot(r.Position-crossingPosition,incoming)>=.5 then
 				beginContact(tr,now)
-				r.CFrame=CFrame.new(tr.Position+direction*.5)*r.CFrame.Rotation;r.AssemblyAngularVelocity=angular
+			elseif elapsed>=cfg.LaunchTime+.5/math.max(cfg.Speed,1) then
+				core.Recoveries=core.Recoveries+1;beginContact(tr,now)
 			end
 		else core.Recoveries=core.Recoveries+1;beginContact(tr,now)end
 	end
@@ -163,10 +154,10 @@ return function(context)
 		-- Independent contact pulse; never overwrites launch/return velocities.
 		pulseConnection=RunService.PostSimulation:Connect(function()
 			restorePulse()
-			if self.Running and self.Phase=="CONTACT"and root and root.Parent and player.Character==character and humanoid.Health>0 then
+			if self.Running and (self.Phase=="INBOUND"or self.Phase=="PASS_THROUGH")and targetRoot and targetRoot.Parent and root and root.Parent and player.Character==character and humanoid.Health>0 and (root.Position-targetRoot.Position).Magnitude<=.5 then
 				pulseRoot=root;pulseVelocity=root.AssemblyLinearVelocity
-				local speed=self.Config.ContactSpeed
-				root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
+				local speed=math.max(self.Config.Speed,self.Config.ContactSpeed)
+				root.AssemblyLinearVelocity=incoming*speed
 				root.AssemblyAngularVelocity=Vector3.zero
 			end
 		end)
