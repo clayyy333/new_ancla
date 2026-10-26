@@ -45,8 +45,13 @@ local home=r.CFrame
 assert(core:Start(target));assert(core.Phase=='CONTACT'and core.Cycles==1 and r.CanCollide and not h.AutoRotate)
 for i=1,6 do
 	tick(.21);assert(core.Phase=='LAUNCH')
+	local v=r.AssemblyLinearVelocity
+	assert(math.abs(v.X)>0 and math.abs(v.Y)>0 and math.abs(v.Z)>0,'every departure must be diagonal on all three axes')
+	assert(math.abs(v.Magnitude-core.Config.Speed)<.001,'diagonal must preserve configured total speed')
 	assert(r.AssemblyAngularVelocity.Magnitude==0,'launch must not impose spin')
 	tick(.26);assert(core.Phase=='RETURN')
+	local returning=r.AssemblyLinearVelocity
+	assert((returning+v).Magnitude<.001,'return must reverse the same diagonal')
 	assert(r.AssemblyAngularVelocity.Magnitude==0,'return must not impose spin')
 	tick(.26);assert(core.Phase=='CONTACT'and core.Cycles==i+1)
 	assert(r.AssemblyAngularVelocity.Magnitude==0,'contact must not impose spin')

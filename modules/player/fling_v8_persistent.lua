@@ -6,7 +6,8 @@ return function(context)
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
 	local phaseStart,direction,launchPosition,retryAt=0,nil,nil,0
-	local directions={Vector3.new(1,0,0),Vector3.new(-1,0,0),Vector3.new(0,1,0),Vector3.new(0,-1,0),Vector3.new(0,0,1),Vector3.new(0,0,-1),Vector3.new(1,1,0).Unit,Vector3.new(-1,1,0).Unit}
+	-- Only XYZ diagonals, alternating sides. Normalize to preserve configured speed/distance.
+	local directions={Vector3.new(1,1,1).Unit,Vector3.new(-1,1,1).Unit,Vector3.new(-1,1,-1).Unit,Vector3.new(1,1,-1).Unit}
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(v)return type(v)=="number"and v==v and math.abs(v)<math.huge end
 	local function valid(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
