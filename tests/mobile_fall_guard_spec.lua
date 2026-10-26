@@ -185,6 +185,8 @@ if anchorSource then
  root.Touched=signal()
  local jointScans=0
  function root:GetJoints()jointScans=jointScans+1;return {}end
+ local externalConnection=nil
+ function root:GetConnectedParts()return externalConnection and {externalConnection}or {}end
  local characterParts={root}
  for i=1,11 do
   local limb=instance('Part','Body'..i,character);limb.Touched=signal()
@@ -228,6 +230,21 @@ if anchorSource then
  end
  latest=core.SafeHistory[#core.SafeHistory]
  assert(clock-latest.Time<.13 and latest.CFrame==core.SafeCFrame and core.SafeCFrame.Position.X>5,'walking must keep both recovery paths current')
+ core.ThreatUntil=clock+10
+ local oldSafe=core.SafeCFrame
+ for i=1,20 do
+  root.Position=Vector3.new(6+i*.1,3,0);root.CFrame=CFrame.new(root.Position);tick(.02)
+ end
+ assert(core.SafeCFrame.Position.X>oldSafe.Position.X,'nearby threats must not freeze verified detached walking')
+ externalConnection=instance('Part','ExternalObject',workspace)
+ h.Sit=true;h.SeatPart=externalConnection
+ oldSafe=core.SafeCFrame
+ for i=1,20 do tick(.02)end
+ assert(core.SafeCFrame==oldSafe,'seated attachment must never become a checkpoint')
+ h.Sit=false;h.SeatPart=nil
+ for i=1,20 do tick(.02)end
+ assert(core.SafeCFrame==oldSafe,'external weld without seated state must block capture')
+ externalConnection=nil;core.ThreatUntil=0
  assert(core.Running and core.FallProtectionEnabled and core:GetFallProtectionStatus().SafePoints>0,'main activation automatically enables fall protection and ground sampling')
  core:ResetFallProtectionReference()
  for i=1,30 do tick(.02)end

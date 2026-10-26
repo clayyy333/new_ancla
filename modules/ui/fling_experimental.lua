@@ -59,6 +59,7 @@ return function(context)
 		{"DescentSpeed",tr("Descenso con copiloto","Passenger descent speed")},{"DiagonalSpeed",tr("Velocidad por eje XYZ","Speed per XYZ axis")}
 	},tr("Hibrido: velocidades entre 0 y 150000.","Hybrid: speeds between 0 and 150000."))
 	parameterGroup(V8PersistentFlingCore,11,tr("Ajustes V8 persistente · sin giro","Persistent V8 settings · no spin"),{
+		{"ContactSpeed",tr("Contacto: velocidad por eje XYZ","Contact: speed per XYZ axis")},
 		{"Speed",tr("Velocidad lineal","Linear speed")},{"Distance",tr("Alejamiento (studs)","Outgoing distance (studs)")},
 		{"ContactTime",tr("Contacto (s)","Contact (s)")},{"LaunchTime",tr("Salida (s)","Launch (s)")},{"ReturnTime",tr("Regreso (s)","Return (s)")}
 	},tr("V8: velocidad 0–1000000000; distancia 0.5–2000000000; tiempos 0.01–10 s.","V8: speed 0–1000000000; distance 0.5–2000000000; times 0.01–10 s."))

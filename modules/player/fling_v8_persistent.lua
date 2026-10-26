@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local core={Running=false,Phase="IDLE",Cycles=0,Recoveries=0,LastError=nil,
-		Config={Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
+		Config={ContactSpeed=100000,Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25,ReturnTime=.25}}
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
 	local pulseConnection,renderConnection,pulseRoot,pulseVelocity
@@ -46,7 +46,7 @@ return function(context)
 	end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
+		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10},ReturnTime={.01,10}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -165,7 +165,8 @@ return function(context)
 			restorePulse()
 			if self.Running and self.Phase=="CONTACT"and root and root.Parent and player.Character==character and humanoid.Health>0 then
 				pulseRoot=root;pulseVelocity=root.AssemblyLinearVelocity
-				root.AssemblyLinearVelocity=Vector3.new(100000,100000,100000)
+				local speed=self.Config.ContactSpeed
+				root.AssemblyLinearVelocity=Vector3.new(speed,speed,speed)
 				root.AssemblyAngularVelocity=Vector3.zero
 			end
 		end)

@@ -24,6 +24,9 @@ return function(context)
  local lastSpatialScan=0
  local lastBridgeScan=0
  local lastSupportScan=0
+ local safeCaptureBlockedUntil=0
+ local lastCaptureScan=-math.huge
+ local captureDetached=false
 
  local function authorized()return true end
 
@@ -414,6 +417,8 @@ return function(context)
   local seat=insideP and q or p
   if not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or (expectedSeat and seat~=expectedSeat)then return false end
   handledSeatWelds[weld]=true
+  lastCaptureScan=-math.huge
+  safeCaptureBlockedUntil=os.clock()+.18
   local ok=pcall(function()weld:Destroy()end)
   if not ok then handledSeatWelds[weld]=nil;return false end
   recentSeatBreaks[seat]=os.clock()
@@ -462,6 +467,8 @@ return function(context)
   local inside0=belongsTo(part0,character)
   local inside1=belongsTo(part1,character)
   if inside0==inside1 then return false end
+  lastCaptureScan=-math.huge
+  safeCaptureBlockedUntil=os.clock()+.18
   local characterEndpoint=inside0 and part0 or part1
   local externalEndpoint=inside0 and part1 or part0
   local report={
@@ -738,6 +745,7 @@ return function(context)
   self.RecoveryUntil=0
   self.RecoveryMinUntil=0
   self.ThreatUntil=0
+  safeCaptureBlockedUntil=0;lastCaptureScan=-math.huge;captureDetached=false
   self.StableSince=os.clock()
   self.Corrections=0
   self.BrokenBridges=0
@@ -853,7 +861,20 @@ return function(context)
    local motionStable=grounded and math.abs(velocity.Y)<8 and velocity.Magnitude<math.max(26,currentHumanoid.WalkSpeed+8) and angular<5
    if self.FallProtectionEnabled then
     local hadSafe=#fallGuard.History>0
-    local verified=fallGuard:CommitSafe(now,currentHumanoid,currentRoot,motionStable and now>=self.ThreatUntil)
+    -- Nearby threats alone must not freeze walking checkpoints. Check actual
+    -- attachment only when a new ground sample is due, never scan Workspace.
+    local captureSafe=motionStable and not currentHumanoid.Sit and not currentHumanoid.SeatPart and now>=safeCaptureBlockedUntil
+    if captureSafe and now-lastCaptureScan>=.10 then
+     lastCaptureScan=now
+     local ok,parts=pcall(function()return currentRoot:GetConnectedParts(true)end)
+     captureDetached=ok
+     if ok then
+      for _,part in ipairs(parts)do
+       if not belongsTo(part,currentCharacter)then captureDetached=false;break end
+      end
+     end
+    end
+    local verified=fallGuard:CommitSafe(now,currentHumanoid,currentRoot,captureSafe and captureDetached)
     if verified then
      -- CommitSafe has already confirmed continuous stable ground. Use its
      -- actual latest sample for both recovery paths; do not wait another .18s.

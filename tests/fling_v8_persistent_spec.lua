@@ -49,6 +49,14 @@ local home=r.CFrame
 assert(core:Start(target));assert(core.Phase=='CONTACT'and core.Cycles==1 and r.CanCollide and not h.AutoRotate)
 RunService.PostSimulation:Fire();assert(r.AssemblyLinearVelocity.X==100000)
 RunService.RenderStepped:Fire();assert(r.AssemblyLinearVelocity.Magnitude==0)
+local launchSpeed=core.Config.Speed
+assert(core:SetParameter('ContactSpeed',200000))
+assert(not core:SetParameter('ContactSpeed',-1))
+assert(not core:SetParameter('ContactSpeed',math.huge))
+RunService.PostSimulation:Fire()
+assert(r.AssemblyLinearVelocity.X==200000 and r.AssemblyLinearVelocity.Y==200000 and r.AssemblyLinearVelocity.Z==200000)
+RunService.RenderStepped:Fire()
+assert(r.AssemblyLinearVelocity.Magnitude==0 and core.Config.Speed==launchSpeed,'contact setting must preserve pulse restoration and launch speed')
 for i=1,6 do
 	tick(.21);assert(core.Phase=='LAUNCH')
 	local v=r.AssemblyLinearVelocity
