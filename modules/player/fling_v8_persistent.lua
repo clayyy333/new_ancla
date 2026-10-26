@@ -2,7 +2,7 @@
 return function(context)
 	setfenv(1,context)
 	local core={Running=false,Phase="IDLE",Cycles=0,Recoveries=0,LastError=nil,
-		Config={ContactSpeed=100000,Speed=174463.14492872442,Distance=1828025672.522707,ContactTime=.20,LaunchTime=.25}}
+		Config={ContactSpeed=100000,Speed=174463.14492872442,Distance=100,Azimuth=0,Elevation=0,ContactTime=.20,LaunchTime=.25}}
 	V8PersistentFlingCore=core
 	local connection,selected,character,humanoid,root,checkpoint,saved,targetCharacter,targetRoot
 	local pulseConnection,renderConnection,pulseRoot,pulseVelocity
@@ -14,8 +14,15 @@ return function(context)
 	local incoming,previousPosition,previousTarget,flightDeadline
 	local crossingPosition
 	local function dot(a,b)return a.X*b.X+a.Y*b.Y+a.Z*b.Z end
-	-- Only XYZ diagonals, alternating sides. Normalize to preserve configured speed/distance.
-	local directions={Vector3.new(1,1,1).Unit,Vector3.new(-1,1,1).Unit,Vector3.new(-1,1,-1).Unit,Vector3.new(1,1,-1).Unit}
+	-- Relative to the target's horizontal facing: 0 front, 90 right, 180 rear.
+	local function departureDirection(tr)
+		local look=tr.CFrame.LookVector
+		local forward=Vector3.new(look.X,0,look.Z)
+		forward=forward.Magnitude>.001 and forward.Unit or Vector3.new(0,0,-1)
+		local right=Vector3.new(-forward.Z,0,forward.X)
+		local az,el=math.rad(core.Config.Azimuth),math.rad(core.Config.Elevation)
+		return ((forward*math.cos(az)+right*math.sin(az))*math.cos(el)+Vector3.new(0,math.sin(el),0)).Unit
+	end
 	local function refresh(message)if UpdateExperimentalFlingPanel then UpdateExperimentalFlingPanel(message)end end
 	local function finite(v)return type(v)=="number"and v==v and math.abs(v)<math.huge end
 	local function valid(v)return finite(v.X)and finite(v.Y)and finite(v.Z)end
@@ -24,7 +31,7 @@ return function(context)
 	end
 	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
 	function core:SetParameter(name,value)
-		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},ContactTime={.01,10},LaunchTime={.01,10}}
+		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},Azimuth={-360,360},Elevation={-90,90},ContactTime={.01,10},LaunchTime={.01,10}}
 		local range=limits[name]
 		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
@@ -47,7 +54,7 @@ return function(context)
 	local function beginContact(tr,now)
 		core.WaitingForPassenger=false
 		zero();core.Cycles=core.Cycles+1
-		direction=directions[(core.Cycles-1)%#directions+1]
+		direction=departureDirection(tr)
 		targetCharacter=selected.Character;targetRoot=tr
 		launchPosition=tr.Position+direction*core.Config.Distance
 		root.CFrame=CFrame.new(launchPosition)*root.CFrame.Rotation

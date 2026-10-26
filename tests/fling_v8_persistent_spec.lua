@@ -17,7 +17,7 @@ vm.__index=function(v,k)
 	if k=='Unit'then return v*(1/v.Magnitude)end
 end
 Vector3={new=vec,zero=vec(0,0,0)}
-local fm={};fm.__index=function(f,k)if k=='Rotation'then return f end end
+local fm={};fm.__index=function(f,k)if k=='Rotation'then return f elseif k=='LookVector'then return vec(0,0,-1)end end
 fm.__mul=function(f)return f end
 CFrame={new=function(v)return setmetatable({Position=v},fm)end}
 local now=0;os.clock=function()return now end
@@ -55,7 +55,7 @@ for i=1,6 do
  tick(.21);assert(core.Phase=='INBOUND')
  local v=r.AssemblyLinearVelocity
  assert(math.abs(v.Magnitude-core.Config.Speed)<.001)
- assert(v.X~=0 and v.Y~=0 and v.Z~=0)
+ assert(math.abs(v.X)<.001 and math.abs(v.Y)<.001 and v.Z>0,'front departure points back toward target without alternating')
  local frame=r.CFrame
  r.Position=tr.Position+v.Unit*.2
  tick(.001);assert(core.Phase=='PASS_THROUGH')
@@ -89,5 +89,16 @@ c,h,r=rig(0);player.Character=c;tick(.01);assert(core.Phase=='PREPARE')
 core:Stop();assert(r.CFrame==home and RunService.Heartbeat:Count()==0)
 assert(RunService.PostSimulation:Count()==0 and RunService.RenderStepped:Count()==0)
 assert(core:Start(target));target.Parent=nil;tick(.01);assert(not core.Running)
+target.Parent=Players
+for _,case in ipairs({{10,0,0,vec(0,0,-1)},{100,180,0,vec(0,0,1)},{1000,90,0,vec(1,0,0)},{100,0,90,vec(0,1,0)}})do
+ assert(core:SetParameter('Distance',case[1]))
+ assert(core:SetParameter('Azimuth',case[2]))
+ assert(core:SetParameter('Elevation',case[3]))
+ assert(core:Start(target))
+ local offset=r.CFrame.Position-tr.Position
+ assert((offset-case[4]*case[1]).Magnitude<.001,'configured distance/angle must determine CFrame departure')
+ assert(core.Config.Speed==174463.14492872442,'departure settings must not change speed')
+ core:Stop()
+end
 core:Destroy()
 print('V8 reverse flow OK: six passes, no vehicle dependency, heading preserved, pulse cleanup, timeout, respawn and error recovery')

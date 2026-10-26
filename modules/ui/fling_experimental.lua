@@ -61,6 +61,7 @@ return function(context)
 	parameterGroup(V8PersistentFlingCore,11,tr("Ajustes V8 persistente · sin giro","Persistent V8 settings · no spin"),{
 		{"ContactSpeed",tr("Pulso al cruzar: velocidad total","Crossing pulse: total speed")},
 		{"Speed",tr("Velocidad lineal","Linear speed")},{"Distance",tr("Alejamiento (studs)","Outgoing distance (studs)")},
+		{"Azimuth",tr("Ángulo: 0 delante / 180 detrás","Angle: 0 front / 180 rear")},{"Elevation",tr("Elevación: -90 abajo / 90 arriba","Elevation: -90 below / 90 above")},
 		{"ContactTime",tr("Preparación alejado (s)","Distant preparation (s)")},{"LaunchTime",tr("Margen de llegada (s)","Arrival timeout margin (s)")}
 	},tr("V8: velocidad 0–1000000000; distancia 0.5–2000000000; tiempos 0.01–10 s.","V8: speed 0–1000000000; distance 0.5–2000000000; times 0.01–10 s."))
 	local motoFeedback=Instance.new("TextLabel")
