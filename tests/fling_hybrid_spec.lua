@@ -90,11 +90,24 @@ RunService.Heartbeat:Fire();assert(c.Phase=='CONTACT','another owner must not tr
 reference.Value=player
 local departure=frame(vec(50,50,50));root.CFrame=departure
 RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE'and root.CFrame==departure)
-target.Character=nil;target.Parent=nil
 for i=1,3 do RunService.Heartbeat:Fire();assert(c.Running and c.Phase=='ESCAPE'and root.CFrame==departure)end
 assert(root.AssemblyLinearVelocity.X==0 and root.AssemblyLinearVelocity.Y==-9000 and root.AssemblyLinearVelocity.Z==0)
 assert(root.AssemblyAngularVelocity.Magnitude==0,'passenger descent must not impose spin')
 assert(c:SetParameter('DescentSpeed',12000));RunService.Heartbeat:Fire();assert(root.AssemblyLinearVelocity.Y==-12000)
+th.SeatPart=nil
+RunService.Heartbeat:Fire()
+assert(c.Phase=='CONTACT'and(root.CFrame.Position-tr.Position).Magnitude==.5,'leaving the seat must immediately resume target contact')
+assert(root.AssemblyLinearVelocity.X==9000 and root.AssemblyLinearVelocity.Y==9000,'contact must replace descending velocity')
+th.SeatPart=seat
+RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE'and root.AssemblyLinearVelocity.Y==-12000,'reseating must start another descent')
+local savedEndpoint=weld.Part1;weld.Part1=nil
+RunService.Heartbeat:Fire();assert(c.Phase=='CONTACT','losing the verified weld must also resume contact')
+weld.Part1=savedEndpoint
+RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE')
+target.Character=nil
+RunService.Heartbeat:Fire();assert(c.Running and c.Phase=='WAIT_TARGET'and root.CFrame==initial,'target respawn must cancel descent and wait')
+target.Character=tc
+RunService.Heartbeat:Fire();assert(c.Phase=='ESCAPE')
 c:Stop();assert(root.CFrame==initial,'manual disable retains the checkpoint return')
 target.Character=tc;target.Parent=Players;th.SeatPart=nil
 assert(c:Start(target));authorized=false;RunService.Heartbeat:Fire();assert(not c.Running);authorized=true

@@ -71,7 +71,6 @@ return function(context)
 	local function step()
 		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
 		if player.Character~=character or not root.Parent or humanoid.Health<=0 then core:Stop("Personaje local perdido.");return end
-		if core.Phase=="ESCAPE"then escape();return end
 		if target.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
 		local tc=target.Character
 		local tr=tc and tc:FindFirstChild("HumanoidRootPart")
@@ -82,9 +81,15 @@ return function(context)
 			return
 		end
 		if passengerConnected(tc,th)then
-			core.Phase="ESCAPE"
-			refresh("Copiloto confirmado: salida descendente sin giro ni retorno automatico.")
+			if core.Phase~="ESCAPE"then
+				core.Phase="ESCAPE"
+				refresh("Copiloto confirmado: descenso mientras conserve la conexion al asiento.")
+			end
 			escape();return
+		end
+		if core.Phase=="ESCAPE"then
+			zero();core.Phase="CONTACT"
+			refresh("Copiloto desconectado: retomando contacto con el jugador seleccionado.")
 		end
 		if not vector(tr.Position)then core:Stop("Datos de posicion no validos.");return end
 		if core.Phase=="WAIT_TARGET"then core.Phase="CONTACT";refresh()end
