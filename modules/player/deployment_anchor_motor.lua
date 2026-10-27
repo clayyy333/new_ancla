@@ -457,6 +457,52 @@ return function(context)
 	local nextShift,lastScan,index=0,0,1
 	local pairsByPart={}
 	local character,humanoid,seatState
+	-- Character-only noclip; retain tool collisions for the Babycar workflow.
+	local rigGuards,bodyCollisions={},{}
+	local releasingSeat=false
+	local function clearRigGuards()
+		for _,connection in ipairs(rigGuards)do connection:Disconnect()end
+		table.clear(rigGuards)
+		for part,value in pairs(bodyCollisions)do
+			if part.Parent then pcall(function()part.CanCollide=value end)end
+		end
+		table.clear(bodyCollisions)
+	end
+	local function protectBody(part)
+		if not part:IsA("BasePart")or part:FindFirstAncestorOfClass("Tool")then return end
+		if bodyCollisions[part]==nil then bodyCollisions[part]=part.CanCollide end
+		part.CanCollide=false
+	end
+	local function releaseCurrentSeat()
+		if releasingSeat or not Core.Running or not humanoid or not character then return end
+		releasingSeat=true
+		local seat=humanoid.SeatPart
+		if seat and seat.Parent then
+			for _,joint in ipairs(seat:GetChildren())do
+				if joint:IsA("JointInstance")or joint:IsA("WeldConstraint")then
+					local a,b=joint.Part0,joint.Part1
+					local body=a==seat and b or b==seat and a
+					if body and body:IsDescendantOf(character)and not body:FindFirstAncestorOfClass("Tool")then
+						joint:Destroy()
+					end
+				end
+			end
+		end
+		if humanoid.Sit or seat then
+			humanoid.Sit=false
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+		releasingSeat=false
+	end
+	local function bindRigGuards()
+		clearRigGuards()
+		for _,part in ipairs(character:GetDescendants())do protectBody(part)end
+		rigGuards[#rigGuards+1]=character.DescendantAdded:Connect(protectBody)
+		rigGuards[#rigGuards+1]=humanoid:GetPropertyChangedSignal("Sit"):Connect(releaseCurrentSeat)
+		rigGuards[#rigGuards+1]=humanoid:GetPropertyChangedSignal("SeatPart"):Connect(releaseCurrentSeat)
+		rigGuards[#rigGuards+1]=humanoid.Seated:Connect(releaseCurrentSeat)
+		releaseCurrentSeat()
+	end
 	local function conflict()
 		return (StaticPassThroughAnchorCore and StaticPassThroughAnchorCore:IsRunning())
 			or (AnchorCore and (AnchorCore.AnclaEnabled or AnchorCore.AntiSeatEnabled or AnchorCore.HeartbeatEnabled or AnchorCore.TestEnabled))
@@ -555,6 +601,7 @@ return function(context)
 	end
 	-- Release only the old rig. Desired state and the original center survive respawn.
 	local function releaseRig()
+		clearRigGuards()
 		Core.AnclaEnabled=false;Core.GuardianEnabled=false
 		Core.AntiSeatEnabled=false;Core.HeartbeatEnabled=false
 		destroyAlignPosition();clean(true)
@@ -574,6 +621,7 @@ return function(context)
 		createAlignPosition(root)
 		Core.AnclaEnabled=true;Core.GuardianEnabled=true
 		Core.AntiSeatEnabled=true;Core.HeartbeatEnabled=true
+		bindRigGuards()
 		commit(Core.PhaseEnabled and destination(index) or Core.Center)
 		nextShift=os.clock()
 		phaseStatus(nil)
@@ -614,9 +662,11 @@ return function(context)
 		self.Center=self.Checkpoint;self.Running=true;self.PhaseEnabled=false;index=1
 		seatState=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+		bindRigGuards()
 		self:SetAntiSeat(true);self:SetHeartbeat(true);refresh();return true
 	end
 	function Core:Stop()
+		clearRigGuards()
 		if self.Running and self.Center then index=1;commit(self.Center) end
 		self.Running=false;self.PhaseEnabled=false
 		phaseStatus(nil)
@@ -668,6 +718,13 @@ return function(context)
 			end
 			phaseStatus(isES and "Sin destinos distintos: revisa las distancias." or "No distinct destinations: check distances.")
 		end
+	end)
+	connections[#connections+1]=(RunService.PreSimulation or RunService.Stepped):Connect(function()
+		if not Core.Running then return end
+		for part in pairs(bodyCollisions)do
+			if part.Parent then part.CanCollide=false else bodyCollisions[part]=nil end
+		end
+		releaseCurrentSeat()
 	end)
 	-- Protection scans never gate the shift scheduler and never scan the whole map.
 	connections[#connections+1]=RunService.Heartbeat:Connect(function()

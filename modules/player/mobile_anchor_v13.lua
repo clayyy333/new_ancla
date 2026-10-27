@@ -641,6 +641,30 @@ return function(context)
   end)
  end
 
+ -- Seat prevention supplements existing selective collision protection; never noclip the floor.
+ local preventionSeats,knownPreventionSeats={},{}
+ local scannedSeatObjects=setmetatable({},{__mode="k"})
+ local knownSeatObjects={Babycar_a=true,Babycar_b=true,Babycar_c=true,Stretcher=true,FoldingTable_1=true,Folding_table_02=true}
+ local function knownSeatObject(part)
+  local n=part
+  while n and n~=workspace do if knownSeatObjects[n.Name]then return n end;n=n.Parent end
+ end
+ local function rememberPreventionSeat(part)
+  if (part:IsA("Seat")or part:IsA("VehicleSeat"))and knownSeatObject(part)then knownPreventionSeats[part]=true end
+ end
+ local function restorePreventionSeat(seat,state)
+  if seat.Parent then pcall(function()seat.Disabled=state.Disabled;seat.CanTouch=state.CanTouch end)end
+  preventionSeats[seat]=nil
+ end
+ local function clearSeatPrevention()
+  for seat,state in pairs(preventionSeats)do restorePreventionSeat(seat,state)end
+  table.clear(knownPreventionSeats);scannedSeatObjects=setmetatable({},{__mode="k"})
+ end
+ local function preventNearbySeat(seat,character,root)
+  if not seat.Parent or seat:IsDescendantOf(character)or (seat.Position-root.Position).Magnitude>15 then return end
+  if not preventionSeats[seat]then preventionSeats[seat]={Disabled=seat.Disabled,CanTouch=seat.CanTouch}end
+  seat.Disabled=true;seat.CanTouch=false
+ end
  local function spatialAntiRam(now,character,root)
   local interval=now<Core.ThreatUntil and 0.045 or 0.11
   if now-lastSpatialScan<interval then return end
@@ -650,9 +674,24 @@ return function(context)
   params.FilterDescendantsInstances={character}
   params.MaxParts=80
   local ok,nearby=pcall(function()return workspace:GetPartBoundsInRadius(root.Position,22,params)end)
+  for seat,state in pairs(preventionSeats)do
+   if not seat:IsDescendantOf(workspace)or (seat.Position-root.Position).Magnitude>15 then restorePreventionSeat(seat,state)end
+  end
+  for seat in pairs(knownPreventionSeats)do
+   if seat:IsDescendantOf(workspace)then preventNearbySeat(seat,character,root)else knownPreventionSeats[seat]=nil end
+  end
   if not ok then return end
   local checked={}
   for _,part in ipairs(nearby) do
+   local container=knownSeatObject(part)
+   if container and not scannedSeatObjects[container]then
+    scannedSeatObjects[container]=true
+    for _,descendant in ipairs(container:GetDescendants())do
+     rememberPreventionSeat(descendant)
+     if knownPreventionSeats[descendant]then preventNearbySeat(descendant,character,root)end
+    end
+   end
+   if part:IsA("Seat")or part:IsA("VehicleSeat")then preventNearbySeat(part,character,root)end
    if part:IsA("BasePart") and not belongsTo(part,character) then
     local assemblyRoot=part.AssemblyRootPart or part
     if not checked[assemblyRoot] then
@@ -865,6 +904,7 @@ return function(context)
 
   runtime[#runtime+1]=workspace.DescendantAdded:Connect(function(object)
    if not self.Running then return end
+   rememberPreventionSeat(object)
    if belongsTo(object,Core.PhaseFolder)then return end
    if releaseSeatWeld(object)then return end
    if object:IsA("WeldConstraint") or object:IsA("JointInstance") or object:IsA("Constraint") or object:IsA("BodyMover") then
@@ -872,6 +912,27 @@ return function(context)
    end
   end)
 
+  -- Existing equipped known objects are registered once; new descendants use events.
+  for _,other in ipairs(Players:GetPlayers())do
+   if other.Character and other.Character~=character then
+    for _,part in ipairs(other.Character:GetDescendants())do rememberPreventionSeat(part)end
+   end
+  end
+  local postureGuard=false
+  local function recoverPosture()
+   if postureGuard or not self.Running then return end
+   local state=humanoid:GetState()
+   if not humanoid.Sit and state~=Enum.HumanoidStateType.Seated and state~=Enum.HumanoidStateType.Ragdoll and state~=Enum.HumanoidStateType.FallingDown then return end
+   postureGuard=true
+   if humanoid.SeatPart then
+    if not releaseKnownSeat(humanoid.SeatPart)then queueSeatIsolation(humanoid.SeatPart,true)end
+   end
+   humanoid.Sit=false
+   humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+   postureGuard=false
+  end
+  runtime[#runtime+1]=humanoid:GetPropertyChangedSignal("Sit"):Connect(recoverPosture)
+  runtime[#runtime+1]=humanoid.StateChanged:Connect(recoverPosture)
   -- One current SeatPart observer; no per-player or Workspace polling.
   local watchedSeat,seatConnections=nil,{}
   local function clearSeatWatch()
@@ -1055,6 +1116,7 @@ return function(context)
  end
 
  function Core:Stop()
+  clearSeatPrevention()
   releaseRecovery=nil;table.clear(pendingBridges)
   if not self.Running then return true end
   self.Running=false
@@ -1096,6 +1158,7 @@ return function(context)
  persistent[#persistent+1]=player.CharacterAdded:Connect(function(character)
   if not Core.Running then return end
   disconnectRuntime()
+  clearSeatPrevention()
   restoreCollisions()
   local root=character:WaitForChild("HumanoidRootPart",8)
   if root and Core.Running then

@@ -6,7 +6,7 @@ Vector3.zero=Vector3.new(0,0,0)
 vm.__add=function(a,b)return Vector3.new(a.X+b.X,a.Y+b.Y,a.Z+b.Z)end
 vm.__sub=function(a,b)return Vector3.new(a.X-b.X,a.Y-b.Y,a.Z-b.Z)end
 vm.__mul=function(a,n)return Vector3.new(a.X*n,a.Y*n,a.Z*n)end
-vm.__index=function(a,k)if k=='Magnitude'then return math.sqrt(a.X^2+a.Y^2+a.Z^2)end end
+vm.__index=function(a,k)if k=='Magnitude'then return math.sqrt(a.X^2+a.Y^2+a.Z^2)elseif k=='Unit'then local m=a.Magnitude;return m>0 and a*(1/m)or Vector3.zero elseif k=='Dot'then return function(v,b)return v.X*b.X+v.Y*b.Y+v.Z*b.Z end end end
 local fm={};fm.__index=fm
 CFrame={new=function(x,y,z)return setmetatable({Position=type(x)=='table'and x or Vector3.new(x or 0,y or 0,z or 0)},fm)end}
 fm.__mul=function(a,b)return CFrame.new(a.Position+b.Position)end
@@ -183,7 +183,9 @@ if anchorSource then
  h.MoveDirection=Vector3.zero;h.WalkSpeed=16;h.FloorMaterial='Concrete';h.Parent=character
  h.Seated=signal()
  local seatPartChanged=signal()
- function h:GetPropertyChangedSignal(name)assert(name=='SeatPart');return seatPartChanged end
+ local sitChanged=signal()
+ h.StateChanged=signal()
+ function h:GetPropertyChangedSignal(name)return name=='Sit'and sitChanged or seatPartChanged end
  function h:ChangeState(state)self.State=state end
  root.Touched=signal()
  local jointScans=0
@@ -378,6 +380,21 @@ if anchorSource then
  root.AssemblyLinearVelocity=Vector3.new(15,0,0)
  tick(.02)
  assert(root.AssemblyLinearVelocity.Magnitude==0,'short post-release stabilization clears residual impulse')
+ -- Prevention shares the existing nearby query and restores exact seat properties.
+ local preventive=instance('Seat','UnknownSeat',workspace)
+ preventive.Position=root.Position;preventive.Disabled=false;preventive.CanTouch=true
+ preventive.AssemblyRootPart=preventive
+ preventive.AssemblyLinearVelocity=Vector3.zero;preventive.AssemblyAngularVelocity=Vector3.zero
+ function workspace:GetPartBoundsInRadius()return {preventive}end
+ tick(.2)
+ assert(preventive.Disabled and not preventive.CanTouch,'nearby unknown seat prevented before sitting')
+ preventive.Position=root.Position+Vector3.new(30,0,0);tick(.2)
+ assert(not preventive.Disabled and preventive.CanTouch,'seat properties restored outside radius')
+ h.Sit=true;sitChanged:Fire();assert(not h.Sit,'Sit property clears immediately')
+ Enum.HumanoidStateType.Ragdoll='Ragdoll'
+ h.State='Ragdoll';h.StateChanged:Fire()
+ assert(h.State==Enum.HumanoidStateType.GettingUp,'ragdoll exits on state event')
+ function workspace:GetPartBoundsInRadius()return {}end
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
  MobileAnchorCore.Running=false
  ExperimentalFlingCore={IsAuthorized=function()return true end}

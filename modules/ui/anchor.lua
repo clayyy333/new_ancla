@@ -69,6 +69,40 @@ return function(context)
 		RegisterTheme(button,"TextColor3","text")
 		return button
 	end
+	local independentOwner=ExperimentalFlingCore:IsAuthorized()
+	local independentY=card.Size.Y.Offset-28
+	if independentOwner then card.Size=card.Size+UDim2.fromOffset(0,108)end
+	local independentButton=makeButton(independentY)
+	independentButton.Size=UDim2.new(0.5,-4,0,44)
+	local constantButton=makeButton(independentY)
+	constantButton.Size=UDim2.new(0.5,-4,0,44);constantButton.Position=UDim2.new(0.5,4,0,independentY)
+	local preventionButton=makeButton(independentY+52)
+	preventionButton.TextWrapped=true
+	local function refreshIndependent()
+		local core=StaticNoclipAnchorCore
+		local owner=ExperimentalFlingCore:IsAuthorized()
+		independentButton.Visible=owner;constantButton.Visible=owner;preventionButton.Visible=owner
+		preventionButton.Text="Prevencion de asientos (15 studs): "..(core.SeatPrevention and "ON" or "OFF")
+		preventionButton.BackgroundColor3=core.SeatPrevention and currentTheme.accent or currentTheme.tertiary
+		independentButton.Text=core.Running and "Desactivar ancla estatica" or "Activar ancla estatica"
+		constantButton.Text="Regreso constante: "..(core.ConstantReturn and "ON" or "OFF")
+		independentButton.BackgroundColor3=core.Running and currentTheme.accent or currentTheme.tertiary
+		constantButton.BackgroundColor3=core.ConstantReturn and currentTheme.accent or currentTheme.tertiary
+	end
+	independentButton.Activated:Connect(function()
+		local core=StaticNoclipAnchorCore
+		local ok,err
+		if core.Running then ok,err=core:Stop()else ok,err=core:Start()end
+		if not ok then description.Text=err end
+		refreshIndependent()
+	end)
+	constantButton.Activated:Connect(function()
+		StaticNoclipAnchorCore:SetConstantReturn(not StaticNoclipAnchorCore.ConstantReturn);refreshIndependent()
+	end)
+	preventionButton.Activated:Connect(function()
+		StaticNoclipAnchorCore:SetSeatPrevention(not StaticNoclipAnchorCore.SeatPrevention);refreshIndependent()
+	end)
+	refreshIndependent()
 	local anchorButton=makeButton(38)
 	local antiSeatButton=makeButton(90)
 	local heartbeatButton=makeButton(142)
@@ -116,6 +150,7 @@ return function(context)
 	end
 
 	UpdateAnchorPanel=function(message)
+		refreshIndependent()
 		phaseButton.Text=StaticPassThroughAnchorCore.PhaseEnabled and (isES and "Desactivar Desfase" or "Disable Shift") or (isES and "Desfase" or "Shift")
 		phaseButton.Active=canUseExperimentalAnchor and StaticPassThroughAnchorCore:IsRunning()
 		phaseButton.BackgroundColor3=StaticPassThroughAnchorCore.PhaseEnabled and currentTheme.accent or currentTheme.tertiary

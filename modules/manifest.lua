@@ -24,6 +24,7 @@ return {
 		"player/mobile_fall_guard",
 		"player/mobile_anchor_v13",
 		"player/deployment_anchor_motor",
+		"player/static_noclip_anchor",
 		"player/deployment_safety",
 		"player/baby_vehicle_anchor",
 		"player/anchor_force_return",
@@ -136,6 +137,7 @@ return {
 		"ui/mobile_typography",
 	},
 	sharedNames = {
+		"StaticNoclipAnchorCore",
 		"LocalEmoteFollow",
 		"_genv",
 		"Players",
