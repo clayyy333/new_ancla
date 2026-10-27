@@ -241,6 +241,18 @@ if anchorSource then
   root.Position=Vector3.new(6+i*.1,3,0);root.CFrame=CFrame.new(root.Position);tick(.02)
  end
  assert(core.SafeCFrame.Position.X>oldSafe.Position.X,'nearby threats must not freeze verified detached walking')
+ -- A valid geometric floor must update even if FloorMaterial lags as Air.
+ local beforeAir=core.SafeCFrame.Position.X
+ h.FloorMaterial='Air'
+ for i=1,25 do
+  root.Position=Vector3.new(8+i*.1,3,0);root.CFrame=CFrame.new(root.Position);tick(.02)
+ end
+ assert(core.SafeCFrame.Position.X>beforeAir+1,'verified ground keeps checkpoint current despite stale FloorMaterial')
+ local beforeImpact=core.SafeCFrame
+ root.Position=Vector3.new(100,3,0);root.CFrame=CFrame.new(root.Position)
+ tick(.02)
+ assert(core.SafeCFrame.Position.X<20,'large displacement on floor must not become a safe checkpoint')
+ h.FloorMaterial='Concrete'
  externalConnection=instance('Part','ExternalObject',workspace)
  h.Sit=true;h.SeatPart=externalConnection
  oldSafe=core.SafeCFrame

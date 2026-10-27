@@ -275,10 +275,17 @@ return function(context)
   for part,expiry in pairs(supports) do
    if not part or not part.Parent or now>=expiry then supports[part]=nil end
   end
-  local params=RaycastParams.new()
+  local params=Core.FallProtectionEnabled and fallGuard:Params()or RaycastParams.new()
   params.FilterType=Enum.RaycastFilterType.Exclude
-  params.FilterDescendantsInstances={character}
-  params.IgnoreWater=false
+  local excluded={character}
+  for _,name in ipairs({"Cars","ObjectPlaceFolder"})do
+   local folder=workspace:FindFirstChild(name);if folder then excluded[#excluded+1]=folder end
+  end
+  for _,other in ipairs(Players:GetPlayers())do
+   if other.Character and other.Character~=character then excluded[#excluded+1]=other.Character end
+  end
+  params.FilterDescendantsInstances=excluded
+  params.IgnoreWater=false;params.RespectCanCollide=true
   local right=root.CFrame.RightVector*1.15
   local forward=Vector3.new(root.CFrame.LookVector.X,0,root.CFrame.LookVector.Z)
   if forward.Magnitude>0.001 then forward=forward.Unit*1.15 else forward=Vector3.new(0,0,-1.15) end
@@ -1042,13 +1049,13 @@ return function(context)
    local angular=currentRoot.AssemblyAngularVelocity.Magnitude
    local delta=self.LastPosition and (currentRoot.Position-self.LastPosition).Magnitude or 0
    local allowed=math.max(5,(currentHumanoid.WalkSpeed+18)*math.max(dt,1/60)*3)
-   local grounded=currentHumanoid.FloorMaterial~=Enum.Material.Air
+   local grounded=(self.FallProtectionEnabled and fallGuard:Grounded(now,currentHumanoid,currentRoot))or currentHumanoid.FloorMaterial~=Enum.Material.Air
    local motionStable=grounded and math.abs(velocity.Y)<8 and velocity.Magnitude<math.max(26,currentHumanoid.WalkSpeed+8) and angular<5
    if self.FallProtectionEnabled then
     local hadSafe=#fallGuard.History>0
     -- Nearby threats alone must not freeze walking checkpoints. Check actual
     -- attachment only when a new ground sample is due, never scan Workspace.
-    local captureSafe=now>=self.RecoveryUntil and motionStable and not currentHumanoid.Sit and not currentHumanoid.SeatPart and now>=safeCaptureBlockedUntil
+    local captureSafe=delta<=allowed and now>=self.RecoveryUntil and motionStable and not currentHumanoid.Sit and not currentHumanoid.SeatPart and now>=safeCaptureBlockedUntil
     if captureSafe and now-lastCaptureScan>=.10 then
      lastCaptureScan=now
      local ok,parts=pcall(function()return currentRoot:GetConnectedParts(true)end)
