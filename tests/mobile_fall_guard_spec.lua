@@ -21,6 +21,7 @@ local function instance(class,name,parent)
  function o:Destroy()self.Parent=nil;self.Destroyed=true end
  function o:IsDescendantOf(a)local p=self.Parent;while p do if p==a then return true end;p=p.Parent end;return false end
  function o:FindFirstChild(n)for _,p in ipairs(objects)do if p.Parent==self and p.Name==n then return p end end end
+ function o:GetChildren()local result={};for _,p in ipairs(objects)do if p.Parent==self then result[#result+1]=p end end;return result end
  objects[#objects+1]=o;return o
 end
 workspace=instance('Workspace','Workspace');workspace.Gravity=196.2;workspace.FallenPartsDestroyHeight=-500
@@ -365,6 +366,13 @@ if anchorSource then
  local repeatJoint=instance('Weld','SeatWeld',earlySeat);repeatJoint.Part0=earlySeat;repeatJoint.Part1=root
  earlySeat.ChildAdded:Fire(repeatJoint)
  assert(repeatJoint.Destroyed,'direct seat watcher releases each new weld')
+ local delayedJoint=instance('Weld','DelayedPassengerLink',earlySeat)
+ earlySeat.ChildAdded:Fire(delayedJoint)
+ assert(not delayedJoint.Destroyed,'incomplete joint must wait for verified endpoints')
+ delayedJoint.Part0=earlySeat;delayedJoint.Part1=root
+ h.Sit=true
+ tick(.02)
+ assert(delayedJoint.Destroyed and not h.Sit,'physics retry releases late endpoints and custom joint names on the current seat')
  h.SeatPart=nil;seatPartChanged:Fire()
  assert(earlySeat.ChildAdded:Count()==0 and earlySeat.AncestryChanged:Count()==0,'clearing SeatPart disconnects seat observers')
  root.AssemblyLinearVelocity=Vector3.new(15,0,0)

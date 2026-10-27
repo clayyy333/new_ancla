@@ -496,6 +496,11 @@ return function(context)
 
  local function releaseKnownSeat(seat)
   if releaseSeatWeld(seat:FindFirstChild("SeatWeld"),seat)then return true end
+  -- Object seats may use another joint name or finish replicating endpoints later.
+  -- Only inspect this seat's direct children, never the whole Workspace.
+  for _,joint in ipairs(seat:GetChildren())do
+   if releaseSeatWeld(joint,seat)then return true end
+  end
   local scope,key=seatScope(seat)
   local pattern=seatPatterns[key]
   if not pattern then return false end
@@ -916,6 +921,12 @@ return function(context)
    local currentCharacter,currentHumanoid,currentRoot=rig()
    if currentCharacter and currentHumanoid and currentRoot and currentHumanoid.Health>0 then
     local now=os.clock()
+    local activeSeat=currentHumanoid.SeatPart
+    if activeSeat and activeSeat.Parent then
+     releaseKnownSeat(activeSeat)
+     currentHumanoid.Sit=false
+     pcall(function()currentHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+    end
     if diagnosticOwner()and now-lastDiagnosticSample>=.1 then
      lastDiagnosticSample=now;self:RecordDiagnostic("SAMPLE")
     end
