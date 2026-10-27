@@ -12,7 +12,7 @@ return function(context)
 
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
 	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()and ExperimentalFlingCore:IsAuthorized()
-	local deploymentSettingsHeight=deploymentAvailable and 96 or 0
+	local deploymentSettingsHeight=deploymentAvailable and 192 or 0
 	local shiftY=(deploymentAvailable and 246 or 194)+deploymentSettingsHeight
 
 	local card=Instance.new("Frame")
@@ -111,7 +111,7 @@ return function(context)
 	local testButton=makeButton(194)
 	testButton.Visible=deploymentAvailable
 	if deploymentAvailable then
-		for index,spec in ipairs({{"TPHeight",isES and "Altura TP (studs)"or "TP height (studs)"},{"TPSeparation",isES and "Separacion TP (studs)"or "TP separation (studs)"}})do
+		for index,spec in ipairs({{"TPHeight",isES and "Altura TP (studs)"or "TP height (studs)"},{"TPSeparation",isES and "Separacion TP (studs)"or "TP separation (studs)"},{"SpinSpeed",isES and "Giro trompo (grados/s)"or "Top spin (degrees/s)"}})do
 			local y=246+(index-1)*44
 			local label=Instance.new("TextLabel",card)
 			label.Size=UDim2.new(.55,0,0,36);label.Position=UDim2.fromOffset(0,y);label.BackgroundTransparency=1
@@ -127,6 +127,14 @@ return function(context)
 				if not ok then description.Text=isES and "Introduce un numero valido; separacion mayor o igual a 0."or "Enter a valid number; separation must be at least 0."end
 			end)
 		end
+		local spinButton=makeButton(378)
+		spinButton.Size=UDim2.new(1,0,0,40)
+		local function refreshSpin()
+			spinButton.Text=(isES and "Giro como trompo: "or "Top spin: ")..(BabyVehicleAnchorCore.SpinEnabled and "ON"or "OFF")
+			spinButton.BackgroundColor3=BabyVehicleAnchorCore.SpinEnabled and currentTheme.accent or currentTheme.tertiary
+		end
+		spinButton.Activated:Connect(function()BabyVehicleAnchorCore:SetSpinEnabled(not BabyVehicleAnchorCore.SpinEnabled);refreshSpin()end)
+		refreshSpin()
 	end
 	local combinedButton=makeButton(shiftY)
 

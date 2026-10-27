@@ -1,15 +1,16 @@
 -- Owner-only Babycar cycle using the existing deployment anchor motor.
 return function(context)
  setfenv(1,context)
- local Core={Running=false,State="STOPPED",LastError=nil,TPHeight=0,TPSeparation=3.5}
+ local Core={Running=false,State="STOPPED",LastError=nil,TPHeight=0,TPSeparation=3.5,SpinEnabled=false,SpinSpeed=360}
  local function validOffset(name,value)
-  return type(value)=="number"and value==value and math.abs(value)<math.huge and (name~="TPSeparation"or value>=0)
+  return type(value)=="number"and value==value and math.abs(value)<math.huge and ((name~="TPSeparation"and name~="SpinSpeed")or value>=0)
  end
  local savedOffsets=Settings and Settings.deploymentTPOffsets
  if type(savedOffsets)=="table"then
-  for _,name in ipairs({"TPHeight","TPSeparation"})do
+  for _,name in ipairs({"TPHeight","TPSeparation","SpinSpeed"})do
    if validOffset(name,savedOffsets[name])then Core[name]=savedOffsets[name]end
   end
+  Core.SpinEnabled=savedOffsets.SpinEnabled==true
  end
  BabyVehicleAnchorCore=Core
  local connections,jointWatches={},{}
@@ -17,16 +18,23 @@ return function(context)
  local equipRemote,clearRemote,generation,requesting= nil,nil,0,false
  local handled=setmetatable({},{__mode="k"})
  local stateSince,lastRetry,lastSide,side=0,0,0,1
+ local spinAngle,lastSpinTime=0,nil
  local inspect,prepare,follow,watch
  local function authorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()end
- function Core:SetTPOffset(name,value)
-  if not authorized()or (name~="TPHeight"and name~="TPSeparation")or not validOffset(name,value)then return false end
-  self[name]=value
+ local function saveOffsets()
   if Settings then
-   Settings.deploymentTPOffsets={TPHeight=self.TPHeight,TPSeparation=self.TPSeparation}
+   Settings.deploymentTPOffsets={TPHeight=Core.TPHeight,TPSeparation=Core.TPSeparation,SpinEnabled=Core.SpinEnabled,SpinSpeed=Core.SpinSpeed}
    if SaveLocalData then SaveLocalData()end
   end
+ end
+ function Core:SetTPOffset(name,value)
+  if not authorized()or (name~="TPHeight"and name~="TPSeparation"and name~="SpinSpeed")or not validOffset(name,value)then return false end
+  self[name]=value;saveOffsets()
   return true
+ end
+ function Core:SetSpinEnabled(value)
+  if not authorized()then return false end
+  self.SpinEnabled=value==true;spinAngle=0;lastSpinTime=nil;saveOffsets();return true
  end
  local function destination(tr,s)
   return (tr.CFrame*CFrame.new(s*Core.TPSeparation,0,0)).Position+Vector3.new(0,Core.TPHeight,0)
@@ -129,7 +137,20 @@ return function(context)
    if ok then if right+1<left then side=1 elseif left+1<right then side=-1 end end
   end
   local pos=destination(tr,side)
-  local frame=(pos-tr.Position).Magnitude>.001 and CFrame.lookAt(pos,tr.Position)or CFrame.new(pos)*tr.CFrame.Rotation
+  -- Face the target horizontally; height must never pitch the character/tool.
+  local facing=Vector3.new(tr.Position.X,pos.Y,tr.Position.Z)
+  if (pos-facing).Magnitude<=.001 then
+   local look=tr.CFrame.LookVector
+   local horizontal=Vector3.new(look.X,0,look.Z)
+   facing=pos+(horizontal.Magnitude>.001 and horizontal or Vector3.new(0,0,-1))
+  end
+  local frame=CFrame.lookAt(pos,facing)
+  local now=os.clock()
+  if Core.SpinEnabled then
+   if not first and lastSpinTime then spinAngle=(spinAngle+math.rad(Core.SpinSpeed)*(now-lastSpinTime))%(2*math.pi)end
+   frame=frame*CFrame.Angles(0,spinAngle,0)
+  else spinAngle=0 end
+  lastSpinTime=now
   DeploymentAnchorMotorCore:RelocateForDeployment(frame)
   return true
  end
@@ -197,6 +218,7 @@ return function(context)
   home=root.CFrame
   local ok,err=DeploymentAnchorMotorCore:Start();if not ok then return false,err end
   self.Running=true;generation=generation+1;handled=setmetatable({},{__mode="k"});oldTool=nil;tool=nil;requesting=false
+  spinAngle=0;lastSpinTime=nil
   status("PREPARING","Preparando coche con ancla activa.")
   local function added(item)
    if item.Name=="Babycar_a"and item:IsA("Tool")then

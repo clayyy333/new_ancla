@@ -27,8 +27,8 @@ vm.__sub=function(a,b)return vec(a.X-b.X,a.Y-b.Y,a.Z-b.Z)end
 vm.__index=function(a,k)if k=='Magnitude'then return math.sqrt(a.X*a.X+a.Y*a.Y+a.Z*a.Z)end end
 Vector3={new=vec,zero=vec(0,0,0)}
 local fm={};local function frame(v)return setmetatable({Position=v},fm)end
-fm.__mul=function(a,b)return frame(a.Position+b.Position)end
-CFrame={new=function(x,y,z)return frame(vec(x,y,z))end,lookAt=function(p)return frame(p)end}
+fm.__mul=function(a,b)local f=frame(a.Position+b.Position);f.Yaw=b.Yaw;f.Facing=a.Facing;return f end
+CFrame={new=function(x,y,z)return frame(vec(x,y,z))end,lookAt=function(p,target)local f=frame(p);f.Facing=target;return f end,Angles=function(x,y,z)assert(x==0 and z==0,'spin must only rotate Y');local f=frame(vec(0,0,0));f.Yaw=y;return f end}
 Enum={HumanoidStateType={Seated='Seated'},RaycastFilterType={Exclude='Exclude'}}
 OverlapParams={new=function()return {}end}
 local now=0;os.clock=function()return now end
@@ -87,6 +87,14 @@ assert(not core:SetTPOffset('TPSeparation',-1)and not core:SetTPOffset('TPHeight
 assert(core:SetTPOffset('TPSeparation',6)and core:SetTPOffset('TPHeight',2))
 tick(.01)
 assert(root.Position.X==16 and root.Position.Y==5,'live TP offsets apply to following')
+assert(root.CFrame.Facing.Y==root.Position.Y,'changing height preserves horizontal facing without pitch')
+assert(core:SetTPOffset('SpinSpeed',720)and core:SetSpinEnabled(true))
+tick(.01);tick(.05)
+assert(math.abs(root.CFrame.Yaw-math.rad(36))<.001 and root.Position.X==16 and root.Position.Y==5,'top spin uses elapsed time without orbit or vertical movement')
+assert(Settings.deploymentTPOffsets.SpinEnabled and Settings.deploymentTPOffsets.SpinSpeed==720,'spin preferences saved')
+assert(not core:SetTPOffset('SpinSpeed',-1))
+core:SetSpinEnabled(false);tick(.01)
+assert(root.CFrame.Yaw==nil,'spin OFF restores horizontal target facing')
 assert(core:SetTPOffset('TPSeparation',3.5)and core:SetTPOffset('TPHeight',0))
 local ownLink=obj('WeldConstraint','WeldConstraint',tool);ownLink.Part0=root;ownLink.Part1=babySeat
 workspace.DescendantAdded:Fire(ownLink);assert(ownLink.Parent,'preserve local tool connection')
