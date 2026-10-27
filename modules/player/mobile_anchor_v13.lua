@@ -981,37 +981,13 @@ return function(context)
    local angular=currentRoot.AssemblyAngularVelocity.Magnitude
    local delta=self.LastPosition and (currentRoot.Position-self.LastPosition).Magnitude or 0
    local allowed=math.max(5,(currentHumanoid.WalkSpeed+18)*math.max(dt,1/60)*3)
-   local threatened=now>self.GraceUntil and (velocity.Magnitude>58 or angular>16 or delta>allowed)
-   if threatened then
-    self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
-    if delta>22 or (self.SafeCFrame and currentRoot.Position.Y<self.SafeCFrame.Position.Y-30) then
-     self:Correct()
-    else
-     self:Deflect(dt)
-     record("IMPULSE_DEFLECTED",{Delta=delta,Velocity=velocity.Magnitude,AngularVelocity=angular})
-    end
-    return
-   end
-
-   if now<self.RecoveryUntil then
-    currentCharacter:PivotTo(self.SafeCFrame)
-    zeroCharacter(currentCharacter)
-    self.LastPosition=self.SafeCFrame.Position
-    if now>=self.RecoveryMinUntil and velocity.Magnitude<8 and angular<4 then
-     self.RecoveryUntil=0;self.RecoveryMinUntil=0
-    else
-     return
-    end
-   end
-
-   self.LastPosition=currentRoot.Position
    local grounded=currentHumanoid.FloorMaterial~=Enum.Material.Air
    local motionStable=grounded and math.abs(velocity.Y)<8 and velocity.Magnitude<math.max(26,currentHumanoid.WalkSpeed+8) and angular<5
    if self.FallProtectionEnabled then
     local hadSafe=#fallGuard.History>0
     -- Nearby threats alone must not freeze walking checkpoints. Check actual
     -- attachment only when a new ground sample is due, never scan Workspace.
-    local captureSafe=motionStable and not currentHumanoid.Sit and not currentHumanoid.SeatPart and now>=safeCaptureBlockedUntil
+    local captureSafe=now>=self.RecoveryUntil and motionStable and not currentHumanoid.Sit and not currentHumanoid.SeatPart and now>=safeCaptureBlockedUntil
     if captureSafe and now-lastCaptureScan>=.10 then
      lastCaptureScan=now
      local ok,parts=pcall(function()return currentRoot:GetConnectedParts(true)end)
@@ -1046,6 +1022,31 @@ return function(context)
      self.StableSince=0
     end
    end
+   local threatened=now>self.GraceUntil and (velocity.Magnitude>58 or angular>16 or delta>allowed)
+   if threatened then
+    self.ThreatUntil=math.max(self.ThreatUntil,now+0.45)
+    if delta>22 or (self.SafeCFrame and currentRoot.Position.Y<self.SafeCFrame.Position.Y-30) then
+     self:Correct()
+    else
+     self:Deflect(dt)
+     record("IMPULSE_DEFLECTED",{Delta=delta,Velocity=velocity.Magnitude,AngularVelocity=angular})
+    end
+    return
+   end
+
+   if now<self.RecoveryUntil then
+    currentCharacter:PivotTo(self.SafeCFrame)
+    zeroCharacter(currentCharacter)
+    self.LastPosition=self.SafeCFrame.Position
+    if now>=self.RecoveryMinUntil and velocity.Magnitude<8 and angular<4 then
+     self.RecoveryUntil=0;self.RecoveryMinUntil=0
+    else
+     return
+    end
+   end
+
+   self.LastPosition=currentRoot.Position
+
   end)
   if UpdateMoveAnchoredPanel then task.defer(UpdateMoveAnchoredPanel) end
   if UpdateAnchorPanel then task.defer(UpdateAnchorPanel) end
