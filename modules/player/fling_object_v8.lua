@@ -29,11 +29,11 @@ return function(context)
 	local function zero()
 		if root and root.Parent then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
 	end
-	function core:IsAuthorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false end
+	function core:IsAuthorized()return true end
 	function core:SetParameter(name,value)
 		local limits={ContactSpeed={0,1000000000},Speed={0,1000000000},Distance={.5,2000000000},Azimuth={-360,360},Elevation={-90,90},ContactTime={.01,10},LaunchTime={.01,10}}
 		local range=limits[name]
-		if not self:IsAuthorized()or not range or not finite(value)or value<range[1]or value>range[2]then return false end
+		if not range or not finite(value)or value<range[1]or value>range[2]then return false end
 		self.Config[name]=value;return true
 	end
 	function core:Stop(message)
@@ -74,13 +74,12 @@ return function(context)
 	end
 	function core:GetTarget()return selected end
 	function core:SetTarget(value)
-		if not self:IsAuthorized()or not value or value==player or value.Parent~=Players then return false end
+		if not value or value==player or value.Parent~=Players then return false end
 		selected=value;zero();self.Phase="WAIT_TARGET";targetCharacter=nil;targetRoot=nil;launchPosition=nil
 		return true
 	end
 	local function step()
 		restorePulse()
-		if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
 		if not selected or selected.Parent~=Players then core:Stop("El jugador seleccionado salio.");return end
 		local c=player.Character
 		local h=c and c:FindFirstChildOfClass("Humanoid")
@@ -151,7 +150,6 @@ return function(context)
 		end
 	end
 	function core:Start(value)
-		if not self:IsAuthorized()then return false,"Prueba exclusiva para owners."end
 		if V8PersistentFlingCore and V8PersistentFlingCore.Running then return false,"Desactiva el otro V8 persistente primero."end
 		if self.Running then return self:SetTarget(value)end
 		if not value or value==player or value.Parent~=Players then return false,"Selecciona un jugador."end

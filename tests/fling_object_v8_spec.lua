@@ -43,7 +43,7 @@ assert(load(source))()(_G)
 local core=ObjectV8FlingCore
 assert(core.Config.ContactSpeed==100 and core.Config.Speed==10000 and core.Config.Distance==100 and core.Config.Azimuth==60 and core.Config.Elevation==0 and core.Config.ContactTime==.2 and core.Config.LaunchTime==.25,'screenshot defaults')
 local function tick(dt)now=now+dt;RunService.Heartbeat:Fire()end
-authorized=false;assert(not core:Start(target));authorized=true
+authorized=false;assert(core:IsAuthorized(),'Fling test is available to all players')
 assert(core:SetParameter("Azimuth",0))
 assert(not core:SetParameter('Speed',0/0));assert(core:SetParameter('Distance',1000))
 assert(not core:SetParameter('AngularSpeed',32768),'V8 must not expose a spin setting')

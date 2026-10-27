@@ -59,7 +59,7 @@ return function(context)
 		option.TextSize, option.ZIndex, option.Parent = isMobile and 10 or 12, 31, list
 		Instance.new("UICorner", option).CornerRadius = UDim.new(0,8)
 		RegisterTheme(option, "BackgroundColor3", "secondary"); RegisterTheme(option, "TextColor3", "text")
-		option.MouseButton1Click:Connect(callback)
+		option.Activated:Connect(callback)
 	end
 
 	local core=ObjectV8FlingCore
@@ -143,7 +143,7 @@ return function(context)
 		playerButton.Text=target and (target.DisplayName.." (@"..target.Name..")")or L.selectPlayer
 		action.Text=core.Running and "Desactivar V8 persistente"or "Activar V8 persistente"
 		action.BackgroundColor3=core.Running and currentTheme.critical or currentTheme.tertiary
-		status.Text=message or (core:IsAuthorized()and ("Estado: "..core.Phase)or "Disponible solo para owners.")
+		status.Text=message or ("Estado: "..core.Phase)
 	end
 	playerButton.Activated:Connect(function()
 		playerList.Visible=not playerList.Visible
