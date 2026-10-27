@@ -4,7 +4,9 @@ return function(context)
  local C={Running=false,ConstantReturn=false,SeatPrevention=false,Checkpoint=nil}
  local function authorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()end
  local links,parts,pending={},{},{}
+ local vehicleParts,contactModels={},setmetatable({},{__mode="k"})
  local char,hum,root,old,guard
+ local bridgeReleased=false
  local knownNames={Babycar_a=true,Babycar_b=true,Babycar_c=true,Stretcher=true,FoldingTable_1=true,Folding_table_02=true}
  local knownSeats,modifiedSeats={},{}
  local scanned=setmetatable({},{__mode="k"})
@@ -69,7 +71,7 @@ return function(context)
   if not a or not b then return end
   pending[j]=nil
   if a:IsDescendantOf(char)and b:IsDescendantOf(char)then return end
-  if body(a)~=body(b)then j:Destroy()end
+  if body(a)~=body(b)then j:Destroy();bridgeReleased=true end
  end
  local function observe(j)
   if not(j:IsA("JointInstance")or j:IsA("WeldConstraint"))or j:IsA("Motor6D")or j.Name=="AccessoryWeld"then return end
@@ -84,6 +86,14 @@ return function(context)
    root.CFrame=C.Checkpoint;root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
   end
  end
+ local function zeroBody()
+  for p in pairs(parts)do
+   if p.Parent then
+    p.CanCollide=false
+    p.AssemblyLinearVelocity=Vector3.zero;p.AssemblyAngularVelocity=Vector3.zero
+   else parts[p]=nil end
+  end
+ end
  local function release()
   if guard or not C.Running then return end
   guard=true
@@ -91,13 +101,31 @@ return function(context)
   if seat and seat.Parent then for _,j in ipairs(seat:GetChildren())do observe(j)end end
   hum.Sit=false
   local state=hum:GetState()
-  if seat or state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then
-   hum:ChangeState(Enum.HumanoidStateType.GettingUp);returnHome()
+  if seat or bridgeReleased or state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then
+   if state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown then hum:ChangeState(Enum.HumanoidStateType.GettingUp)end
+   returnHome();zeroBody();bridgeReleased=false
   end
   guard=false
  end
  local function add(p)
-  if p:IsA("BasePart")and body(p)then parts[p]=p.CanCollide;p.CanCollide=false end
+  if p:IsA("BasePart")and body(p)then
+   parts[p]=p.CanCollide;p.CanCollide=false
+   links[#links+1]=p.Touched:Connect(function(hit)
+    if not C.Running or not hit or hit:IsDescendantOf(char)then return end
+    local model=hit:FindFirstAncestorOfClass("Model")
+    if not model or contactModels[model]then return end
+    if not(model:FindFirstChildOfClass("Seat")or model:FindFirstChildOfClass("VehicleSeat"))then return end
+    contactModels[model]=true
+    for _,v in ipairs(model:GetDescendants())do
+     if v:IsA("BasePart")and not v:IsDescendantOf(char)then
+      if vehicleParts[v]==nil then vehicleParts[v]=v.CanCollide end
+      v.CanCollide=false
+     end
+     if C.SeatPrevention and isSeat(v)then prevent(v)end
+    end
+    release()
+   end)
+  end
   observe(p)
  end
  function C:SetConstantReturn(value)
@@ -115,8 +143,11 @@ return function(context)
   restoreSeats();table.clear(knownSeats);scanned=setmetatable({},{__mode="k"});queryParams=nil
   for _,l in ipairs(links)do l:Disconnect()end;table.clear(links)
   for p,v in pairs(parts)do if p.Parent then p.CanCollide=v end end;table.clear(parts);table.clear(pending)
+  for p,v in pairs(vehicleParts)do if p.Parent then p.CanCollide=v end end;table.clear(vehicleParts)
+  contactModels=setmetatable({},{__mode="k"});bridgeReleased=false
   if hum and hum.Parent and old then
    hum.AutoRotate=old.Rotate;hum:SetStateEnabled(Enum.HumanoidStateType.Seated,old.Seated)
+   hum.PlatformStand=old.PlatformStand;hum.WalkSpeed=old.WalkSpeed;hum.JumpPower=old.JumpPower
   end
   char=nil;hum=nil;root=nil;old=nil;guard=false;self.Checkpoint=nil;refresh();return true
  end
@@ -126,7 +157,7 @@ return function(context)
   if busy()then return false,"Desactiva las otras anclas primero."end
   char=player.Character;hum=char and char:FindFirstChildOfClass("Humanoid");root=char and char:FindFirstChild("HumanoidRootPart")
   if not root or not hum or hum.Health<=0 then return false,"Personaje no disponible."end
-  old={Rotate=hum.AutoRotate,Seated=hum:GetStateEnabled(Enum.HumanoidStateType.Seated)}
+  old={Rotate=hum.AutoRotate,Seated=hum:GetStateEnabled(Enum.HumanoidStateType.Seated),PlatformStand=hum.PlatformStand,WalkSpeed=hum.WalkSpeed,JumpPower=hum.JumpPower}
   self.Checkpoint=root.CFrame;self.Running=true;hum.AutoRotate=false;hum:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
   for _,p in ipairs(char:GetDescendants())do add(p)end
   for p in pairs(parts)do for _,j in ipairs(p:GetJoints())do observe(j)end end
@@ -140,12 +171,14 @@ return function(context)
   links[#links+1]=hum:GetPropertyChangedSignal("Sit"):Connect(release)
   links[#links+1]=hum:GetPropertyChangedSignal("SeatPart"):Connect(release)
   links[#links+1]=hum.StateChanged:Connect(release)
+  links[#links+1]=hum.Seated:Connect(function(active)if active then release()end end)
   links[#links+1]=hum.Died:Connect(function()self:Stop()end)
   links[#links+1]=player.CharacterRemoving:Connect(function(r)if r==char then self:Stop()end end)
   links[#links+1]=(RunService.PreSimulation or RunService.Stepped):Connect(function()
    if not authorized()or busy()then self:Stop();return end
    if not root.Parent or hum.Health<=0 then self:Stop();return end
-   for p in pairs(parts)do if p.Parent then p.CanCollide=false else parts[p]=nil end end
+   zeroBody()
+   hum.PlatformStand=true;hum.WalkSpeed=0;hum.JumpPower=0;hum.AutoRotate=false
    for j,deadline in pairs(pending)do
     if os.clock()>deadline then pending[j]=nil else inspect(j)end
    end
@@ -158,7 +191,19 @@ return function(context)
     root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
    end
   end)
-  release();refresh();return true
+  -- Verify the result after physics as well, using the same cached body parts.
+  links[#links+1]=(RunService.PostSimulation or RunService.Heartbeat):Connect(function()
+   if not self.Running or not root.Parent or hum.Health<=0 then return end
+   release()
+   if self.ConstantReturn then returnHome()
+   else
+    local pos=root.Position
+    root.CFrame=CFrame.new(pos.X,self.Checkpoint.Position.Y,pos.Z)*self.Checkpoint.Rotation
+   end
+   zeroBody()
+   hum.PlatformStand=true;hum.Sit=false;hum.WalkSpeed=0;hum.JumpPower=0;hum.AutoRotate=false
+  end)
+  release();zeroBody();hum.PlatformStand=true;hum.WalkSpeed=0;hum.JumpPower=0;refresh();return true
  end
  function C:Destroy()self:Stop()end
  StaticNoclipAnchorCore=C
