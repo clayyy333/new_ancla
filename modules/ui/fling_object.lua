@@ -12,7 +12,7 @@ return function(context)
 	objectFlingPanel.Parent = content
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, isMobile and 398 or 412)
+	card.Size = UDim2.new(1, 0, 0, 960)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = objectFlingPanel
@@ -62,140 +62,112 @@ return function(context)
 		option.MouseButton1Click:Connect(callback)
 	end
 
-	makeLabel(isES and "Mi objeto" or "My object", 0)
-	local carButton = makeSelector(isES and "Seleccionar objeto" or "Select object", 22)
-	makeLabel(isES and "Jugador objetivo" or "Target player", 70)
-	local playerButton = makeSelector(L.selectPlayer, 92)
-	local carList, playerList = makeList(64), makeList(134)
-
-	local action = Instance.new("TextButton")
-	action.Size, action.Position = UDim2.new(1,0,0,44), UDim2.new(0,0,0,194)
-	action.BackgroundColor3, action.Text = currentTheme.tertiary, isES and "Activar Delta estable" or "Enable Stable Delta"
-	action.TextColor3, action.Font, action.TextSize = currentTheme.text, Enum.Font.GothamBold, isMobile and 12 or 14
-	action.AutoButtonColor, action.ZIndex, action.Parent = false, 8, card
-	Instance.new("UICorner", action).CornerRadius = UDim.new(0,10)
-	RegisterTheme(action, "BackgroundColor3", "tertiary"); RegisterTheme(action, "TextColor3", "text")
-
-	local xenoAction = action:Clone()
-	xenoAction.Name = "XenoObjectFlingButton"
-	xenoAction.Position = UDim2.new(0,0,0,246)
-	xenoAction.Text = isES and "Activar Xeno estable" or "Enable Stable Xeno"
-	xenoAction.Parent = card
-	RegisterTheme(xenoAction, "BackgroundColor3", "tertiary"); RegisterTheme(xenoAction, "TextColor3", "text")
-	local autoDelta, autoXeno, autoStarting = false, false, false
-	local autoDeltaButton = action:Clone()
-	autoDeltaButton.Name = "AutoDeltaButton"
-	autoDeltaButton.Size = UDim2.new(0.5, -4, 0, 40)
-	autoDeltaButton.Position = UDim2.new(0, 0, 0, 146)
-	autoDeltaButton.TextSize = isMobile and 10 or 11
-	autoDeltaButton.Parent = card
-	local autoXenoButton = action:Clone()
-	autoXenoButton.Name = "AutoXenoButton"
-	autoXenoButton.Size = UDim2.new(0.5, -4, 0, 40)
-	autoXenoButton.Position = UDim2.new(0.5, 4, 0, 146)
-	autoXenoButton.TextSize = isMobile and 10 or 11
-	autoXenoButton.Parent = card
-
-	local info = makeLabel(isES and "Modo estable: FAR moderado de 50 a 200 studs." or "Stable mode: moderate FAR from 50 to 200 studs.", 350)
-	info.TextWrapped, info.Size = true, UDim2.new(1,0,0,34)
-	local status = makeLabel("", 298)
-	status.Size = UDim2.new(1, 0, 0, 42)
-	status.TextWrapped = true
-
-	UpdateObjectFlingPanel = function(message)
-		local car, target = ObjectFling2Delta:GetCar(), ObjectFling2Delta:GetPlayer()
-		carButton.Text = car and car.Name or (isES and "Seleccionar objeto" or "Select object")
-		playerButton.Text = target and (target.DisplayName.."  (@"..target.Name..")") or L.selectPlayer
-		action.Text = ObjectFling2Delta.Running and (isES and "Desactivar Delta estable" or "Disable Stable Delta") or (isES and "Activar Delta estable" or "Enable Stable Delta")
-		xenoAction.Text = ObjectFling2Xeno.Running and (isES and "Desactivar Xeno estable" or "Disable Stable Xeno") or (isES and "Activar Xeno estable" or "Enable Stable Xeno")
-		action.BackgroundColor3 = ObjectFling2Delta.Running and currentTheme.critical or currentTheme.tertiary
-		xenoAction.BackgroundColor3 = ObjectFling2Xeno.Running and currentTheme.critical or currentTheme.tertiary
-		local activeCore = ObjectFling2Xeno.Running and ObjectFling2Xeno or ObjectFling2Delta
-		local code, detail = "DELTA_STABLE", ""
-		if ObjectFling2Xeno.Running then code, detail = ObjectFling2Xeno:GetDiagnostic() end
-		local diagnostic = code .. (detail ~= "" and (" | " .. detail) or "")
-		status.Text = message or ((ObjectFling2Delta.Running or ObjectFling2Xeno.Running) and ((isES and "Estado: " or "State: ")..tostring(activeCore.EfficientPhase).." | "..diagnostic) or ((isES and "Estado: detenido" or "State: stopped").." | "..diagnostic))
-		autoDeltaButton.Text = (autoDelta and "[x] " or "[ ] ") .. (isES and "Activación automática Delta" or "Automatic Delta activation")
-		autoXenoButton.Text = (autoXeno and "[x] " or "[ ] ") .. (isES and "Activación automática Xeno" or "Automatic Xeno activation")
-		autoDeltaButton.BackgroundColor3 = autoDelta and currentTheme.accent or currentTheme.tertiary
-		autoXenoButton.BackgroundColor3 = autoXeno and currentTheme.accent or currentTheme.tertiary
+	local core=ObjectV8FlingCore
+	local target
+	local inputService=game:GetService("UserInputService")
+	local connections={}
+	local fields={}
+	local dragging,dragInput
+	local title=makeLabel("V8 persistente · sin giro",0)
+	local playerButton=makeSelector(L.selectPlayer,26)
+	local playerList=makeList(68)
+	local action=makeSelector("Activar V8 persistente",76)
+	action.TextXAlignment=Enum.TextXAlignment.Center
+	local status=makeLabel("",124);status.Size=UDim2.new(1,0,0,38);status.TextWrapped=true
+	local settings={
+		{"ContactSpeed","Pulso al cruzar: velocidad total",0,1000000000,true},
+		{"Speed","Velocidad lineal",0,1000000000,true},
+		{"Distance","Alejamiento (studs)",.5,2000000000,true},
+		{"Azimuth","Angulo: 0 delante / 180 detras",-360,360,false},
+		{"Elevation","Elevacion: -90 abajo / 90 arriba",-90,90,false},
+		{"ContactTime","Preparacion alejado (s)",.01,10,false},
+		{"LaunchTime","Margen de llegada (s)",.01,10,false},
+	}
+	local function ratio(entry,value)
+		if entry[5]then return math.log(1+value-entry[3])/math.log(1+entry[4]-entry[3])end
+		return (value-entry[3])/(entry[4]-entry[3])
 	end
-	local tryAutomaticStart
-	tryAutomaticStart = function()
-		if autoStarting or ObjectFling2Delta.Running or ObjectFling2Xeno.Running then return end
-		local selected = autoDelta and ObjectFling2Delta or (autoXeno and ObjectFling2Xeno or nil)
-		if not selected or not selected:GetCar() or not selected:GetPlayer() then return end
-		autoStarting = true
-		local ok, err = selected:Start()
-		autoStarting = false
-		UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed))
+	local function paint(field)
+		local value=core.Config[field.Entry[1]]
+		field.Box.Text=string.format("%.6g",value)
+		local t=math.clamp(ratio(field.Entry,value),0,1)
+		field.Fill.Size=UDim2.new(t,0,1,0);field.Knob.Position=UDim2.new(t,-7,.5,-7)
 	end
-
-	autoDeltaButton.MouseButton1Click:Connect(function()
-		autoDelta = not autoDelta
-		if autoDelta then autoXeno = false end
-		UpdateObjectFlingPanel()
-		tryAutomaticStart()
-	end)
-	autoXenoButton.MouseButton1Click:Connect(function()
-		autoXeno = not autoXeno
-		if autoXeno then autoDelta = false end
-		UpdateObjectFlingPanel()
-		tryAutomaticStart()
-	end)
-
-	local function clearOptions(list)
-		for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
-	end
-	local function refreshObjects()
-		clearOptions(carList)
-		local cars = ObjectFling2Delta:GetCarOptions()
-		if #cars == 0 then makeOption(carList, isES and "No se encontraron objetos utilizables" or "No usable Backpack objects found", function() end); return end
-		for _, car in ipairs(cars) do makeOption(carList, car.Name, function()
-			ObjectFling2Delta:SetCar(car); ObjectFling2Xeno:SetCar(car); carList.Visible=false; UpdateObjectFlingPanel(); task.defer(tryAutomaticStart)
-		end) end
-	end
-	local function refreshPlayers()
-		clearOptions(playerList)
-		for _, target in ipairs(Players:GetPlayers()) do if target ~= player then makeOption(playerList, target.DisplayName.."  (@"..target.Name..")", function()
-			ObjectFling2Delta:SetPlayer(target); ObjectFling2Xeno:SetPlayer(target); playerList.Visible=false; UpdateObjectFlingPanel(); task.defer(tryAutomaticStart)
-		end) end end
-	end
-	carButton.MouseButton1Click:Connect(function()
-		carList.Visible=not carList.Visible; playerList.Visible=false
-		if carList.Visible then refreshObjects() end
-	end)
-	playerButton.MouseButton1Click:Connect(function()
-		playerList.Visible=not playerList.Visible; carList.Visible=false
-		if playerList.Visible then refreshPlayers() end
-	end)
-	action.MouseButton1Click:Connect(function()
-		if ObjectFling2Delta.Running then autoDelta = false; ObjectFling2Delta:Stop(); UpdateObjectFlingPanel(); return end
-		if ObjectFling2Xeno.Running then UpdateObjectFlingPanel(isES and "Desactiva Xeno primero" or "Disable Stable Xeno first"); return end
-		if not ObjectFling2Delta:GetCar() then UpdateObjectFlingPanel(isES and "Selecciona un objeto del Backpack" or "Select a Backpack object"); return end
-		if not ObjectFling2Delta:GetPlayer() then UpdateObjectFlingPanel(L.selectPlayerFirst); return end
-		local ok, err = ObjectFling2Delta:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed)); if not ok then Notify(isES and "Fling con objeto" or "Object Fling", err or L.flingStartFailed) end
-	end)
-	xenoAction.MouseButton1Click:Connect(function()
-		if ObjectFling2Xeno.Running then autoXeno = false; ObjectFling2Xeno:Stop(); UpdateObjectFlingPanel(); return end
-		if ObjectFling2Delta.Running then UpdateObjectFlingPanel(isES and "Desactiva Delta estable primero" or "Disable Stable Delta first"); return end
-		if not ObjectFling2Xeno:GetCar() then UpdateObjectFlingPanel(isES and "Selecciona un objeto del Backpack" or "Select a Backpack object"); return end
-		if not ObjectFling2Xeno:GetPlayer() then UpdateObjectFlingPanel(L.selectPlayerFirst); return end
-		local ok, err = ObjectFling2Xeno:Start(); UpdateObjectFlingPanel(ok and nil or (err or L.flingStartFailed)); if not ok then Notify(isES and "Fling con objeto" or "Object Fling", err or L.flingStartFailed) end
-	end)
-	_objectFlingUiConn = RunService.Heartbeat:Connect(function()
-		if not objectFlingPanel.Visible then return end
-		if (not ObjectFling2Delta.Running and not ObjectFling2Xeno.Running) then return end
-		local activeCore = ObjectFling2Xeno.Running and ObjectFling2Xeno or ObjectFling2Delta
-		local code, detail = "DELTA_STABLE", ""
-		if ObjectFling2Xeno.Running then
-			code, detail = ObjectFling2Xeno:GetDiagnostic()
-			if ObjectFling2Xeno.LastHeartbeatAt > 0 and os.clock() - ObjectFling2Xeno.LastHeartbeatAt > 0.5 then
-				code, detail = "HEARTBEAT_STALLED", string.format("%.2fs", os.clock() - ObjectFling2Xeno.LastHeartbeatAt)
+	for index,entry in ipairs(settings)do
+		local y=172+(index-1)*108
+		makeLabel(entry[2],y)
+		local box=Instance.new("TextBox")
+		box.Size=UDim2.new(1,0,0,36);box.Position=UDim2.new(0,0,0,y+23)
+		box.BackgroundColor3=currentTheme.tertiary;box.TextColor3=currentTheme.text
+		box.Font=Enum.Font.GothamMedium;box.TextSize=13;box.ClearTextOnFocus=false;box.ZIndex=8;box.Parent=card
+		Instance.new("UICorner",box).CornerRadius=UDim.new(0,10)
+		RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
+		local hit=Instance.new("TextButton");hit.Text="";hit.AutoButtonColor=false
+		hit.Size=UDim2.new(1,0,0,28);hit.Position=UDim2.new(0,0,0,y+65);hit.BackgroundTransparency=1;hit.ZIndex=9;hit.Parent=card
+		local track=Instance.new("Frame");track.Size=UDim2.new(1,-16,0,6);track.Position=UDim2.new(0,8,.5,-3)
+		track.BackgroundColor3=currentTheme.tertiary;track.BorderSizePixel=0;track.ZIndex=9;track.Parent=hit
+		Instance.new("UICorner",track).CornerRadius=UDim.new(1,0);RegisterTheme(track,"BackgroundColor3","tertiary")
+		local fill=Instance.new("Frame");fill.BorderSizePixel=0;fill.BackgroundColor3=currentTheme.accent;fill.ZIndex=10;fill.Parent=track
+		Instance.new("UICorner",fill).CornerRadius=UDim.new(1,0);RegisterTheme(fill,"BackgroundColor3","accent")
+		local knob=Instance.new("Frame");knob.Size=UDim2.fromOffset(14,14);knob.BackgroundColor3=currentTheme.text;knob.ZIndex=11;knob.Parent=track
+		Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0);RegisterTheme(knob,"BackgroundColor3","text")
+		local field={Entry=entry,Box=box,Track=track,Fill=fill,Knob=knob};fields[#fields+1]=field
+		box.FocusLost:Connect(function()
+			local value=tonumber((box.Text:gsub(",",".")))
+			if not value or not core:SetParameter(entry[1],value)then status.Text="Valor invalido o fuera de rango."end
+			paint(field)
+		end)
+		hit.InputBegan:Connect(function(input)
+			if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+				dragging=field;dragInput=input
+				local t=math.clamp((input.Position.X-track.AbsolutePosition.X)/math.max(1,track.AbsoluteSize.X),0,1)
+				local value=entry[5]and entry[3]+math.exp(t*math.log(1+entry[4]-entry[3]))-1 or entry[3]+t*(entry[4]-entry[3])
+				if core:SetParameter(entry[1],math.clamp(value,entry[3],entry[4]))then paint(field)end
 			end
-		end
-		status.Text = (isES and "Estado: " or "State: ") .. tostring(activeCore.EfficientPhase) .. " | " .. code .. (detail ~= "" and (" | " .. detail) or "")
+		end)
+		paint(field)
+	end
+	connections[#connections+1]=inputService.InputChanged:Connect(function(input)
+		if not dragging or not objectFlingPanel.Visible then return end
+		if input~=dragInput and input.UserInputType~=Enum.UserInputType.MouseMovement then return end
+		local field=dragging;local entry=field.Entry
+		local t=math.clamp((input.Position.X-field.Track.AbsolutePosition.X)/math.max(1,field.Track.AbsoluteSize.X),0,1)
+		local value=entry[5]and entry[3]+math.exp(t*math.log(1+entry[4]-entry[3]))-1 or entry[3]+t*(entry[4]-entry[3])
+		if core:SetParameter(entry[1],math.clamp(value,entry[3],entry[4]))then paint(field)end
 	end)
+	connections[#connections+1]=inputService.InputEnded:Connect(function(input)
+		if input==dragInput then dragging=nil;dragInput=nil end
+	end)
+	UpdateObjectFlingPanel=function(message)
+		target=core:GetTarget()
+		playerButton.Text=target and (target.DisplayName.." (@"..target.Name..")")or L.selectPlayer
+		action.Text=core.Running and "Desactivar V8 persistente"or "Activar V8 persistente"
+		action.BackgroundColor3=core.Running and currentTheme.critical or currentTheme.tertiary
+		status.Text=message or (core:IsAuthorized()and ("Estado: "..core.Phase)or "Disponible solo para owners.")
+	end
+	playerButton.Activated:Connect(function()
+		playerList.Visible=not playerList.Visible
+		if not playerList.Visible then return end
+		for _,child in ipairs(playerList:GetChildren())do if child:IsA("TextButton")then child:Destroy()end end
+		for _,p in ipairs(Players:GetPlayers())do if p~=player then
+			makeOption(playerList,p.DisplayName.." (@"..p.Name..")",function()
+				if core:SetTarget(p)then target=p end
+				playerList.Visible=false;UpdateObjectFlingPanel()
+			end)
+		end end
+	end)
+	action.Activated:Connect(function()
+		if core.Running then core:Stop();return end
+		local ok,err=core:Start(target);UpdateObjectFlingPanel(ok and nil or err)
+	end)
+	local lastRefresh=0
+	connections[#connections+1]=RunService.Heartbeat:Connect(function()
+		if objectFlingPanel.Visible and core.Running and os.clock()-lastRefresh>=.15 then lastRefresh=os.clock();UpdateObjectFlingPanel()end
+	end)
+	_objectFlingUiConn={Disconnect=function()
+		dragging=nil;dragInput=nil
+		for _,connection in ipairs(connections)do connection:Disconnect()end;table.clear(connections)
+	end}
 	UpdateObjectFlingPanel()
 	return true
 end

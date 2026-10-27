@@ -594,7 +594,7 @@ UpdateTabData = function()
 		title.Text = isES and "Fling con vehículo 2" or "Fling with Car 2"
 		if UpdateCarFling2Panel then UpdateCarFling2Panel() end
 	elseif currentTab == "fling_object" then
-		title.Text = isES and "Fling con objeto" or "Object Fling"
+		title.Text = "Fling test"
 		if UpdateObjectFlingPanel then UpdateObjectFlingPanel() end
 	elseif currentTab == "fling_moto" then
 		title.Text = isES and "Fling con moto Delta" or "Delta Motorcycle Fling"

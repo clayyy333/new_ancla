@@ -65,7 +65,7 @@ return function(context)
 		{isES and "Fling 2" or "Fling 2","fling2",function(p) Fling2Core:SetTarget(p);Fling2EfficientCore:SetTarget(p) end},
 		{isES and "Fling con vehículo" or "Vehicle Fling","fling_car",function(p) CarFling:SetPlayer(p);CarFlingXeno:SetPlayer(p) end},
 		{isES and "Fling con vehículo 2" or "Vehicle Fling 2","fling_car2",function(p) CarFling2Delta:SetPlayer(p);CarFling2Xeno:SetPlayer(p) end},
-		{isES and "Fling con objeto" or "Object Fling","fling_object",function(p) ObjectFling2Delta:SetPlayer(p);ObjectFling2Xeno:SetPlayer(p) end},
+		{"Fling test","fling_object",function(p) ObjectV8FlingCore:SetTarget(p) end},
 		{isES and "Fling con moto Delta" or "Delta Motorcycle Fling","fling_moto",function(p) MotoFlingCore:SetTarget(p) end},
 		{isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling","fling_moto_xeno",function(p) MotoFlingXenoCore:SetTarget(p) end},
 		{isES and "Ubicación de Parejas" or "Couples Position","couples",function(p) CouplesPositionController:SetTarget(p) end},
