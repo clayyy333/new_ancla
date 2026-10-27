@@ -187,6 +187,9 @@ if anchorSource then
  h.StateChanged=signal()
  function h:GetPropertyChangedSignal(name)return name=='Sit'and sitChanged or seatPartChanged end
  function h:ChangeState(state)self.State=state end
+ local seatedEnabled=true
+ function h:GetStateEnabled()return seatedEnabled end
+ function h:SetStateEnabled(_,value)seatedEnabled=value end
  root.Touched=signal()
  local jointScans=0
  function root:GetJoints()jointScans=jointScans+1;return {}end
@@ -220,6 +223,7 @@ if anchorSource then
  assert(MobileAnchorCore==original10 and MobileAnchorV11Core==original11,'independent export must never replace original cores')
  local function tick(dt)clock=clock+dt;RunService.PreSimulation:Fire(dt);RunService.Heartbeat:Fire(dt)end
  assert(core:Start())
+ assert(not seatedEnabled,'Seated must be disabled during protection')
  -- Walk on verified ground. The first .18s validation must update both paths
  -- immediately, without a second .18s hold of the activation checkpoint.
  for i=1,12 do
@@ -392,6 +396,18 @@ if anchorSource then
  root.AssemblyLinearVelocity=Vector3.new(15,0,0)
  tick(.02)
  assert(root.AssemblyLinearVelocity.Magnitude==0,'short post-release stabilization clears residual impulse')
+ local lateSeat,lateJoint=customSeat()
+ workspace.DescendantAdded:Fire(lateJoint)
+ local safeBeforeLate=core.SafeCFrame.Position
+ root.Position=root.Position+Vector3.new(77,0,0);root.CFrame=CFrame.new(root.Position)
+ root.AssemblyLinearVelocity=Vector3.zero
+ local beforeCorrection=core.Corrections
+ clock=clock+.02;RunService.PreSimulation:Fire(.02)
+ assert(core.Corrections==beforeCorrection+1 and (root.Position-safeBeforeLate).Magnitude<.001,'late zero-velocity displacement must recover before Heartbeat')
+ h.Sit=false;h.State=Enum.HumanoidStateType.Running;h.SeatPart=lateSeat
+ clock=clock+.02;RunService.PreSimulation:Fire(.02)
+ assert(h.State==Enum.HumanoidStateType.Running,'stale SeatPart must not force GettingUp on a standing character')
+ h.SeatPart=nil
  -- Prevention shares the existing nearby query and restores exact seat properties.
  local preventive=instance('Seat','UnknownSeat',workspace)
  preventive.Position=root.Position;preventive.Disabled=false;preventive.CanTouch=true
@@ -408,6 +424,7 @@ if anchorSource then
  assert(h.State==Enum.HumanoidStateType.GettingUp,'ragdoll exits on state event')
  function workspace:GetPartBoundsInRadius()return {}end
  MobileAnchorCore.Running=true;tick(.02);assert(not core.Running,'switching to original core stops v1.3 instead of fighting it')
+ assert(seatedEnabled,'stopping restores original Seated permission')
  MobileAnchorCore.Running=false
  ExperimentalFlingCore={IsAuthorized=function()return true end}
  core:RecordDiagnostic('DIED',{Marker='retained-death'})

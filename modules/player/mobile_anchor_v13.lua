@@ -29,7 +29,7 @@ return function(context)
   local displaced=safe and (root.Position-safe.Position).Magnitude>6
   root.AssemblyLinearVelocity=Vector3.zero
   root.AssemblyAngularVelocity=Vector3.zero
-  releaseRecovery={Character=character,Root=root,Until=os.clock()+.18,Correct=displaced and true or false}
+  releaseRecovery={Character=character,Root=root,Until=os.clock()+.18,Reference=root.Position,Correct=displaced and true or false}
  end
  -- Session-only structural hints: strings/numbers, never retained Instances.
  local seatPatterns,seatPatternOrder={},{}
@@ -63,6 +63,13 @@ return function(context)
  local function rig()
   local character=player.Character
   return character,character and character:FindFirstChildOfClass("Humanoid"),character and character:FindFirstChild("HumanoidRootPart")
+ end
+
+ local function clearSeatedPosture(humanoid)
+  local state=humanoid:GetState()
+  local forced=humanoid.Sit or state==Enum.HumanoidStateType.Seated or state==Enum.HumanoidStateType.Ragdoll or state==Enum.HumanoidStateType.FallingDown
+  humanoid.Sit=false
+  if forced then pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)end
  end
 
  local function belongsTo(instance,ancestor)
@@ -489,8 +496,7 @@ return function(context)
   stabilizeReleased(character,root)
   recentSeatBreaks[seat]=os.clock()
   -- Urgent path: no GetConnectedParts, character scan or constraint creation.
-  humanoid.Sit=false
-  pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+  clearSeatedPosture(humanoid)
   suppressPart(seat,3,false)
   Core.BrokenBridges=Core.BrokenBridges+1
   Core.FastSeatBreaks=Core.FastSeatBreaks+1
@@ -901,6 +907,11 @@ return function(context)
   fallGuard:Reset(character,humanoid,root,os.clock())
 
   bindPlayers()
+  local seatedWasEnabled=humanoid:GetStateEnabled(Enum.HumanoidStateType.Seated)
+  humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+  runtime[#runtime+1]={Disconnect=function()
+   if humanoid.Parent then humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,seatedWasEnabled)end
+  end}
   bindCharacter(character)
   scanCharacterBridges(character)
   if diagnosticOwner()then
@@ -966,8 +977,7 @@ return function(context)
    if not watchedSeat then return end
    self:RecordDiagnostic("SEATPART_EARLY")
    if not releaseKnownSeat(seat)then queueSeatIsolation(seat,true)end
-   humanoid.Sit=false
-   pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+   clearSeatedPosture(humanoid)
   end
   runtime[#runtime+1]=humanoid:GetPropertyChangedSignal("SeatPart"):Connect(earlySeatPart)
   earlySeatPart()
@@ -976,8 +986,7 @@ return function(context)
    watchSeat(seat)
    if not releaseKnownSeat(seat)then
     queueSeatIsolation(seat,true)
-    humanoid.Sit=false
-    pcall(function()humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+    clearSeatedPosture(humanoid)
    end
   end)
 
@@ -992,8 +1001,7 @@ return function(context)
     local activeSeat=currentHumanoid.SeatPart
     if activeSeat and activeSeat.Parent then
      releaseKnownSeat(activeSeat)
-     currentHumanoid.Sit=false
-     pcall(function()currentHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
+     clearSeatedPosture(currentHumanoid)
     end
     if diagnosticOwner()and now-lastDiagnosticSample>=.1 then
      lastDiagnosticSample=now;self:RecordDiagnostic("SAMPLE")
@@ -1004,9 +1012,11 @@ return function(context)
       releaseRecovery=nil
      else
       local unsafe=currentRoot.AssemblyLinearVelocity.Magnitude>58 or currentRoot.AssemblyAngularVelocity.Magnitude>16
-      if recovery.Correct or unsafe then
+      local displaced=(currentRoot.Position-recovery.Reference).Magnitude>6
+      if recovery.Correct or unsafe or displaced then
        self:Correct(nil,"EXTERNAL_BRIDGE_RELEASE")
        recovery.Correct=false
+       recovery.Reference=currentRoot.Position
       end
       currentRoot.AssemblyLinearVelocity=Vector3.zero
       currentRoot.AssemblyAngularVelocity=Vector3.zero
