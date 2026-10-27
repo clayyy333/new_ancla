@@ -54,7 +54,7 @@ return function(context)
   if MobileAnchorV13Core and MobileAnchorV13Core:IsRunning() then return MobileAnchorV13Core end
  end
  local function active()
-  return (Core.StaticEnabled and DeploymentAnchorMotorCore:IsRunning()) or mobile()~=nil
+  return mobile()~=nil -- Static button now runs the Babycar cycle, not FoldingTable relocation.
  end
  local function resetWatchers()
   disconnect(runtime)
@@ -200,7 +200,7 @@ return function(context)
   for _,object in ipairs(folder:GetChildren()) do watchObject(object) end
  end
  local function enableWatchers()
-  if not Core.StaticEnabled and not Core.MobileEnabled then resetWatchers();return end
+  if not Core.MobileEnabled then resetWatchers();return end
   local container=workspace:FindFirstChild("ObjectPlaceFolder")
   if container~=folder then bindFolder(container) end
   for object,entry in pairs(watched) do tryObject(object,entry) end
@@ -212,11 +212,11 @@ return function(context)
   enableWatchers();refresh();return true
  end
  function Core:Start()
+  if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized()then return false,"Disponible solo para owners."end
   if not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   if self.StaticEnabled then return true end
   if StaticPassThroughAnchorCore:IsRunning() then return false,"Desactiva primero el ancla normal con desfase." end
-  if not self:Prepare() then return false,self.LastError end
-  local ok,message=DeploymentAnchorMotorCore:Start()
+  local ok,message=BabyVehicleAnchorCore:Start()
   if not ok then return false,message end
   DeploymentAnchorMotorCore:SetPhase(false)
   self.StaticEnabled=true;enableWatchers();refresh();return true
@@ -224,22 +224,22 @@ return function(context)
  function Core:Stop()
   local was=self.StaticEnabled
   self.StaticEnabled=false
-  if was then DeploymentAnchorMotorCore:Stop() end
+  if was then BabyVehicleAnchorCore:Stop() end
   if not self.MobileEnabled then self.Owners={} end
   enableWatchers();refresh();return true
  end
- function Core:IsRunning()return self.StaticEnabled and DeploymentAnchorMotorCore:IsRunning()end
+ function Core:IsRunning()return self.StaticEnabled and BabyVehicleAnchorCore:IsRunning()end
  function Core:Destroy()
   self:Stop();self.MobileEnabled=false;resetWatchers();disconnect(rigConnections);disconnect(persistent)
   DeploymentAnchorMotorCore:Destroy()
  end
  local rebuildQueued=false
  local function rebuild()
-  if rebuildQueued or not (Core.StaticEnabled or Core.MobileEnabled) then return end
+  if rebuildQueued or not Core.MobileEnabled then return end
   rebuildQueued=true
   task.defer(function()
    rebuildQueued=false
-   if not (Core.StaticEnabled or Core.MobileEnabled) then return end
+   if not Core.MobileEnabled then return end
    Core:Prepare()
    for object,entry in pairs(watched) do tryObject(object,entry) end
   end)
@@ -260,14 +260,14 @@ return function(context)
  table.insert(persistent,player.CharacterAdded:Connect(bindCharacter))
  if player.Character then bindCharacter(player.Character) end
  table.insert(persistent,workspace.ChildAdded:Connect(function(item)
-  if item.Name=="ObjectPlaceFolder" and (Core.StaticEnabled or Core.MobileEnabled) then bindFolder(item) end
+  if item.Name=="ObjectPlaceFolder" and Core.MobileEnabled then bindFolder(item) end
  end))
  table.insert(persistent,workspace.ChildRemoved:Connect(function(item)
   if item==folder then resetWatchers() end
  end))
  local previouslyActive=false
  table.insert(persistent,RunService.Heartbeat:Connect(function()
-  if Core.StaticEnabled and not DeploymentAnchorMotorCore:IsRunning() then Core.StaticEnabled=false;enableWatchers();refresh() end
+  if Core.StaticEnabled and not BabyVehicleAnchorCore:IsRunning() then Core.StaticEnabled=false;enableWatchers();refresh() end
   if not active() then previouslyActive=false;return end
   local justActivated=not previouslyActive;previouslyActive=true
   if not Core.Ready then rebuild();return end

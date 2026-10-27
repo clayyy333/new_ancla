@@ -7,6 +7,7 @@ return function(context)
         [11743514302] = "ksablanca0",
         [11747901934] = "psycho777oo",
         [11797966007] = "psychoop77",
+        [11866242235] = "dldl3341",
     }
     local GAME_PLACE_ID = 12985361032
     local ownerUsername = OWNER_IDENTITIES[player.UserId]

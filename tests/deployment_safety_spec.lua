@@ -51,6 +51,9 @@ function static:Destroy()self:Stop()end
 function static:SetPhase(value)self.PhaseEnabled=value end
 function static:RelocateForDeployment(target)self.Target=target;root.Position=target.Position;return true end
 DeploymentAnchorMotorCore=static
+BabyVehicleAnchorCore=static
+local owner=true
+ExperimentalFlingCore={IsAuthorized=function()return owner end}
 StaticPassThroughAnchorCore={Running=false,IsRunning=function(self)return self.Running end}
 local mobile={Running=false,SafeHistory={{}}}
 function mobile:IsRunning()return self.Running end
@@ -58,8 +61,12 @@ MobileAnchorCore=mobile
 local humanoidHeight=3
 assert(load(source))()(_G)
 local safety=DeploymentSafetyCore
+owner=false;assert(not safety:Start());owner=true
 assert(safety:Start())
 assert(not StaticPassThroughAnchorCore.Running,'deployment must not start the original anchor')
+assert(#safety.Destinations==0,'static Babycar flow must not prepare old relocation points')
+safety:Stop();assert(not static.Running)
+mobile.Running=true;safety:SetMobileEnabled(true)
 assert(#safety.Destinations==24 and not static.PhaseEnabled)
 assert(safety.Destinations[1].Position.X==-226.8972)
 assert(safety.Destinations[1].Position.Y==humanoidHeight)
@@ -76,18 +83,19 @@ end
 function object:FindFirstChild(name)if name=='weld2target' then return link end end
 function object:GetChildren()return {link}end
 folder.objects={object};folder.ChildAdded:Fire(object)
-assert(static.Target and safety.LastCreatorId==nil,'attached chair must trigger before creator replication')
-local initialEscape=static.Target
+assert(mobile.SafeCFrame and safety.LastCreatorId==nil,'mobile attached chair must trigger before creator replication')
+local initialEscape=mobile.SafeCFrame
+root.Position=initialEscape.Position -- mocked CFrame writes do not update Position automatically
 otherRoot.Position=initialEscape.Position
 object.attributes.CreatedPlayer=2;object.attributes.CreatedPlayerName='other'
 object:GetAttributeChangedSignal('CreatedPlayer'):Fire()
-assert(safety.LastCreatorId==2 and static.Target)
-assert((static.Target.Position-otherRoot.Position).Magnitude>18)
-assert(static.Target~=initialEscape,'late nearby creator must trigger distance correction')
-local previous=static.Target
+assert(safety.LastCreatorId==2 and mobile.SafeCFrame)
+assert((mobile.SafeCFrame.Position-otherRoot.Position).Magnitude>18)
+assert(mobile.SafeCFrame~=initialEscape,'late nearby creator must trigger distance correction')
+local previous=mobile.SafeCFrame
 object:GetAttributeChangedSignal('CreatedPlayerName'):Fire()
 folder.ChildAdded:Fire(object)
-assert(previous==static.Target,'duplicate object must not relocate twice')
+assert(previous==mobile.SafeCFrame,'duplicate object must not relocate twice')
 safety:Stop();assert(not static.Running)
 mobile.Running=true;safety:SetMobileEnabled(true)
 -- Re-enabling after stopping recreates object observers and applies mobile opt-in.

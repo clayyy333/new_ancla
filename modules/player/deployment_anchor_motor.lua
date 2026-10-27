@@ -481,7 +481,7 @@ return function(context)
 		local state={links={},expires=os.clock()+1.35};pairsByPart[part]=state
 		for _,body in ipairs(character:GetDescendants()) do
 			if #state.links>=16 then break end
-			if body:IsA("BasePart") then
+			if body:IsA("BasePart") and not (BabyVehicleAnchorCore and BabyVehicleAnchorCore.Running and body:FindFirstAncestorOfClass("Tool")) then
 				local link=Instance.new("NoCollisionConstraint")
 				link.Name="DeploymentAnchorNoCollision";link.Part0=body;link.Part1=part;link.Parent=body
 				state.links[#state.links+1]=link

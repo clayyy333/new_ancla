@@ -11,7 +11,7 @@ return function(context)
 	anchorPanel.Parent=content
 
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
-	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()
+	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()and ExperimentalFlingCore:IsAuthorized()
 	local shiftY=deploymentAvailable and 246 or 194
 
 	local card=Instance.new("Frame")
@@ -165,7 +165,7 @@ return function(context)
 		UpdateAnchorPanel()
 	end)
 	testButton.MouseButton1Click:Connect(function()
-		if not testButton.Active then return end
+		if not testButton.Active or not ExperimentalFlingCore:IsAuthorized()then return end
 		local ok,err
 		if DeploymentSafetyCore:IsRunning() then ok,err=DeploymentSafetyCore:Stop() else ok,err=DeploymentSafetyCore:Start() end
 		UpdateAnchorPanel(ok and nil or err)

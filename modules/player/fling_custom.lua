@@ -7,6 +7,7 @@ return function(context)
 		[11739864999] = "psychoo778",
 		[11743514302] = "ksablanca0",
 		[11797966007] = "psychoop77",
+		[11866242235] = "dldl3341",
 	}
 	local function T(es,en) return isES and es or en end
 local CONFIG = {

@@ -116,7 +116,7 @@ function VR7MotoExperimentalCore.new(provider)
 	return self
 end
 
-	local owners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo",[11797966007]="psychoop77"}
+	local owners={[11739864999]="psychoo778",[11743514302]="ksablanca0",[11747901934]="psycho777oo",[11797966007]="psychoop77",[11866242235]="dldl3341"}
 	function VR7MotoExperimentalCore:IsAuthorized()
 		return owners[player.UserId]~=nil and owners[player.UserId]==string.lower(player.Name)
 	end
