@@ -12,11 +12,13 @@ return function(context)
 
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
 	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()and ExperimentalFlingCore:IsAuthorized()
-	local shiftY=deploymentAvailable and 246 or 194
+	local deploymentSettingsHeight=deploymentAvailable and 96 or 0
+	local shiftY=(deploymentAvailable and 246 or 194)+deploymentSettingsHeight
 
 	local card=Instance.new("Frame")
 	card.Size=UDim2.new(1,0,0,canUseExperimentalAnchor and (isMobile and 570 or 586) or (isMobile and 266 or 282))
 	if not deploymentAvailable then card.Size=card.Size-UDim2.fromOffset(0,52) end
+	card.Size=card.Size+UDim2.fromOffset(0,deploymentSettingsHeight)
 	card.BackgroundColor3=currentTheme.secondary
 	card.ZIndex=7
 	card.Parent=anchorPanel
@@ -108,6 +110,24 @@ return function(context)
 	local heartbeatButton=makeButton(142)
 	local testButton=makeButton(194)
 	testButton.Visible=deploymentAvailable
+	if deploymentAvailable then
+		for index,spec in ipairs({{"TPHeight",isES and "Altura TP (studs)"or "TP height (studs)"},{"TPSeparation",isES and "Separacion TP (studs)"or "TP separation (studs)"}})do
+			local y=246+(index-1)*44
+			local label=Instance.new("TextLabel",card)
+			label.Size=UDim2.new(.55,0,0,36);label.Position=UDim2.fromOffset(0,y);label.BackgroundTransparency=1
+			label.Text=spec[2];label.TextColor3=currentTheme.textDim;label.Font=Enum.Font.GothamMedium;label.TextSize=isMobile and 11 or 13;label.TextXAlignment=Enum.TextXAlignment.Left;label.ZIndex=8
+			RegisterTheme(label,"TextColor3","textDim")
+			local box=Instance.new("TextBox",card)
+			box.Size=UDim2.new(.45,0,0,36);box.Position=UDim2.new(.55,0,0,y);box.BackgroundColor3=currentTheme.tertiary;box.TextColor3=currentTheme.text
+			box.Text=tostring(BabyVehicleAnchorCore[spec[1]]);box.ClearTextOnFocus=false;box.Font=Enum.Font.GothamMedium;box.TextSize=isMobile and 11 or 13;box.BorderSizePixel=0;box.ZIndex=8
+			Instance.new("UICorner",box).CornerRadius=UDim.new(0,8);RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
+			box.FocusLost:Connect(function()
+				local ok=BabyVehicleAnchorCore:SetTPOffset(spec[1],tonumber((box.Text:gsub(",","."))))
+				box.Text=tostring(BabyVehicleAnchorCore[spec[1]])
+				if not ok then description.Text=isES and "Introduce un numero valido; separacion mayor o igual a 0."or "Enter a valid number; separation must be at least 0."end
+			end)
+		end
+	end
 	local combinedButton=makeButton(shiftY)
 
 	combinedButton.Visible=canUseExperimentalAnchor

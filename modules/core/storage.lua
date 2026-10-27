@@ -108,6 +108,7 @@ function LoadData()
 					while #Settings.savedAnimationCombinations > 3 do table.remove(Settings.savedAnimationCombinations) end
 					Settings.customFlingSettings = type(data.settings.customFlingSettings) == "table" and data.settings.customFlingSettings or nil
 					Settings.ownerCustomFlingProfiles = type(data.settings.ownerCustomFlingProfiles) == "table" and data.settings.ownerCustomFlingProfiles or {}
+					Settings.deploymentTPOffsets = type(data.settings.deploymentTPOffsets) == "table" and data.settings.deploymentTPOffsets or nil
 				end
 				if data.friendSettings then
 					FriendData.autoReject = data.friendSettings.autoReject == true

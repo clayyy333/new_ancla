@@ -1,7 +1,16 @@
 -- Owner-only Babycar cycle using the existing deployment anchor motor.
 return function(context)
  setfenv(1,context)
- local Core={Running=false,State="STOPPED",LastError=nil}
+ local Core={Running=false,State="STOPPED",LastError=nil,TPHeight=0,TPSeparation=3.5}
+ local function validOffset(name,value)
+  return type(value)=="number"and value==value and math.abs(value)<math.huge and (name~="TPSeparation"or value>=0)
+ end
+ local savedOffsets=Settings and Settings.deploymentTPOffsets
+ if type(savedOffsets)=="table"then
+  for _,name in ipairs({"TPHeight","TPSeparation"})do
+   if validOffset(name,savedOffsets[name])then Core[name]=savedOffsets[name]end
+  end
+ end
  BabyVehicleAnchorCore=Core
  local connections,jointWatches={},{}
  local character,humanoid,root,backpack,home,tool,oldTool,target,targetJoint
@@ -10,6 +19,18 @@ return function(context)
  local stateSince,lastRetry,lastSide,side=0,0,0,1
  local inspect,prepare,follow,watch
  local function authorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()end
+ function Core:SetTPOffset(name,value)
+  if not authorized()or (name~="TPHeight"and name~="TPSeparation")or not validOffset(name,value)then return false end
+  self[name]=value
+  if Settings then
+   Settings.deploymentTPOffsets={TPHeight=self.TPHeight,TPSeparation=self.TPSeparation}
+   if SaveLocalData then SaveLocalData()end
+  end
+  return true
+ end
+ local function destination(tr,s)
+  return (tr.CFrame*CFrame.new(s*Core.TPSeparation,0,0)).Position+Vector3.new(0,Core.TPHeight,0)
+ end
  local function status(state,message)
   Core.State=state;stateSince=os.clock();Core.LastError=message
   if DeploymentSafetyCore then DeploymentSafetyCore.LastError=message or state end
@@ -88,7 +109,7 @@ return function(context)
   end)
  end
  local function score(tr,s)
-  local pos=(tr.CFrame*CFrame.new(s*3.5,0,0)).Position
+  local pos=destination(tr,s)
   local params=OverlapParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
   params.FilterDescendantsInstances={character,tr.Parent};params.MaxParts=80
   local n=0
@@ -107,8 +128,9 @@ return function(context)
    local ok,right,left=pcall(function()return score(tr,1),score(tr,-1)end)
    if ok then if right+1<left then side=1 elseif left+1<right then side=-1 end end
   end
-  local pos=(tr.CFrame*CFrame.new(side*3.5,0,0)).Position
-  DeploymentAnchorMotorCore:RelocateForDeployment(CFrame.lookAt(pos,tr.Position))
+  local pos=destination(tr,side)
+  local frame=(pos-tr.Position).Magnitude>.001 and CFrame.lookAt(pos,tr.Position)or CFrame.new(pos)*tr.CFrame.Rotation
+  DeploymentAnchorMotorCore:RelocateForDeployment(frame)
   return true
  end
  local function equipped()

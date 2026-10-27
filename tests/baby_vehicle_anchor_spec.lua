@@ -69,8 +69,13 @@ function DeploymentAnchorMotorCore:IsRunning()return self.Running end
 function DeploymentAnchorMotorCore:Start()self.Running=true;return true end
 function DeploymentAnchorMotorCore:Stop()self.Running=false end
 function DeploymentAnchorMotorCore:RelocateForDeployment(cf)assert(self.Running);relocations[#relocations+1]=cf;root.CFrame=cf;root.Position=cf.Position end
+Settings={deploymentTPOffsets={TPHeight=-2,TPSeparation=5}}
+local saves=0;SaveLocalData=function()saves=saves+1 end
 assert(load(source))()(_G)
 local core=BabyVehicleAnchorCore
+assert(core.TPHeight==-2 and core.TPSeparation==5,'saved offsets restored at initialization')
+assert(core:SetTPOffset('TPHeight',0)and core:SetTPOffset('TPSeparation',3.5))
+assert(saves==2 and Settings.deploymentTPOffsets.TPHeight==0 and Settings.deploymentTPOffsets.TPSeparation==3.5,'offset changes saved locally')
 local function tick(dt)now=now+dt;RunService.Heartbeat:Fire()end
 owner=false;assert(not core:Start());owner=true
 local home=root.CFrame
@@ -78,6 +83,11 @@ assert(core:Start());assert(core.State=='PREPARING');flush();assert(core.State==
 tick(.16);assert(core.State=='FOLLOWING'and #relocations==1)
 assert(queries==0,'first TP must not wait for lateral spatial queries')
 assert(root.Position.X==13.5,'relocate anchor directly to configured lateral')
+assert(not core:SetTPOffset('TPSeparation',-1)and not core:SetTPOffset('TPHeight',0/0),'invalid offsets rejected')
+assert(core:SetTPOffset('TPSeparation',6)and core:SetTPOffset('TPHeight',2))
+tick(.01)
+assert(root.Position.X==16 and root.Position.Y==5,'live TP offsets apply to following')
+assert(core:SetTPOffset('TPSeparation',3.5)and core:SetTPOffset('TPHeight',0))
 local ownLink=obj('WeldConstraint','WeldConstraint',tool);ownLink.Part0=root;ownLink.Part1=babySeat
 workspace.DescendantAdded:Fire(ownLink);assert(ownLink.Parent,'preserve local tool connection')
 local attack=obj('Weld','SeatWeld',seat);attack.Part0=seat;attack.Part1=root
