@@ -43,7 +43,7 @@ return function(context)
 		NoMotosCore.Start=function(self,...)if blocked then return false,"Funcion no disponible." end;return start(self,...)end
 		cores[#cores+1]=NoMotosCore
 	end
-	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectV8FlingCore"}) do
+	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","AdjustableContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectV8FlingCore"}) do
 		local core=context[name]
 		if core then
 			cores[#cores+1]=core
