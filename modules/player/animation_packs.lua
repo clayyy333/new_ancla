@@ -31,6 +31,11 @@ return function(context)
 	end
 	-- Este paquete llega con un orden distinto en bundledItems; IDs comprobados por tipo.
 	local verifiedPacks={
+		[168768196299079]={
+			Idle=139547808557272,Walk=113615178367759,Run=82667695960258,
+			Jump=74873528482266,Fall=131355721293173,
+			Climb=96484824000795,Swim=114817892915555
+		},
 		[238898569843772]={
 			Idle=81944450397606,Walk=119313273440026,Run=128300361401910,
 			Jump=98830297962880,Fall=96742233189804,
