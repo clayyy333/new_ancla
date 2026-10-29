@@ -342,6 +342,20 @@ if anchorSource then
  workspace.DescendantAdded:Fire(foreignWeld)
  assert(not foreignWeld.Destroyed and core.FastSeatBreaks==2,'never release another character from a seat')
  foreignWeld.Parent=nil
+ -- Our carried seat/tool may connect to somebody else without seating our body.
+ local actionModel=instance('Model','PActionModel',character)
+ local ownSeat=instance('Seat','Seat',actionModel)
+ local outgoing=instance('Weld','SeatWeld',ownSeat);outgoing.Part0=ownSeat;outgoing.Part1=foreignRoot
+ workspace.DescendantAdded:Fire(outgoing)
+ assert(not outgoing.Destroyed,'preserve own action seat connected to another player')
+ local ownTool=instance('Tool','Babycar_a',character)
+ local toolHandle=instance('Part','Handle',ownTool)
+ local outgoingTool=instance('Weld','PassengerLink',ownTool);outgoingTool.Part0=foreignRoot;outgoingTool.Part1=toolHandle
+ workspace.DescendantAdded:Fire(outgoingTool)
+ assert(not outgoingTool.Destroyed,'preserve own tool-to-foreign-player link with reversed endpoints')
+ local grip=instance('Weld','RightGrip',character);grip.Part0=root;grip.Part1=toolHandle
+ workspace.DescendantAdded:Fire(grip)
+ assert(not grip.Destroyed,'preserve internal body-to-tool grip')
  -- Non-seat external connections retain the original general bridge fallback.
  local otherBridge=instance('Weld','ExternalBridge',forcedSeat);otherBridge.Part0=root;otherBridge.Part1=connected[2]
  workspace.DescendantAdded:Fire(otherBridge)

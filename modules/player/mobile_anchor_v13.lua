@@ -76,6 +76,19 @@ return function(context)
   return instance~=nil and ancestor~=nil and (instance==ancestor or instance:IsDescendantOf(ancestor))
  end
 
+ -- Character descendants also include equipped tools and carried seat models.
+ -- Only body/accessory parts are protected endpoints, never those objects.
+ local function bodyEndpoint(part,character)
+  if not part or not part:IsA("BasePart")or not belongsTo(part,character)then return false end
+  if part:IsA("Seat")or part:IsA("VehicleSeat")then return false end
+  local node=part.Parent
+  while node and node~=character do
+   if node:IsA("Tool")or node:IsA("Model")then return false end
+   node=node.Parent
+  end
+  return node==character
+ end
+
  local function disconnectRuntime()
   for _,connection in ipairs(runtime) do pcall(function()connection:Disconnect()end) end
   table.clear(runtime)
@@ -482,7 +495,8 @@ return function(context)
   if not character or not humanoid then return false end
   local p,q=endpoints(weld)
   if not p or not q then return false end
-  local insideP,insideQ=belongsTo(p,character),belongsTo(q,character)
+  if belongsTo(p,character)and belongsTo(q,character)then return false end
+  local insideP,insideQ=bodyEndpoint(p,character),bodyEndpoint(q,character)
   if insideP==insideQ then return false end
   local seat=insideP and q or p
   if not (seat:IsA("Seat")or seat:IsA("VehicleSeat"))or (expectedSeat and seat~=expectedSeat)then return false end
@@ -534,7 +548,7 @@ return function(context)
   if belongsTo(connection,Core.PhaseFolder)then return false end
   if releaseSeatWeld(connection)then return true end
   if connection:IsA("Motor6D") or connection.Name=="AccessoryWeld" then return false end
-  if connection:IsA("BodyMover") and belongsTo(connection,character) then
+  if connection:IsA("BodyMover") and bodyEndpoint(connection.Parent,character) then
    local parent=connection.Parent
    local className=connection.ClassName
    pcall(function()connection:Destroy()end)
@@ -546,7 +560,7 @@ return function(context)
   local part0,part1=endpoints(connection)
   if (part0 and not part1) or (part1 and not part0) then
    local endpoint=part0 or part1
-   if belongsTo(endpoint,character) and not belongsTo(connection,character) then
+   if bodyEndpoint(endpoint,character) and not belongsTo(connection,character) then
     local className=connection.ClassName
     pcall(function()connection:Destroy()end)
     Core.ThreatUntil=math.max(Core.ThreatUntil,os.clock()+0.65)
@@ -556,8 +570,9 @@ return function(context)
    end
   end
   if not part0 or not part1 then return false end
-  local inside0=belongsTo(part0,character)
-  local inside1=belongsTo(part1,character)
+  if belongsTo(part0,character)and belongsTo(part1,character)then return false end
+  local inside0=bodyEndpoint(part0,character)
+  local inside1=bodyEndpoint(part1,character)
   if inside0==inside1 then return false end
   lastCaptureScan=-math.huge
   safeCaptureBlockedUntil=os.clock()+.18
