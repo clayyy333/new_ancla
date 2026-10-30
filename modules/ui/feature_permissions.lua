@@ -60,9 +60,11 @@ return function(context)
 		end
 	end
 	if AdjustableContactFlingController then
-		for _,method in ipairs({"SetIntensity","SetAxis"})do
+		for _,method in ipairs({"SetIntensity","SetAxis","SetPulseParameter"})do
 			local original=AdjustableContactFlingController[method]
-			AdjustableContactFlingController[method]=function(self,...)if blocked then return false end;return original(self,...)end
+			if type(original)=="function"then
+				AdjustableContactFlingController[method]=function(self,...)if blocked then return false end;return original(self,...)end
+			end
 		end
 	end
 	local function protect(button)

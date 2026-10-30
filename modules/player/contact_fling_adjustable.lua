@@ -23,8 +23,13 @@ return function(context)
     local cyclePulse=nil
     local pulseActive=false
     local originalCanCollide=nil
+    local pulseUntil,burstStart=0,0
 
     local C={Running=false,Intensity=100000,Axes={X=100000,Y=100000,Z=100000},MaxIntensity=1000000000000}
+    C.Pulse={Duration=0,BurstOn=.1,BurstOff=0}
+    function C:CanTunePulse()
+        return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()or false
+    end
     function C:IsAuthorized()
         return true
     end
@@ -87,6 +92,12 @@ return function(context)
     local function onPostSimulation()
         if not enabled then return end
         if not C:IsAuthorized() then stop(false);return end
+        if not C:CanTunePulse()then C.Pulse.Duration=0;C.Pulse.BurstOff=0 end
+        local now=os.clock()
+        if C.Pulse.BurstOff>0 and (now-burstStart)%(C.Pulse.BurstOn+C.Pulse.BurstOff)>=C.Pulse.BurstOn then
+            restoreCurrentPulse();return
+        end
+        if pulseActive and C.Pulse.Duration>0 and now<pulseUntil then return end
         restoreCurrentPulse()
 
         local root=getRoot()
@@ -96,6 +107,7 @@ return function(context)
         cycleVelocity=root.Velocity
         cycleAssemblyVelocity=root.AssemblyLinearVelocity
         pulseActive=true
+        pulseUntil=now+C.Pulse.Duration
 
         root.CanCollide=false
         local pulse=Vector3.new(C.Axes.X,C.Axes.Y,C.Axes.Z)
@@ -106,7 +118,16 @@ return function(context)
 
     local function onRenderEnd()
         if not enabled then return end
+        if C:CanTunePulse()and C.Pulse.Duration>0 and os.clock()<pulseUntil then return end
         restoreCurrentPulse()
+    end
+
+    function C:SetPulseParameter(name,value)
+        if not self:CanTunePulse()then return false end
+        local limits={Duration={0,.25},BurstOn={.01,5},BurstOff={0,5}}
+        local range=limits[name]
+        if not range or type(value)~="number"or value~=value or value<range[1]or value>range[2]then return false end
+        restoreCurrentPulse();self.Pulse[name]=value;burstStart=os.clock();return true
     end
 
     function C:SetIntensity(value)
@@ -141,6 +162,7 @@ return function(context)
 
         originalCanCollide=root.CanCollide
         enabled=true
+        burstStart=os.clock()
         self.Running=true
         root.CanCollide=false
         update(isES and "Fling por contacto activo" or "Contact Fling active")

@@ -29,12 +29,27 @@ return function(context)
             UpdateAdjustableContactFlingPanel(not ok and (isES and "Valor por eje: -1000000000000 a 1000000000000."or "Per axis: -1000000000000 to 1000000000000.")or nil)
         end)
     end
+    local pulseBoxes={}
+    if adjustable:CanTunePulse()then
+        card.Size=UDim2.new(1,0,0,700)
+        local heading=masterLabel:Clone();heading.Position=UDim2.fromOffset(0,468);heading.Text=isES and "Prueba owners · tiempos del pulso"or "Owner test · pulse timing";heading.Parent=card;RegisterTheme(heading,"TextColor3","textDim")
+        for index,spec in ipairs({{"Duration",isES and "Duracion (s) · 0 = original"or "Duration (s) · 0 = original"},{"BurstOn",isES and "Rafaga activa (s)"or "Burst on (s)"},{"BurstOff",isES and "Pausa (s) · 0 = continua"or "Pause (s) · 0 = continuous"}})do
+            local y=498+(index-1)*54
+            local label=masterLabel:Clone();label.Size=UDim2.new(.55,0,0,42);label.Position=UDim2.fromOffset(0,y);label.Text=spec[2];label.Parent=card;RegisterTheme(label,"TextColor3","textDim")
+            local box=amount:Clone();box.Size=UDim2.new(.45,0,0,36);box.Position=UDim2.new(.55,0,0,y);box.Parent=card;pulseBoxes[spec[1]]=box;RegisterTheme(box,"BackgroundColor3","tertiary");RegisterTheme(box,"TextColor3","text")
+            box.FocusLost:Connect(function()
+                local ok=adjustable:SetPulseParameter(spec[1],tonumber((box.Text:gsub(",","."))))
+                UpdateAdjustableContactFlingPanel(not ok and (isES and "Duracion: 0–0.25 s; rafaga: 0.01–5 s; pausa: 0–5 s."or "Duration: 0–0.25 s; burst: 0.01–5 s; pause: 0–5 s.")or nil)
+            end)
+        end
+    end
     UpdateAdjustableContactFlingPanel=function(message)
         adjustableToggle.Text=adjustable.Running and (isES and "Desactivar Fling por contacto"or "Disable adjustable contact")or (isES and "Activar Fling por contacto"or "Enable adjustable contact")
         adjustableToggle.BackgroundColor3=adjustable.Running and currentTheme.accent or currentTheme.tertiary
         amount.Text=string.format("%.0f",adjustable.Intensity)
         local alpha=math.clamp(math.log(math.max(100000,adjustable.Intensity)/100000)/math.log(adjustable.MaxIntensity/100000),0,1)
         for axis,box in pairs(axisBoxes)do if not box:IsFocused()then box.Text=string.format("%.0f",adjustable.Axes[axis])end end
+        for key,box in pairs(pulseBoxes)do if not box:IsFocused()then box.Text=tostring(adjustable.Pulse[key])end end
         fill.Size=UDim2.fromScale(alpha,1);knob.Position=UDim2.fromScale(alpha,.5)
         adjustableStatus.Text=message or ((isES and "Velocidad por eje XYZ · "or "Speed per XYZ axis · ")..string.format("%.2fx",adjustable.Intensity/100000)..(isES and " del original. Ajustable durante el uso."or " original strength. Adjustable while running."))
     end

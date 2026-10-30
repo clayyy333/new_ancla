@@ -1,4 +1,5 @@
 local source=...
+local now=100;os.clock=function()return now end
 setfenv=function()end
 table.clear=table.clear or function(t)for k in pairs(t)do t[k]=nil end end
 local function signal()
@@ -28,6 +29,7 @@ assert(load(source))()(_G)
 local core=AdjustableContactFlingController
 assert(core.Intensity==100000)
 assert(core:IsAuthorized(),'adjustable contact is public')
+assert(not core:SetPulseParameter('Duration',.05),'advanced timing is owner only')
 owner=true
 assert(core:Start()and stopped==1 and not root.CanCollide)
 assert(not core:SetIntensity(0/0)and not core:SetIntensity(math.huge)and not core:SetIntensity(99999)and not core:SetIntensity(1000000000001))
@@ -54,6 +56,22 @@ for _,axis in ipairs({'X','Y','Z'})do assert(core:SetAxis(axis,0))end
 rs.PostSimulation:Fire();for _,f in pairs(binds)do f()end
 assert(root.Velocity==walking,'zero pulse must also restore walking')
 assert(not core:SetAxis('Y',math.huge)and not core:SetAxis('W',1))
+owner=true
+assert(core:SetIntensity(500000)and core:SetPulseParameter('Duration',.05))
+assert(core:SetPulseParameter('BurstOn',.1)and core:SetPulseParameter('BurstOff',.1))
+assert(not core:SetPulseParameter('Duration',.26)and not core:SetPulseParameter('BurstOn',0)and not core:SetPulseParameter('BurstOff',math.huge))
+rs.PostSimulation:Fire();for _,f in pairs(binds)do f()end
+assert(root.Velocity.X==500000,'owner duration holds pulse beyond render')
+now=100.06;for _,f in pairs(binds)do f()end
+assert(root.Velocity==walking,'duration expiry restores original walking velocity')
+now=100.12;rs.PostSimulation:Fire()
+assert(root.Velocity==walking,'burst pause emits no pulse')
+now=100.21;rs.PostSimulation:Fire()
+assert(root.Velocity.X==500000,'next burst resumes')
+owner=false;for _,f in pairs(binds)do f()end
+assert(root.Velocity==walking,'loss of owner access immediately releases held pulse on render')
+rs.PostSimulation:Fire();for _,f in pairs(binds)do f()end
+assert(core.Pulse.Duration==0 and core.Pulse.BurstOff==0 and root.Velocity==walking,'public mode resets advanced timing')
 core:Destroy();assert(next(binds)==nil,'render binding removed')
 rs.PostSimulation:Fire();assert(root.Velocity==walking,'destroy disconnects simulation callback')
 print('Adjustable contact OK: intensity, live changes, pulse restoration, original mode exclusion, respawn and cleanup')
