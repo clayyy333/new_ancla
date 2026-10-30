@@ -43,7 +43,7 @@ return function(context)
 		NoMotosCore.Start=function(self,...)if blocked then return false,"Funcion no disponible." end;return start(self,...)end
 		cores[#cores+1]=NoMotosCore
 	end
-	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","AdjustableContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectV8FlingCore"}) do
+	for _,name in ipairs({"AnchorCore","AutoAnchorCore","StaticPassThroughAnchorCore","StaticNoclipAnchorCore","MobileAnchorCore","MobileAnchorV11Core","MobileAnchorV13Core","EmergencyAnchorController","Fling2AutoController","Fling2Core","Fling2EfficientCore","CustomFlingCore","ContactFlingController","AdjustableContactFlingController","MotoFlingCore","MotoFlingXenoCore","CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","ObjectV8FlingCore"}) do
 		local core=context[name]
 		if core then
 			cores[#cores+1]=core
@@ -59,10 +59,16 @@ return function(context)
 			end
 		end
 	end
+	if AdjustableContactFlingController then
+		for _,method in ipairs({"SetIntensity","SetAxis"})do
+			local original=AdjustableContactFlingController[method]
+			AdjustableContactFlingController[method]=function(self,...)if blocked then return false end;return original(self,...)end
+		end
+	end
 	local function protect(button)
 		-- Cleanup is local opt-in only; the backend observes but never controls it.
 		if button.Name=="FoldingTableCleanupToggle" then return end
-		if not button:IsA("GuiButton") or buttons[button] or button.Name=="FeatureBlockShade" then return end
+		if not(button:IsA("GuiButton")or button:IsA("TextBox")) or buttons[button] or button.Name=="FeatureBlockShade" then return end
 		local shade=Instance.new("TextButton")
 		shade.Name="FeatureBlockShade";shade.Size=UDim2.fromScale(1,1);shade.Text=""
 		shade.BackgroundColor3=Color3.new(0,0,0);shade.BackgroundTransparency=.45
@@ -70,7 +76,7 @@ return function(context)
 		shade.ZIndex=button.ZIndex+50;shade.Visible=blocked
 		local corner=button:FindFirstChildOfClass("UICorner")
 		if corner then corner:Clone().Parent=shade end
-		buttons[button]={shade=shade,active=button.Active}
+		buttons[button]={shade=shade,active=button.Active,editable=button:IsA("TextBox")and button.TextEditable}
 		shade.Parent=button;shade.Activated:Connect(function() end)
 	end
 	if experimentalFlingPanel then
@@ -100,6 +106,7 @@ return function(context)
 			if button.Parent then
 				state.shade.Visible=blocked
 				if blocked then button.Active=false else button.Active=state.active end
+				if button:IsA("TextBox")then button.TextEditable=not blocked and state.editable end
 			else buttons[button]=nil end
 		end
 	end

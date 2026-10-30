@@ -372,9 +372,14 @@ def start_session(payload: SessionStart, request: Request):
                 ),
             )
         audit(db, "session_started", session_id, payload.user_id, {"place_id": payload.place_id})
+        blocked = features_blocked(db, {
+            "user_id": payload.user_id, "game_id": payload.game_id,
+            "place_id": payload.place_id, "job_id": payload.job_id,
+        }, active_cutoff())
     return {
         "session_id": session_id,
         "session_token": session_token,
+        "features_blocked": blocked,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (

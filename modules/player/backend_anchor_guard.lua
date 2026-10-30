@@ -7,6 +7,21 @@ return function(context)
 	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil}
 	local targetStates={}
 	local requestFn
+	local blockKey=table.concat({tostring(player.UserId),tostring(game.GameId),tostring(game.PlaceId),tostring(game.JobId)},":")
+	local cachedBlock=Settings and Settings.featureBlockCache
+	local blockEnvironment=_genv and _genv()or nil
+	local memoryBlock=blockEnvironment and blockEnvironment.VR7FeatureBlockCache
+	Guard.FeaturesBlocked=(type(cachedBlock)=="table"and cachedBlock.Key==blockKey and cachedBlock.Blocked==true)
+		or (type(memoryBlock)=="table"and memoryBlock.Key==blockKey and memoryBlock.Blocked==true)or false
+	local function applyBlock(value)
+		local changed=Guard.FeaturesBlocked~=(value==true)
+		Guard.FeaturesBlocked=value==true
+		local cache={Key=blockKey,Blocked=Guard.FeaturesBlocked}
+		if blockEnvironment then blockEnvironment.VR7FeatureBlockCache=cache end
+		if Settings then Settings.featureBlockCache=cache end
+		if ApplyFeatureBlock then ApplyFeatureBlock(Guard.FeaturesBlocked)end
+		if changed and Settings and SaveLocalData and writefile then task.spawn(function()pcall(SaveLocalData)end)end
+	end
 
 	local function isMetroLife()
 		return Config.Enabled==true
@@ -121,6 +136,7 @@ return function(context)
 		end
 		Guard.SessionToken=response.session_token
 		Guard.SessionId=response.session_id
+		if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
 		Guard.AnchorGuardEnabled=response.anchor_guard_enabled==true and isMetroLife()
 		Guard.Connected=true
 		return true
@@ -143,8 +159,7 @@ return function(context)
 			Guard.SessionToken=nil
 		end
 		if response then
-			Guard.FeaturesBlocked=response.features_blocked==true
-			if ApplyFeatureBlock then ApplyFeatureBlock(Guard.FeaturesBlocked) end
+			if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
 		end
 		return response~=nil
 	end

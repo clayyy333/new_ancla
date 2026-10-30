@@ -20,12 +20,13 @@ return function(context)
     local cycleRoot=nil
     local cycleVelocity=nil
     local cycleAssemblyVelocity=nil
+    local cyclePulse=nil
     local pulseActive=false
     local originalCanCollide=nil
 
-    local C={Running=false,Intensity=100000}
+    local C={Running=false,Intensity=100000,Axes={X=100000,Y=100000,Z=100000},MaxIntensity=1000000000000}
     function C:IsAuthorized()
-        return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized() or false
+        return true
     end
     C.Status=isES and "Fling por contacto desactivado" or "Contact Fling disabled"
 
@@ -46,16 +47,18 @@ return function(context)
         local root=cycleRoot
         local oldVelocity=cycleVelocity
         local oldAssemblyVelocity=cycleAssemblyVelocity
+        local applied=cyclePulse
         pulseActive=false
         cycleRoot=nil
         cycleVelocity=nil
         cycleAssemblyVelocity=nil
+        cyclePulse=nil
 
         if root and root.Parent and oldVelocity and oldAssemblyVelocity then
             pcall(function()
                 local stillExtreme=root.Velocity.Magnitude>1000
                     or root.AssemblyLinearVelocity.Magnitude>1000
-                if stillExtreme then
+                if stillExtreme or root.Velocity==applied or root.AssemblyLinearVelocity==applied then
                     root.Velocity=oldVelocity
                     root.AssemblyLinearVelocity=oldAssemblyVelocity
                 end
@@ -95,7 +98,8 @@ return function(context)
         pulseActive=true
 
         root.CanCollide=false
-        local pulse=Vector3.new(C.Intensity,C.Intensity,C.Intensity)
+        local pulse=Vector3.new(C.Axes.X,C.Axes.Y,C.Axes.Z)
+        cyclePulse=pulse
         root.Velocity=pulse
         root.AssemblyLinearVelocity=pulse
     end
@@ -107,9 +111,18 @@ return function(context)
 
     function C:SetIntensity(value)
         if not self:IsAuthorized() then return false end
-        if type(value)~="number" or value~=value or value<100000 or value>1000000000 then return false end
+        if type(value)~="number" or value~=value or value<100000 or value>self.MaxIntensity then return false end
         restoreCurrentPulse()
         self.Intensity=value
+        self.Axes={X=value,Y=value,Z=value}
+        return true
+    end
+
+    function C:SetAxis(axis,value)
+        if self.Axes[axis]==nil or type(value)~="number"or value~=value or math.abs(value)>self.MaxIntensity then return false end
+        restoreCurrentPulse()
+        self.Axes[axis]=value
+        self.Intensity=math.max(math.abs(self.Axes.X),math.abs(self.Axes.Y),math.abs(self.Axes.Z))
         return true
     end
 

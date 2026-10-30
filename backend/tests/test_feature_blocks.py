@@ -15,6 +15,12 @@ def test_feature_block_same_server_and_normal_heartbeat():
         def heartbeat():
             return c.post('/api/v1/sessions/heartbeat',headers=client_headers(user['session_token']),json={}).json()
         assert heartbeat()['features_blocked'] is True
+        # Recipient closing/reopening the script must not clear the owner's block.
+        c.post('/api/v1/sessions/end', headers=client_headers(user['session_token']))
+        user = start_session(c, 98001, 'feature-user')
+        assert user['features_blocked'] is True
+        assert heartbeat()['features_blocked'] is True
+        path='/api/v1/owner/remote/features/'+user['session_id']
         body['blocked']=False
         assert c.put(path,headers=h,json=body).status_code==200
         assert heartbeat()['features_blocked'] is False

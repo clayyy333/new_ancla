@@ -27,10 +27,11 @@ ContactFlingController={Running=true,Stop=function(self)self.Running=false;stopp
 assert(load(source))()(_G)
 local core=AdjustableContactFlingController
 assert(core.Intensity==100000)
-assert(not core:Start()and not core:SetIntensity(500000)and stopped==0,'non-owner cannot activate or configure the owner mode')
+assert(core:IsAuthorized(),'adjustable contact is public')
 owner=true
 assert(core:Start()and stopped==1 and not root.CanCollide)
-assert(not core:SetIntensity(0/0)and not core:SetIntensity(math.huge)and not core:SetIntensity(99999)and not core:SetIntensity(1000000001))
+assert(not core:SetIntensity(0/0)and not core:SetIntensity(math.huge)and not core:SetIntensity(99999)and not core:SetIntensity(1000000000001))
+assert(core:SetIntensity(1000000000000),'expanded maximum accepted')
 assert(core:SetIntensity(500000))
 rs.PostSimulation:Fire()
 assert(root.Velocity.X==500000 and root.Velocity.Y==500000 and root.AssemblyLinearVelocity.Z==500000,'configured pulse applies on all axes')
@@ -42,8 +43,17 @@ rs.PostSimulation:Fire();core:Stop()
 assert(root.CanCollide and root.Velocity==walking and root.AssemblyLinearVelocity==walking,'stop restores pending pulse and collisions')
 core:Start();rs.PostSimulation:Fire();lp.CharacterAdded:Fire()
 assert(not core.Running and root.Velocity==walking,'respawn cancels pulse')
-core:Start();rs.PostSimulation:Fire();owner=false;rs.PostSimulation:Fire()
-assert(not core.Running and root.Velocity==walking and root.CanCollide,'owner access loss restores pending pulse and stops')
+core:Start();owner=false;rs.PostSimulation:Fire()
+assert(core.Running,'non-owner remains active')
+assert(core:SetAxis('Y',0)and core:SetAxis('X',-2000000)and core:SetAxis('Z',3000000))
+rs.PostSimulation:Fire()
+assert(root.Velocity.X==-2000000 and root.Velocity.Y==0 and root.Velocity.Z==3000000,'axes independently configurable')
+for _,f in pairs(binds)do f()end
+assert(root.Velocity==walking,'axis pulse restores walking')
+for _,axis in ipairs({'X','Y','Z'})do assert(core:SetAxis(axis,0))end
+rs.PostSimulation:Fire();for _,f in pairs(binds)do f()end
+assert(root.Velocity==walking,'zero pulse must also restore walking')
+assert(not core:SetAxis('Y',math.huge)and not core:SetAxis('W',1))
 core:Destroy();assert(next(binds)==nil,'render binding removed')
 rs.PostSimulation:Fire();assert(root.Velocity==walking,'destroy disconnects simulation callback')
 print('Adjustable contact OK: intensity, live changes, pulse restoration, original mode exclusion, respawn and cleanup')

@@ -2,7 +2,6 @@
 return function(context)
  setfenv(1,context)
  local C={Running=false,ConstantReturn=false,SeatPrevention=false,Checkpoint=nil}
- local function authorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()end
  local links,parts,pending={},{},{}
  local vehicleParts,contactModels={},setmetatable({},{__mode="k"})
  local char,hum,root,old,guard
@@ -129,17 +128,11 @@ return function(context)
   observe(p)
  end
  function C:SetConstantReturn(value)
-  if not authorized()then return false,"Solo owners."end
   self.ConstantReturn=value==true;refresh();return true
- end
- function C:SetSeatPrevention(value)
-  if not authorized()then return false,"Solo owners."end
-  self.SeatPrevention=value==true;nextQuery=0
-  if not self.SeatPrevention then restoreSeats()end
-  refresh();return true
  end
  function C:Stop()
   self.Running=false
+  self.SeatPrevention=false
   restoreSeats();table.clear(knownSeats);scanned=setmetatable({},{__mode="k"});queryParams=nil
   for _,l in ipairs(links)do l:Disconnect()end;table.clear(links)
   for p,v in pairs(parts)do if p.Parent then p.CanCollide=v end end;table.clear(parts);table.clear(pending)
@@ -152,13 +145,13 @@ return function(context)
   char=nil;hum=nil;root=nil;old=nil;guard=false;self.Checkpoint=nil;refresh();return true
  end
  function C:Start()
-  if not authorized()then return false,"Solo owners."end
   if self.Running then return true end
   if busy()then return false,"Desactiva las otras anclas primero."end
   char=player.Character;hum=char and char:FindFirstChildOfClass("Humanoid");root=char and char:FindFirstChild("HumanoidRootPart")
   if not root or not hum or hum.Health<=0 then return false,"Personaje no disponible."end
   old={Rotate=hum.AutoRotate,Seated=hum:GetStateEnabled(Enum.HumanoidStateType.Seated),PlatformStand=hum.PlatformStand,WalkSpeed=hum.WalkSpeed,JumpPower=hum.JumpPower}
   self.Checkpoint=root.CFrame;self.Running=true;hum.AutoRotate=false;hum:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+  self.SeatPrevention=true;nextQuery=0
   for _,p in ipairs(char:GetDescendants())do add(p)end
   for p in pairs(parts)do for _,j in ipairs(p:GetJoints())do observe(j)end end
   for _,other in ipairs(Players:GetPlayers())do
@@ -175,7 +168,7 @@ return function(context)
   links[#links+1]=hum.Died:Connect(function()self:Stop()end)
   links[#links+1]=player.CharacterRemoving:Connect(function(r)if r==char then self:Stop()end end)
   links[#links+1]=(RunService.PreSimulation or RunService.Stepped):Connect(function()
-   if not authorized()or busy()then self:Stop();return end
+   if busy()then self:Stop();return end
    if not root.Parent or hum.Health<=0 then self:Stop();return end
    zeroBody()
    hum.PlatformStand=true;hum.WalkSpeed=0;hum.JumpPower=0;hum.AutoRotate=false
