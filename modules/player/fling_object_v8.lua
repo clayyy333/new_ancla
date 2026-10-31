@@ -16,9 +16,80 @@ return function(context)
     local function valid(v)return v and finite(v.X)and finite(v.Y)and finite(v.Z)end
     local function dot(a,b)return a.X*b.X+a.Y*b.Y+a.Z*b.Z end
     local function refresh(message)if UpdateObjectFlingPanel then UpdateObjectFlingPanel(message)end end
-    local function attempt(fn)
+    local diagnostic={}
+    local function number(n)return type(n)=="number"and string.format("%.3f",n)or tostring(n)end
+    local function vector(v)
+        if not v then return "nil"end
+        return "("..number(v.X)..","..number(v.Y)..","..number(v.Z)..")"
+    end
+    local function snapshot()
+        local ok,value=pcall(function()
+            local tc=selected and selected.Character
+            local tr=tc and tc:FindFirstChild("HumanoidRootPart")
+            local th=tc and tc:FindFirstChildOfClass("Humanoid")
+            local distance=root and tr and valid(root.Position)and valid(tr.Position)and(root.Position-tr.Position).Magnitude
+            return "phase="..core.Phase.." mode="..core.Mode.." cycle="..core.Cycles
+                .." localHealth="..number(humanoid and humanoid.Health).." targetHealth="..number(th and th.Health)
+                .." localPos="..vector(root and root.Position).." targetPos="..vector(tr and tr.Position)
+                .." distance="..number(distance).." linear="..vector(root and root.AssemblyLinearVelocity)
+                .." angular="..vector(root and root.AssemblyAngularVelocity)
+                .." anchored="..tostring(root and root.Anchored).." localSit="..tostring(humanoid and humanoid.Sit)
+                .." targetSit="..tostring(th and th.Sit).." localSeat="..tostring(humanoid and humanoid.SeatPart)
+                .." targetSeat="..tostring(th and th.SeatPart).." localRigCurrent="..tostring(player.Character==character).." sitStage="..tostring(sitStage)
+        end)
+        return ok and value or "snapshot unavailable: "..tostring(value)
+    end
+    function core:ClearDiagnostic()
+        diagnostic={Started=os.clock(),Events={},First={},Count=0,Operations={},HitFrames=0,HitEntries=0,LastSample=-math.huge}
+        self.Diagnostic=diagnostic
+    end
+    core:ClearDiagnostic()
+    local function record(event,detail)
+        diagnostic.Count=diagnostic.Count+1
+        local entry=string.format("t=%.3f %s %s",os.clock()-diagnostic.Started,event,detail or snapshot())
+        if #diagnostic.First<12 then diagnostic.First[#diagnostic.First+1]=entry end
+        diagnostic.Events[(diagnostic.Count-1)%128+1]=entry
+    end
+    local function observe()
+        local changed=diagnostic.LastPhase~=core.Phase
+        if changed then diagnostic.LastPhase=core.Phase;record("PHASE")end
+        if os.clock()-diagnostic.LastSample>=.2 then
+            diagnostic.LastSample=os.clock()
+            if not changed then record("SAMPLE")end
+        end
+    end
+    function core:GetDiagnosticReport()
+        local lines={"FLING TEST DIAGNOSTIC V1 | Local observations; no server acceptance or cause of death proven",
+            "Running="..tostring(self.Running).." OwnerAuthorized="..tostring(self:IsAuthorized()).." Phase="..self.Phase,
+            "Local="..tostring(player.Name).."/"..tostring(player.UserId).." Target="..tostring(selected and selected.Name).."/"..tostring(selected and selected.UserId),
+            "Mode="..self.Mode.." SitKillEnabled="..tostring(self.SitKillEnabled).." HitEntries="..diagnostic.HitEntries.." HitFrames="..diagnostic.HitFrames,
+            "Cycles="..self.Cycles.." Recoveries="..self.Recoveries.." Events="..diagnostic.Count.." LastError="..tostring(self.LastError),
+            "A successful pcall only means no local API error. This report performs no physics writes.","CURRENT:",snapshot(),"CONFIG:"}
+        for _,key in ipairs({"Speed","Distance","Azimuth","Elevation","ContactTime","LaunchTime","HitDuration"})do lines[#lines+1]=key.."="..tostring(self.Config[key])end
+        lines[#lines+1]="OPERATIONS (attempted / no local error / failed):"
+        local names={};for name in pairs(diagnostic.Operations)do names[#names+1]=name end;table.sort(names)
+        for _,name in ipairs(names)do
+            local op=diagnostic.Operations[name]
+            lines[#lines+1]=name.." "..op.Attempts.." / "..op.Successes.." / "..op.Failures.." lastError="..tostring(op.LastError)
+        end
+        lines[#lines+1]="FIRST EVENTS:"
+        for _,entry in ipairs(diagnostic.First)do lines[#lines+1]=entry end
+        lines[#lines+1]="LATEST EVENTS (up to 128):"
+        for index=math.max(1,diagnostic.Count-127),diagnostic.Count do lines[#lines+1]=diagnostic.Events[(index-1)%128+1]end
+        return table.concat(lines,"\n")
+    end
+    local function attempt(fn,label)
+        label=label or "other_local_write"
+        local op=diagnostic.Operations[label]
+        if not op then op={Attempts=0,Successes=0,Failures=0};diagnostic.Operations[label]=op end
+        op.Attempts=op.Attempts+1
         local ok,err=pcall(fn)
-        if not ok then core.LastError=tostring(err)end
+        if ok then op.Successes=op.Successes+1
+        else
+            op.Failures=op.Failures+1;core.LastError=tostring(err)
+            if op.LastError~=tostring(err)then record("WRITE_ERROR",label..": "..tostring(err))end
+            op.LastError=tostring(err)
+        end
         return ok
     end
     function core:IsAuthorized()
@@ -74,11 +145,12 @@ return function(context)
     end
     function core:SetMode(value)
         if not self:IsAuthorized()or(value~="CINTURA"and value~="ROTACION"and value~="CLASICO")then return false end
-        self.Mode=value;refresh();return true
+        self.Mode=value;record("MODE_CHANGED");refresh();return true
     end
     function core:SetSitKillEnabled(value)
         if not self:IsAuthorized()then return false end
         self.SitKillEnabled=value==true
+        record("SIT_OPTION",tostring(self.SitKillEnabled))
         if not self.SitKillEnabled then sitStage=nil end
         refresh();return true
     end
@@ -97,7 +169,7 @@ return function(context)
             root.CFrame=checkpoint;zero()
         end
         targetCharacter=nil;targetRoot=nil;targetHumanoid=nil;sitStage=nil;sitCharacter=nil
-        if running then refresh(message or "Fling test detenido; regreso al checkpoint.")end
+        if running then record("STOP",snapshot().." reason="..tostring(message));refresh(message or "Fling test detenido; regreso al checkpoint.")end
         return running
     end
     local function beginDeparture(tr,th,now)
@@ -115,7 +187,7 @@ return function(context)
     -- These are local attempts, not evidence of server-authorized damage or ownership.
     local function sitAttempt()
         if not core.SitKillEnabled or sitCharacter==targetCharacter or sitStage then return end
-        sitCharacter=targetCharacter;sitStage=1
+        sitCharacter=targetCharacter;sitStage=1;record("SIT_LOCAL_ATTEMPT")
         for _,part in ipairs(targetCharacter:GetDescendants())do
             if part:IsA("BasePart")then attempt(function()part.Anchored=false;part.CanCollide=false;part.Massless=true end)end
         end
@@ -130,7 +202,7 @@ return function(context)
             sitStage=2
             attempt(function()targetHumanoid.Sit=false;targetHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)end)
         else
-            sitStage=nil
+            sitStage=nil;record("SIT_LOCAL_FINAL_STAGE")
             attempt(function()targetRoot.CFrame=CFrame.new(targetRoot.Position.X,-8000,targetRoot.Position.Z)end)
             attempt(function()targetRoot.AssemblyLinearVelocity=Vector3.new(0,-50000,0);targetRoot.AssemblyAngularVelocity=Vector3.new(99999,99999,99999)end)
             attempt(function()targetHumanoid.Health=0;targetHumanoid:TakeDamage(999999);targetHumanoid:ChangeState(Enum.HumanoidStateType.Dead)end)
@@ -140,6 +212,7 @@ return function(context)
         end
     end
     local function hit()
+        diagnostic.HitFrames=diagnostic.HitFrames+1
         if core.Mode=="ROTACION"then
             root.CFrame=CFrame.new(targetRoot.Position)*CFrame.Angles(math.rad(math.random(-180,180)),math.rad(math.random(-180,180)),math.rad(math.random(-180,180)))
             root.AssemblyLinearVelocity=Vector3.new(math.random(-20000,20000),math.random(-20000,20000),math.random(-20000,20000))
@@ -147,15 +220,15 @@ return function(context)
         else
             root.CFrame=CFrame.new(targetRoot.Position+(core.Mode=="CLASICO"and Vector3.new(0,1,0)or Vector3.zero))
                 *CFrame.Angles(core.Mode=="CINTURA"and -math.pi/2 or 0,0,0)
-            attempt(function()root.AssemblyLinearVelocity=nanVector end)
-            attempt(function()root.AssemblyAngularVelocity=nanVector end)
-            attempt(function()targetHumanoid:Move(nanVector)end)
+            attempt(function()root.AssemblyLinearVelocity=nanVector end,"local_linear_NaN")
+            attempt(function()root.AssemblyAngularVelocity=nanVector end,"local_angular_NaN")
+            attempt(function()targetHumanoid:Move(nanVector)end,"target_move_NaN")
             if sethiddenproperty then
-                attempt(function()sethiddenproperty(humanoid,"MoveDirectionInternal",nanVector)end)
-                if core.Mode=="CINTURA"then attempt(function()sethiddenproperty(targetHumanoid,"MoveDirectionInternal",nanVector)end)end
+                attempt(function()sethiddenproperty(humanoid,"MoveDirectionInternal",nanVector)end,"local_hidden_direction")
+                if core.Mode=="CINTURA"then attempt(function()sethiddenproperty(targetHumanoid,"MoveDirectionInternal",nanVector)end,"target_hidden_direction")end
             end
         end
-        if sethiddenproperty then attempt(function()sethiddenproperty(root,"PhysicsRepRootPart",targetRoot)end)end
+        if sethiddenproperty then attempt(function()sethiddenproperty(root,"PhysicsRepRootPart",targetRoot)end,"local_replication_root")end
         attempt(function()targetHumanoid.Sit=false;targetHumanoid.PlatformStand=true end)
     end
     local function beginHit(now)
@@ -163,7 +236,8 @@ return function(context)
         humanoid.PlatformStand=true
         for part in pairs(savedParts)do if part.Parent then part.CanCollide=false;part.Massless=true end end
         root.CanCollide=true
-        phaseStart=now;core.Phase="HIT";sitAttempt();hit()
+        phaseStart=now;core.Phase="HIT";diagnostic.HitEntries=diagnostic.HitEntries+1
+        record("HIT_ENTER");sitAttempt();hit()
     end
     local function step()
         if not core:IsAuthorized()then core:Stop("Prueba exclusiva para owners.");return end
@@ -177,7 +251,7 @@ return function(context)
         if tc~=targetCharacter or tr~=targetRoot or th~=targetHumanoid or core.Phase=="WAIT_TARGET"or core.Phase=="WAIT_LOCAL"or core.Phase=="RECOVERING"then beginDeparture(tr,th,now)end
         local cfg=core.Config
         if core.Phase=="HIT"then
-            if now-phaseStart>=cfg.HitDuration then beginDeparture(tr,th,now)
+            if now-phaseStart>=cfg.HitDuration then record("HIT_EXIT","duration="..number(now-phaseStart).." "..snapshot());beginDeparture(tr,th,now)
             else advanceSit();hit()end
         elseif not valid(r.Position)then
             core.Recoveries=core.Recoveries+1;beginDeparture(tr,th,now)
@@ -207,15 +281,19 @@ return function(context)
         if not value or value==player or value.Parent~=Players then return false,"Selecciona un jugador."end
         local c=player.Character;local h=c and c:FindFirstChildOfClass("Humanoid");local r=c and c:FindFirstChild("HumanoidRootPart")
         if not r or not h or h.Health<=0 or not valid(r.Position)then return false,"Tu personaje no esta disponible."end
+        self:ClearDiagnostic()
         checkpoint=r.CFrame;bindCharacter(c,h,r);selected=value
         self.Running=true;self.Phase="WAIT_TARGET";self.Cycles=0;self.Recoveries=0;self.LastError=nil;retryAt=0;sitCharacter=nil
+        record("START")
         local function protectedStep()
             local ok,err=xpcall(step,debug.traceback)
             if not ok then
                 self.LastError=tostring(err);self.Recoveries=self.Recoveries+1
                 clearHit();self.Phase="RECOVERING";targetCharacter=nil;targetRoot=nil;retryAt=os.clock()+.1
+                record("STEP_ERROR",tostring(err))
                 refresh("Recuperando referencias del objetivo.")
             end
+            observe()
         end
         connection=RunService.Heartbeat:Connect(protectedStep);protectedStep();refresh();return true
     end

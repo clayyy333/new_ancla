@@ -13,7 +13,7 @@ return function(context)
 	if not ObjectV8FlingCore or not ObjectV8FlingCore:IsAuthorized()then return true end
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, 1040)
+	card.Size = UDim2.new(1, 0, 0, 1094)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = objectFlingPanel
@@ -82,6 +82,17 @@ return function(context)
 		core:SetMode(nextMode[core.Mode])
 	end)
 	sitButton.Activated:Connect(function()core:SetSitKillEnabled(not core.SitKillEnabled)end)
+	local copyReport=makeSelector("Copiar registro",264)
+	copyReport.Size=UDim2.new(.5,-5,0,38)
+	local clearReport=makeSelector("Limpiar registro",264)
+	clearReport.Size=UDim2.new(.5,-5,0,38);clearReport.Position=UDim2.new(.5,5,0,264)
+	copyReport.Activated:Connect(function()
+		local clipboard=setclipboard or toclipboard
+		if type(clipboard)~="function"then status.Text="El ejecutor no permite copiar el registro.";return end
+		local ok,err=pcall(clipboard,core:GetDiagnosticReport())
+		status.Text=ok and "Registro copiado. Puedes pegarlo aqui."or("No se pudo copiar: "..tostring(err))
+	end)
+	clearReport.Activated:Connect(function()core:ClearDiagnostic();status.Text="Registro limpio."end)
 	local settings={
 		{"Speed","Velocidad lineal",0,1000000000,true},
 		{"Distance","Alejamiento (studs)",.5,2000000000,true},
@@ -102,7 +113,7 @@ return function(context)
 		field.Fill.Size=UDim2.new(t,0,1,0);field.Knob.Position=UDim2.new(t,-7,.5,-7)
 	end
 	for index,entry in ipairs(settings)do
-		local y=264+(index-1)*108
+		local y=318+(index-1)*108
 		makeLabel(entry[2],y)
 		local box=Instance.new("TextBox")
 		box.Size=UDim2.new(1,0,0,36);box.Position=UDim2.new(0,0,0,y+23)

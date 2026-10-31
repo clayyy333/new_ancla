@@ -68,12 +68,33 @@ tr.Position=vec(math.huge,3,0);tick(.01);assert(core.Phase=='WAIT_TARGET')
 tr.Position=good;tick(.01);assert(core.Phase=='PREPARE')
 target.Character=nil;tick(.01);assert(core.Phase=='WAIT_TARGET')
 tc,th,tr=rig(30);target.Character=tc;tick(.01);assert(core.Phase=='PREPARE','new character is reacquired')
+local report=core:GetDiagnosticReport()
+assert(report:find('HIT_ENTER',1,true)and report:find('local_linear_NaN',1,true),'report includes arrival and operation counters')
+assert(core.Diagnostic.HitEntries>0 and core.Diagnostic.HitFrames>0,'hit entry and frame counts are recorded')
+for index=1,300 do tick(.21)end
+assert(#core.Diagnostic.Events<=128 and #core.Diagnostic.First<=12,'diagnostics remain bounded through repeated cycles')
+local beforePhase,beforeFrame=core.Phase,r.CFrame
+core:GetDiagnosticReport()
+assert(core.Phase==beforePhase and r.CFrame==beforeFrame,'copying the report does not affect physics or phase')
+local originalHidden=sethiddenproperty
+sethiddenproperty=function()error('diagnostic test rejection')end
+core:SetMode('CINTURA')
+for index=1,12 do
+ if core.Phase=='PREPARE'then r.Position=r.CFrame.Position
+ elseif core.Phase=='INBOUND'then r.Position=tr.Position end
+ tick(.21)
+end
+assert(core:GetDiagnosticReport():find('diagnostic test rejection',1,true),'local API errors are included without changing the flow')
+sethiddenproperty=originalHidden
+core:ClearDiagnostic();assert(core.Diagnostic.Count==0 and core.Running,'clearing logs preserves the active flow')
 assert(core:SetSitKillEnabled(true))
+core:SetTarget(target);tick(.01)
 r.Position=r.CFrame.Position;tick(.21);r.Position=tr.Position;tick(.001);assert(core.Phase=='HIT')
 tick(.01);assert(th.Health==100,'first scheduled step does not claim death')
 tick(.01);assert(th.Health==0 and th.LastDamage==999999,'optional local attempt acts only on selected rig')
 core:Stop();assert(r.CFrame==home and not r.CanCollide and not r.Massless and h.AutoRotate and not h.PlatformStand)
 assert(RunService.Heartbeat:Count()==0,'stop disconnects the only writer')
+assert(core:GetDiagnosticReport():find('STOP',1,true),'report remains available after stop')
 assert(core:Start(target));player.Character=nil;tick(.01);assert(core.Phase=='WAIT_LOCAL')
 c,h,r,body=rig(0);player.Character=c;tick(.01);assert(core.Phase=='PREPARE')
 local otherC,otherH,otherR=rig(100);local other={Parent=Players,Character=otherC}
