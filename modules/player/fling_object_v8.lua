@@ -94,7 +94,9 @@ return function(context)
 		local tc=selected.Character
 		local tr=tc and tc:FindFirstChild("HumanoidRootPart")
 		local th=tc and tc:FindFirstChildOfClass("Humanoid")
-		if not tr or not th or th.Health<=0 then waitFor("WAIT_TARGET");return end
+		-- Target Health can be changed locally by another script without a real respawn.
+		-- Keep tracking an existing rig; missing parts and invalid coordinates still wait.
+		if not tr or not th then waitFor("WAIT_TARGET");return end
 		if not valid(tr.Position)then waitFor("WAIT_TARGET");return end
 		local now=os.clock();if now<retryAt then return end
 		if tc~=targetCharacter or tr~=targetRoot or core.Phase=="WAIT_TARGET"or core.Phase=="WAIT_LOCAL"or core.Phase=="RECOVERING"then beginContact(tr,now)end

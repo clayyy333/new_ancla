@@ -80,7 +80,18 @@ assert((r.AssemblyLinearVelocity.Unit-inbound.Unit).Magnitude<.001)
 RunService.RenderStepped:Fire();assert(r.AssemblyLinearVelocity==inbound)
 -- Missed arrival retries rather than inventing a successful crossing.
 r.Position=vec(900,100,0);tick(2);assert(core.Phase=='PREPARE'and core.Recoveries>0)
-th.Health=0;tick(.01);assert(core.Phase=='WAIT_TARGET')
+th.Health=0;tick(.01);assert(core.Phase~='WAIT_TARGET','local target health must not invalidate an available rig')
+local goodPosition=tr.Position
+tr.Position=vec(0/0,3,0);tick(.01);assert(core.Phase=='WAIT_TARGET','NaN target coordinates must still wait')
+tr.Position=vec(math.huge,3,0);tick(.01);assert(core.Phase=='WAIT_TARGET','infinite target coordinates must still wait')
+tr.Position=goodPosition;tick(.01);assert(core.Phase=='PREPARE','valid rig resumes despite locally zero health')
+local findRoot=tc.FindFirstChild
+local findHumanoid=tc.FindFirstChildOfClass
+tc.FindFirstChild=function()return nil end;tick(.01);assert(core.Phase=='WAIT_TARGET','missing HRP must still wait')
+tc.FindFirstChild=findRoot;tc.FindFirstChildOfClass=function()return nil end
+tick(.01);assert(core.Phase=='WAIT_TARGET','missing Humanoid must still wait')
+tc.FindFirstChildOfClass=findHumanoid
+target.Character=nil;tick(.01);assert(core.Phase=='WAIT_TARGET','missing character must still wait')
 tc,th,tr=rig(50);target.Character=tc;tick(.01);assert(core.Phase=='PREPARE')
 local lookup=tc.FindFirstChild
 tc.FindFirstChild=function()error('transient')end
