@@ -65,7 +65,6 @@ return function(context)
 		{isES and "Fling 2" or "Fling 2","fling2",function(p) Fling2Core:SetTarget(p);Fling2EfficientCore:SetTarget(p) end},
 		{isES and "Fling con vehículo" or "Vehicle Fling","fling_car",function(p) CarFling:SetPlayer(p);CarFlingXeno:SetPlayer(p) end},
 		{isES and "Fling con vehículo 2" or "Vehicle Fling 2","fling_car2",function(p) CarFling2Delta:SetPlayer(p);CarFling2Xeno:SetPlayer(p) end},
-		{"Fling test","fling_object",function(p) ObjectV8FlingCore:SetTarget(p) end},
 		{isES and "Fling con moto Delta" or "Delta Motorcycle Fling","fling_moto",function(p) MotoFlingCore:SetTarget(p) end},
 		{isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling","fling_moto_xeno",function(p) MotoFlingXenoCore:SetTarget(p) end},
 		{isES and "Ubicación de Parejas" or "Couples Position","couples",function(p) CouplesPositionController:SetTarget(p) end},
@@ -73,6 +72,9 @@ return function(context)
 		{isES and "Control de auto" or "Car Control","car_control",function(p) CarControlController:SetTarget(p) end},
 		{isES and "Teletransporte" or "Teleport","movement_control",function(p) MovementControlController:SetTarget(p) end},
 	}
+	if ObjectV8FlingCore and ObjectV8FlingCore:IsAuthorized()then
+		table.insert(destinations,4,{"Fling test","fling_object",function(p)ObjectV8FlingCore:SetTarget(p)end})
+	end
 	for index,destination in ipairs(destinations) do
 		local button=Instance.new("TextButton")
 		button.Name="Destination"..index;button.Size=UDim2.new(1,-4,0,38);button.BackgroundColor3=currentTheme.tertiary;button.Text=destination[1];button.TextColor3=currentTheme.text;button.Font=Enum.Font.GothamBold;button.TextSize=isMobile and 11 or 12;button.AutoButtonColor=false;button.ZIndex=1202;button.LayoutOrder=index;button.Parent=list

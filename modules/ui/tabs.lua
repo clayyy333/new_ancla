@@ -424,6 +424,7 @@ RefreshPlaylistsList = function()
 end
 
 UpdateTabData = function()
+	if currentTab=="fling_object"and(not ObjectV8FlingCore or not ObjectV8FlingCore:IsAuthorized())then currentTab="fling2"end
 	hideTrendingDropdown()
 	search.Text = ""
 	page = 1
@@ -685,7 +686,9 @@ fling2TabBtns["contact_fling"].btn.MouseButton1Click:Connect(function() currentT
 	fling2TabBtns["fling_custom"].btn.MouseButton1Click:Connect(function() currentTab = "fling_custom"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
 fling2TabBtns["fling_car2"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car2"; UpdateTabData() end)
-fling2TabBtns["fling_object"].btn.MouseButton1Click:Connect(function() currentTab = "fling_object"; UpdateTabData() end)
+if fling2TabBtns.fling_object then
+	fling2TabBtns.fling_object.btn.MouseButton1Click:Connect(function()currentTab="fling_object";UpdateTabData()end)
+end
 fling2TabBtns["fling_moto"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto"; UpdateTabData() end)
 fling2TabBtns["fling_moto_xeno"].btn.MouseButton1Click:Connect(function() currentTab = "fling_moto_xeno"; UpdateTabData() end)
 if fling2TabBtns.fling_experimental then

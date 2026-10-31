@@ -10,9 +10,10 @@ return function(context)
 	objectFlingPanel.Visible = false
 	objectFlingPanel.ZIndex = 6
 	objectFlingPanel.Parent = content
+	if not ObjectV8FlingCore or not ObjectV8FlingCore:IsAuthorized()then return true end
 
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, 960)
+	card.Size = UDim2.new(1, 0, 0, 1040)
 	card.BackgroundColor3 = currentTheme.secondary
 	card.ZIndex = 7
 	card.Parent = objectFlingPanel
@@ -68,20 +69,27 @@ return function(context)
 	local connections={}
 	local fields={}
 	local dragging,dragInput
-	local title=makeLabel("V8 persistente · sin giro",0)
+	local title=makeLabel("Fling test · un objetivo · prueba owners",0)
 	local playerButton=makeSelector(L.selectPlayer,26)
 	local playerList=makeList(68)
-	local action=makeSelector("Activar V8 persistente",76)
+	local action=makeSelector("Activar Fling test",76)
 	action.TextXAlignment=Enum.TextXAlignment.Center
 	local status=makeLabel("",124);status.Size=UDim2.new(1,0,0,38);status.TextWrapped=true
+	local modeButton=makeSelector("Modo: CINTURA",168)
+	local sitButton=makeSelector("Sit Kill: Apagado",212)
+	modeButton.Activated:Connect(function()
+		local nextMode={CINTURA="ROTACION",ROTACION="CLASICO",CLASICO="CINTURA"}
+		core:SetMode(nextMode[core.Mode])
+	end)
+	sitButton.Activated:Connect(function()core:SetSitKillEnabled(not core.SitKillEnabled)end)
 	local settings={
-		{"ContactSpeed","Pulso al cruzar: velocidad total",0,1000000000,true},
 		{"Speed","Velocidad lineal",0,1000000000,true},
 		{"Distance","Alejamiento (studs)",.5,2000000000,true},
 		{"Azimuth","Angulo: 0 delante / 180 detras",-360,360,false},
 		{"Elevation","Elevacion: -90 abajo / 90 arriba",-90,90,false},
 		{"ContactTime","Preparacion alejado (s)",.01,10,false},
 		{"LaunchTime","Margen de llegada (s)",.01,10,false},
+		{"HitDuration","Duracion del golpe (s)",.05,10,false},
 	}
 	local function ratio(entry,value)
 		if entry[5]then return math.log(1+value-entry[3])/math.log(1+entry[4]-entry[3])end
@@ -94,7 +102,7 @@ return function(context)
 		field.Fill.Size=UDim2.new(t,0,1,0);field.Knob.Position=UDim2.new(t,-7,.5,-7)
 	end
 	for index,entry in ipairs(settings)do
-		local y=172+(index-1)*108
+		local y=264+(index-1)*108
 		makeLabel(entry[2],y)
 		local box=Instance.new("TextBox")
 		box.Size=UDim2.new(1,0,0,36);box.Position=UDim2.new(0,0,0,y+23)
@@ -140,8 +148,11 @@ return function(context)
 	end)
 	UpdateObjectFlingPanel=function(message)
 		target=core:GetTarget()
+		modeButton.Text="Modo: "..core.Mode
+		sitButton.Text="Sit Kill: "..(core.SitKillEnabled and "Encendido"or"Apagado")
+		sitButton.BackgroundColor3=core.SitKillEnabled and currentTheme.accent or currentTheme.tertiary
 		playerButton.Text=target and (target.DisplayName.." (@"..target.Name..")")or L.selectPlayer
-		action.Text=core.Running and "Desactivar V8 persistente"or "Activar V8 persistente"
+		action.Text=core.Running and "Desactivar Fling test"or "Activar Fling test"
 		action.BackgroundColor3=core.Running and currentTheme.critical or currentTheme.tertiary
 		status.Text=message or ("Estado: "..core.Phase)
 	end

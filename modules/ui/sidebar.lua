@@ -328,11 +328,11 @@ return function(context)
 		{"contact_fling", isES and "Fling por contacto" or "Contact Fling"},
 		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
 		{"fling_car2", isES and "Fling con vehículo 2" or "Fling with Car 2"},
-		{"fling_object", "Fling test"},
 		{"fling_moto", isES and "Fling con moto Delta" or "Delta Motorcycle Fling"},
 		{"fling_moto_xeno", isES and "Fling con moto Xeno" or "Xeno Motorcycle Fling"},
 	}
 	if ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized() then
+		table.insert(flingLabels,6,{"fling_object","Fling test"})
 		table.insert(flingLabels,{"fling_experimental",isES and "Fling experimental corto" or "Experimental short Fling"})
 	end
 	fling2Nav.CanvasSize=UDim2.new(0,0,0,pad*2+#flingLabels*(buttonH+gap))
