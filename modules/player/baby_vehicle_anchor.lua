@@ -19,6 +19,7 @@ return function(context)
  local handled=setmetatable({},{__mode="k"})
  local stateSince,lastRetry,lastSide,side=0,0,0,1
  local selectedTarget
+ local retryAfterClear=false
  local approaches={"RIGHT","FRONT","LEFT"}
  Core.Approach="RIGHT"
  local spinAngle,lastSpinTime=0,nil
@@ -114,13 +115,27 @@ return function(context)
  end
  function Core:IsRunning()return self.Running end
  local function fail(message)Core:Stop();status("ERROR",message)end
+ local function clearTool(retry,message)
+  if Core.State=="CLEARING"or Core.State=="REARMING"then return end
+  retryAfterClear=retry;oldTool=tool
+  status("CLEARING",message)
+  local ok,err=pcall(function()clearRemote:FireServer(true)end)
+  if not ok then fail("Error al retirar el coche: "..tostring(err))end
+ end
  local function useReady(t)
   if not Core.Running then return end
   if Core.State~="PREPARING"and Core.State~="REARMING"then return end
   tool=t
-  if Core.State=="REARMING"then returnHome()end
+  local retry=Core.State=="REARMING"and retryAfterClear
+  retryAfterClear=false
+  if Core.State=="REARMING"and not retry then returnHome()end
   status("WAITING","Ancla activa; esperando al usuario elegido en un vehiculo.")
-  for _,j in ipairs(t:GetDescendants())do if jointType(j)then inspect(j)end end
+  for _,j in ipairs(t:GetDescendants())do if jointType(j)then watch(j)end end
+  if retry and Core.State=="WAITING"then
+   handled=setmetatable({},{__mode="k"})
+   for j in pairs(jointWatches)do inspect(j);if Core.State~="WAITING"then break end end
+   if Core.State=="WAITING"then returnHome()end
+  end
  end
  prepare=function()
   if not Core.Running or requesting then return end
@@ -142,7 +157,10 @@ return function(context)
   humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false);humanoid.Sit=false
   -- El primer TP es inmediato. Sin conexion, probamos delante y el otro costado.
   if not first and os.clock()-lastSide>=.2 then
-   lastSide=os.clock();side=side%3+1;Core.Approach=approaches[side]
+   if side==3 then
+    clearTool(true,"Tres posiciones sin pasajero; retirando coche para reintentar.");return false
+   end
+   lastSide=os.clock();side=side+1;Core.Approach=approaches[side]
   end
   local pos=destination(tr,side)
   -- Face the target horizontally; height must never pitch the character/tool.
@@ -188,12 +206,14 @@ return function(context)
   if protect(j)then return end
   local a,b=j.Part0,j.Part1
   local pa,pb=playerFrom(a),playerFrom(b)
-  -- Only confirm the selected passenger, not any unrelated player/tool joint.
-  if Core.State=="FOLLOWING"and tool and target then
-   if (pa==target and b:IsDescendantOf(tool))or(pb==target and a:IsDescendantOf(tool))then
-    oldTool=tool;status("CLEARING","Pasajero confirmado; esperando retirada del coche.")
-    local ok,err=pcall(function()clearRemote:FireServer(true)end)
-    if not ok then fail("Error al retirar el coche: "..tostring(err))end
+  -- Revisar la union en cuanto aparece o se completan sus extremos.
+  if tool and (Core.State=="FOLLOWING"or Core.State=="EQUIPPING"or Core.State=="WAITING")then
+   local passenger
+   if b:IsDescendantOf(tool)and pa and pa~=player and not a:IsDescendantOf(tool)then passenger=pa
+   elseif a:IsDescendantOf(tool)and pb and pb~=player and not b:IsDescendantOf(tool)then passenger=pb end
+   if passenger then
+    local wrong=passenger~=selectedTarget
+    clearTool(wrong,wrong and "Otro pasajero conectado; retirando coche para reintentar."or "Pasajero confirmado; esperando retirada del coche.")
     return
    end
   end
@@ -226,7 +246,7 @@ return function(context)
   if not equipRemote or not equipRemote:IsA("RemoteFunction")or not clearRemote or not clearRemote:IsA("RemoteEvent")then return false,"No se encuentran los remotos del coche."end
   home=root.CFrame
   local ok,err=DeploymentAnchorMotorCore:Start();if not ok then return false,err end
-  self.Running=true;generation=generation+1;handled=setmetatable({},{__mode="k"});oldTool=nil;tool=nil;requesting=false
+  self.Running=true;generation=generation+1;handled=setmetatable({},{__mode="k"});oldTool=nil;tool=nil;requesting=false;retryAfterClear=false
   spinAngle=0;lastSpinTime=nil
   status("PREPARING","Preparando coche con ancla activa.")
   local function added(item)
