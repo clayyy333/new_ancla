@@ -61,7 +61,7 @@ MobileAnchorCore=mobile
 local humanoidHeight=3
 assert(load(source))()(_G)
 local safety=DeploymentSafetyCore
-owner=false;assert(not safety:Start());owner=true
+owner=false;assert(safety:Start(),"deployment anchor is available to non-owner Metro Life users");safety:Stop();owner=true
 assert(safety:Start())
 assert(not StaticPassThroughAnchorCore.Running,'deployment must not start the original anchor')
 assert(#safety.Destinations==0,'static Babycar flow must not prepare old relocation points')

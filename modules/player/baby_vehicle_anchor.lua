@@ -1,4 +1,4 @@
--- Owner-only Babycar cycle using the existing deployment anchor motor.
+-- Babycar cycle for a selected player, using the independent deployment anchor motor.
 return function(context)
  setfenv(1,context)
  local Core={Running=false,State="STOPPED",LastError=nil,TPHeight=0,TPSeparation=3.5,SpinEnabled=false,SpinSpeed=360}
@@ -18,9 +18,12 @@ return function(context)
  local equipRemote,clearRemote,generation,requesting= nil,nil,0,false
  local handled=setmetatable({},{__mode="k"})
  local stateSince,lastRetry,lastSide,side=0,0,0,1
+ local selectedTarget
+ local approaches={"RIGHT","FRONT","LEFT"}
+ Core.Approach="RIGHT"
  local spinAngle,lastSpinTime=0,nil
  local inspect,prepare,follow,watch
- local function authorized()return ExperimentalFlingCore and ExperimentalFlingCore:IsAuthorized()end
+ local function available()return DeploymentSafetyCore and DeploymentSafetyCore:IsAvailable()end
  local function saveOffsets()
   if Settings then
    Settings.deploymentTPOffsets={TPHeight=Core.TPHeight,TPSeparation=Core.TPSeparation,SpinEnabled=Core.SpinEnabled,SpinSpeed=Core.SpinSpeed}
@@ -28,16 +31,18 @@ return function(context)
   end
  end
  function Core:SetTPOffset(name,value)
-  if not authorized()or (name~="TPHeight"and name~="TPSeparation"and name~="SpinSpeed")or not validOffset(name,value)then return false end
+  if not available()or (name~="TPHeight"and name~="TPSeparation"and name~="SpinSpeed")or not validOffset(name,value)then return false end
   self[name]=value;saveOffsets()
   return true
  end
  function Core:SetSpinEnabled(value)
-  if not authorized()then return false end
+  if not available()then return false end
   self.SpinEnabled=value==true;spinAngle=0;lastSpinTime=nil;saveOffsets();return true
  end
- local function destination(tr,s)
-  return (tr.CFrame*CFrame.new(s*Core.TPSeparation,0,0)).Position+Vector3.new(0,Core.TPHeight,0)
+ local function destination(tr,index)
+  local x=index==1 and Core.TPSeparation or index==3 and -Core.TPSeparation or 0
+  local z=index==2 and -Core.TPSeparation or 0
+  return (tr.CFrame*CFrame.new(x,0,z)).Position+Vector3.new(0,Core.TPHeight,0)
  end
  local function status(state,message)
   Core.State=state;stateSince=os.clock();Core.LastError=message
@@ -84,6 +89,21 @@ return function(context)
   target=nil;targetJoint=nil
   if home and DeploymentAnchorMotorCore:IsRunning()then DeploymentAnchorMotorCore:RelocateForDeployment(home)end
  end
+ function Core:GetTarget()return selectedTarget end
+ function Core:SetTarget(value)
+  if value and (not value:IsA("Player")or value==player or value.Parent~=Players)then return false end
+  if selectedTarget==value then return true end
+  selectedTarget=value
+  handled=setmetatable({},{__mode="k"})
+  if self.Running and (self.State=="FOLLOWING"or self.State=="EQUIPPING")then
+   returnHome();status("WAITING","Ancla activa; esperando al usuario elegido.")
+  end
+  if self.Running and self.State=="WAITING"then
+   for j in pairs(jointWatches)do inspect(j);if self.State~="WAITING"then break end end
+  end
+  if UpdateAnchorPanel then UpdateAnchorPanel()end
+  return true
+ end
  function Core:Stop()
   self.Running=false;generation=generation+1;requesting=false
   disconnect(connections)
@@ -99,7 +119,7 @@ return function(context)
   if Core.State~="PREPARING"and Core.State~="REARMING"then return end
   tool=t
   if Core.State=="REARMING"then returnHome()end
-  status("WAITING","Ancla activa; esperando usuario conectado a vehiculo.")
+  status("WAITING","Ancla activa; esperando al usuario elegido en un vehiculo.")
   for _,j in ipairs(t:GetDescendants())do if jointType(j)then inspect(j)end end
  end
  prepare=function()
@@ -116,25 +136,13 @@ return function(context)
    if t and t~=oldTool then useReady(t)end
   end)
  end
- local function score(tr,s)
-  local pos=destination(tr,s)
-  local params=OverlapParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
-  params.FilterDescendantsInstances={character,tr.Parent};params.MaxParts=80
-  local n=0
-  for _,p in ipairs(workspace:GetPartBoundsInRadius(pos,2.5,params))do
-   if p:IsA("Seat")or p:IsA("VehicleSeat")then n=n+100 elseif p.CanCollide then n=n+1 end
-  end
-  return n
- end
  follow=function(first)
   local tr=target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
   if not tr or not tool or tool.Parent~=character then return false end
   humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false);humanoid.Sit=false
-  -- No spatial query or remote call before the first relocation.
+  -- El primer TP es inmediato. Sin conexion, probamos delante y el otro costado.
   if not first and os.clock()-lastSide>=.2 then
-   lastSide=os.clock()
-   local ok,right,left=pcall(function()return score(tr,1),score(tr,-1)end)
-   if ok then if right+1<left then side=1 elseif left+1<right then side=-1 end end
+   lastSide=os.clock();side=side%3+1;Core.Approach=approaches[side]
   end
   local pos=destination(tr,side)
   -- Face the target horizontally; height must never pitch the character/tool.
@@ -157,7 +165,7 @@ return function(context)
  local function equipped()
   if Core.State~="EQUIPPING"or not tool or tool.Parent~=character then return end
   status("FOLLOWING","Ancla siguiendo al lateral del vehiculo.")
-  lastSide=os.clock();follow(true)
+  side=1;Core.Approach=approaches[side];lastSide=os.clock();follow(true)
   for _,j in ipairs(tool:GetDescendants())do watch(j);if Core.State~="FOLLOWING"then break end end
  end
  watch=function(j)
@@ -193,7 +201,7 @@ return function(context)
   local p,part
   if pa and pa~=player and not pb then p,part=pa,b elseif pb and pb~=player and not pa then p,part=pb,a end
   local cars=workspace:FindFirstChild("Cars")
-  if not p or not cars or not part:IsDescendantOf(cars)or part:FindFirstAncestorOfClass("Tool")then return end
+  if not p or p~=selectedTarget or not cars or not part:IsDescendantOf(cars)or part:FindFirstAncestorOfClass("Tool")then return end
   local name=string.lower(j.Name)
   if name~="seatweld"and name~="weldtoplayer"and not(j:IsA("WeldConstraint")and (part:IsA("Seat")or part:IsA("VehicleSeat")))then return end
   if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart")then return end
@@ -206,8 +214,9 @@ return function(context)
   equipped()
  end
  function Core:Start()
-  if not authorized()then return false,"Disponible solo para owners."end
+  if not available()then return false,"Disponible solo en Metro Life."end
   if self.Running then return true end
+  if not selectedTarget or selectedTarget.Parent~=Players then return false,"Selecciona un usuario para el despliegue."end
   if not DeploymentSafetyCore:IsAvailable()then return false,"Disponible solo en Metro Life."end
   character=player.Character;humanoid=character and character:FindFirstChildOfClass("Humanoid")
   root=character and character:FindFirstChild("HumanoidRootPart");backpack=player:FindFirstChild("Backpack")
@@ -237,7 +246,7 @@ return function(context)
   connect(humanoid.Died,function()fail("Personaje muerto; vuelve a activar el flujo.")end)
   connect(player.CharacterRemoving,function(c)if c==character then self:Stop()end end)
   connect(RunService.Heartbeat,function()
-   if not authorized()or not DeploymentAnchorMotorCore:IsRunning()then self:Stop();return end
+   if not available()or not DeploymentAnchorMotorCore:IsRunning()then self:Stop();return end
    local now=os.clock()
    if self.State=="CLEARING"then
     -- FireServer success is not deletion confirmation. Require departure from BOTH containers.
@@ -250,7 +259,8 @@ return function(context)
    elseif self.State=="EQUIPPING"then
     equipped();if self.State=="EQUIPPING"and now-stateSince>3 then fail("No se confirmo que el coche quedara equipado.")end
    elseif self.State=="FOLLOWING"then
-    if not target or target.Parent~=Players or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart")then
+    if not target or target~=selectedTarget or target.Parent~=Players or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart")
+     or not valid(targetJoint)or(playerFrom(targetJoint.Part0)~=target and playerFrom(targetJoint.Part1)~=target)then
      returnHome();status("WAITING")
     elseif not tool or tool.Parent~=character then
      returnHome();tool=nil;oldTool=nil;status("PREPARING");prepare()

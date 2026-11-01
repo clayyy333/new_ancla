@@ -11,7 +11,7 @@ return function(context)
 	anchorPanel.Parent=content
 
 	local canUseExperimentalAnchor=true -- Public combined anchor and shift controls.
-	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()and ExperimentalFlingCore:IsAuthorized()
+	local deploymentAvailable=DeploymentSafetyCore:IsAvailable()
 	local deploymentSettingsHeight=deploymentAvailable and 192 or 0
 	local shiftY=(deploymentAvailable and 246 or 194)+deploymentSettingsHeight
 
@@ -100,6 +100,37 @@ return function(context)
 	local heartbeatButton=makeButton(142)
 	local testButton=makeButton(194)
 	testButton.Visible=deploymentAvailable
+	local targetButton,targetList
+	if deploymentAvailable then
+		testButton.Size=UDim2.new(.5,-4,0,44);testButton.TextWrapped=true
+		targetButton=makeButton(194);targetButton.Name="DeploymentTargetSelector"
+		targetButton.Size=UDim2.new(.5,-4,0,44);targetButton.Position=UDim2.new(.5,4,0,194)
+		targetButton.TextWrapped=true;targetButton.TextSize=isMobile and 10 or 12
+		targetList=Instance.new("ScrollingFrame")
+		targetList.Name="DeploymentTargetList";targetList.Size=UDim2.new(.5,-4,0,140)
+		targetList.Position=UDim2.new(.5,4,0,242);targetList.BackgroundColor3=currentTheme.tertiary
+		targetList.BorderSizePixel=0;targetList.ScrollBarThickness=3;targetList.AutomaticCanvasSize=Enum.AutomaticSize.Y
+		targetList.CanvasSize=UDim2.new();targetList.Visible=false;targetList.ZIndex=30;targetList.Parent=card
+		Instance.new("UICorner",targetList).CornerRadius=UDim.new(0,10)
+		Instance.new("UIListLayout",targetList).Padding=UDim.new(0,3)
+		RegisterTheme(targetList,"BackgroundColor3","tertiary")
+		targetButton.Activated:Connect(function()
+			targetList.Visible=not targetList.Visible;if not targetList.Visible then return end
+			for _,child in ipairs(targetList:GetChildren())do if child:IsA("TextButton")then child:Destroy()end end
+			for _,account in ipairs(Players:GetPlayers())do if account~=player then
+				local option=Instance.new("TextButton")
+				option.Size=UDim2.new(1,-4,0,36);option.BackgroundColor3=currentTheme.secondary;option.TextColor3=currentTheme.text
+				option.Text=account.DisplayName.." (@"..account.Name..")";option.TextSize=isMobile and 10 or 12
+				option.Font=Enum.Font.GothamMedium;option.TextWrapped=true;option.BorderSizePixel=0;option.ZIndex=31
+				Instance.new("UICorner",option).CornerRadius=UDim.new(0,8)
+				RegisterTheme(option,"BackgroundColor3","secondary");RegisterTheme(option,"TextColor3","text")
+				option.Parent=targetList
+				option.Activated:Connect(function()
+					if BabyVehicleAnchorCore:SetTarget(account)then targetList.Visible=false;UpdateAnchorPanel()end
+				end)
+			end end
+		end)
+	end
 	if deploymentAvailable then
 		for index,spec in ipairs({{"TPHeight",isES and "Altura TP (studs)"or "TP height (studs)"},{"TPSeparation",isES and "Separacion TP (studs)"or "TP separation (studs)"},{"SpinSpeed",isES and "Giro trompo (grados/s)"or "Top spin (degrees/s)"}})do
 			local y=246+(index-1)*44
@@ -169,6 +200,10 @@ return function(context)
 
 	UpdateAnchorPanel=function(message)
 		refreshIndependent()
+		if targetButton then
+			local account=BabyVehicleAnchorCore:GetTarget()
+			targetButton.Text=account and account.Parent==Players and(account.DisplayName.." (@"..account.Name..")")or(isES and "Elegir usuario"or"Select player")
+		end
 		phaseButton.Text=StaticPassThroughAnchorCore.PhaseEnabled and (isES and "Desactivar Desfase" or "Disable Shift") or (isES and "Desfase" or "Shift")
 		phaseButton.Active=canUseExperimentalAnchor and StaticPassThroughAnchorCore:IsRunning()
 		phaseButton.BackgroundColor3=StaticPassThroughAnchorCore.PhaseEnabled and currentTheme.accent or currentTheme.tertiary
@@ -218,7 +253,7 @@ return function(context)
 		UpdateAnchorPanel()
 	end)
 	testButton.MouseButton1Click:Connect(function()
-		if not testButton.Active or not ExperimentalFlingCore:IsAuthorized()then return end
+		if not testButton.Active or not deploymentAvailable then return end
 		local ok,err
 		if DeploymentSafetyCore:IsRunning() then ok,err=DeploymentSafetyCore:Stop() else ok,err=DeploymentSafetyCore:Start() end
 		UpdateAnchorPanel(ok and nil or err)

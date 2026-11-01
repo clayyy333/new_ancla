@@ -212,7 +212,6 @@ return function(context)
   enableWatchers();refresh();return true
  end
  function Core:Start()
-  if not ExperimentalFlingCore or not ExperimentalFlingCore:IsAuthorized()then return false,"Disponible solo para owners."end
   if not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   if self.StaticEnabled then return true end
   if StaticPassThroughAnchorCore:IsRunning() then return false,"Desactiva primero el ancla normal con desfase." end

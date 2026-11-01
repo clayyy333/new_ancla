@@ -45,9 +45,13 @@ local root=obj('Part','HumanoidRootPart',char);root.Position=vec(0,3,0);root.CFr
 local backpack=obj('Backpack','Backpack',player)
 local target=obj('Player','Target',Players);target.Character=obj('Model','Target',workspace)
 local tr=obj('Part','HumanoidRootPart',target.Character);tr.Position=vec(10,3,0);tr.CFrame=frame(tr.Position)
-function Players:GetPlayerFromCharacter(c)if c==char then return player elseif c==target.Character then return target end end
+function Players:GetPlayerFromCharacter(c)for _,item in ipairs(objects)do if item.ClassName=='Player'and item.Character==c then return item end end end
 local cars=obj('Folder','Cars',workspace);local car=obj('Part','Car',cars);local seat=obj('Seat','Seat',car)
 local motoWeld=obj('Weld','SeatWeld',seat);motoWeld.Part0=seat;motoWeld.Part1=tr
+local other=obj('Player','Other',Players);other.Character=obj('Model','Other',workspace)
+local otherRoot=obj('Part','HumanoidRootPart',other.Character);otherRoot.Position=vec(50,3,0);otherRoot.CFrame=frame(otherRoot.Position)
+local otherSeat=obj('Seat','OtherSeat',car)
+local otherWeld=obj('Weld','SeatWeld',otherSeat);otherWeld.Part0=otherSeat;otherWeld.Part1=otherRoot
 local rs=obj('Folder','ReplicatedStorage');local remotes=obj('Folder','Remotes',rs)
 local equip=obj('RemoteFunction','EquipToolRF',remotes);local clear=obj('RemoteEvent','ClearToolRE',remotes)
 game={GetService=function()return rs end}
@@ -77,9 +81,14 @@ assert(core.TPHeight==-2 and core.TPSeparation==5,'saved offsets restored at ini
 assert(core:SetTPOffset('TPHeight',0)and core:SetTPOffset('TPSeparation',3.5))
 assert(saves==2 and Settings.deploymentTPOffsets.TPHeight==0 and Settings.deploymentTPOffsets.TPSeparation==3.5,'offset changes saved locally')
 local function tick(dt)now=now+dt;RunService.Heartbeat:Fire()end
-owner=false;assert(not core:Start());owner=true
+owner=false;assert(not core:Start(),'a selected player is required before starting')
+assert(not core:SetTarget(player),'local player cannot be selected')
+assert(core:SetTarget(target)and core:GetTarget()==target,'public target selection does not require owner access')
 local home=root.CFrame
 assert(core:Start());assert(core.State=='PREPARING');flush();assert(core.State=='WAITING')
+motoWeld.Parent=nil
+tick(.16);assert(core.State=='WAITING'and #relocations==0,'an unrelated seated player must never trigger relocation')
+motoWeld.Parent=seat
 tick(.16);assert(core.State=='FOLLOWING'and #relocations==1)
 assert(queries==0,'first TP must not wait for lateral spatial queries')
 assert(root.Position.X==13.5,'relocate anchor directly to configured lateral')
@@ -96,6 +105,9 @@ assert(not core:SetTPOffset('SpinSpeed',-1))
 core:SetSpinEnabled(false);tick(.01)
 assert(root.CFrame.Yaw==nil,'spin OFF restores horizontal target facing')
 assert(core:SetTPOffset('TPSeparation',3.5)and core:SetTPOffset('TPHeight',0))
+tick(.21);assert(core.Approach=='FRONT'and root.Position.X==10 and root.Position.Z==-3.5,'unconfirmed lateral attempt retries in front')
+tick(.21);assert(core.Approach=='LEFT'and root.Position.X==6.5 and root.Position.Z==0,'next unconfirmed attempt uses the opposite side')
+tick(.21);assert(core.Approach=='RIGHT'and root.Position.X==13.5 and root.Position.Z==0,'retry order repeats without visiting the rear')
 local ownLink=obj('WeldConstraint','WeldConstraint',tool);ownLink.Part0=root;ownLink.Part1=babySeat
 workspace.DescendantAdded:Fire(ownLink);assert(ownLink.Parent,'preserve local tool connection')
 local attack=obj('Weld','SeatWeld',seat);attack.Part0=seat;attack.Part1=root
@@ -107,6 +119,10 @@ local old=tool;old:Destroy();tick(.1);assert(core.State=='REARMING')
 assert(root.CFrame~=home,'do not return until reinvocation is observed')
 flush();assert(core.State=='WAITING'and requests==2 and root.CFrame==home,'confirmed cycle returns anchored')
 core:Stop();assert(not core.Running and not DeploymentAnchorMotorCore.Running)
+assert(core:Start());flush();tick(.16)
+assert(core:SetTarget(other));assert(core:GetTarget()==other and core.State=='FOLLOWING'and root.Position.X==53.5,'changing selection redirects only to the newly selected player')
+assert(core:SetTarget(nil)and core.State=='WAITING'and root.CFrame==home,'clearing selection returns home and never falls back to other players')
+core:Stop();assert(core:SetTarget(target))
 assert(core:Start());core:Stop();flush();assert(not core.Running,'late invoke result cannot restart stopped flow')
 core:Destroy()
-print('baby_vehicle_anchor OK: owner gate, immediate anchored TP, seat protection, own tool preservation, confirmed clear/rearm/return, cancellation')
+print('baby_vehicle_anchor OK: public selected-player gate, immediate anchored TP, right/front/left retries, seat protection, own tool preservation, confirmed clear/rearm/return, selection changes and cancellation')
