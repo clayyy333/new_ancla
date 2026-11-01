@@ -229,14 +229,14 @@ return function(context)
             RegisterTheme(item, "TextColor3", "text")
             if serverScope and info.id then
                 item.TextYAlignment=Enum.TextYAlignment.Top
-                local block=makeModeButton(info.features_blocked and (isES and "Desbloquear botones" or "Unlock buttons") or (isES and "Bloquear botones" or "Lock buttons"),0)
+                local block=makeModeButton(info.features_blocked and (isES and "Desbloquear GUI" or "Unlock GUI") or (isES and "Bloquear GUI" or "Lock GUI"),0)
                 block.Parent=item;block.Size=UDim2.new(1,-12,0,32);block.Position=UDim2.new(0,6,0,remoteAccount and 150 or 44);block.ZIndex=1504
                 local busy=false
                 block.Activated:Connect(function()
                     if busy then return end;busy=true
                     AdminPanelBridge:Remote("PUT","/features/"..info.id,{blocked=not info.features_blocked},function(response,err)
                         busy=false;if not item.Parent then return end
-                        if response then info.features_blocked=response.blocked;block.Text=response.blocked and (isES and "Desbloquear botones" or "Unlock buttons") or (isES and "Bloquear botones" or "Lock buttons")
+                        if response then info.features_blocked=response.blocked;block.Text=response.blocked and (isES and "Desbloquear GUI" or "Unlock GUI") or (isES and "Bloquear GUI" or "Lock GUI")
                         else block.Text=tostring(err or "Error") end
                     end)
                 end)

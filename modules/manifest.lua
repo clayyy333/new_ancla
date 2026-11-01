@@ -137,6 +137,8 @@ return {
 		"ui/mobile_typography",
 	},
 	sharedNames = {
+		"AreFeaturesBlocked",
+		"SuspendAnimationSelection",
 		"StaticNoclipAnchorCore",
 		"LocalEmoteFollow",
 		"_genv",

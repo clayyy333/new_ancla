@@ -409,6 +409,7 @@ return function(context)
 		end
 	end
 	local function applySelection()
+		if AreFeaturesBlocked and AreFeaturesBlocked()then return end
 		request=request+1
 		local thisRequest=request
 		local animate=getAnimate()
@@ -595,6 +596,11 @@ return function(context)
 		end
 	end
 
+	function SuspendAnimationSelection()
+		request=request+1
+		disconnectOwnership()
+		if originalAnimate and originalAnimate.Parent then pcall(restoreOriginal,originalAnimate)end
+	end
 	function ReapplyAnimationSelection()
 		for _,state in ipairs(stateOrder) do
 			if selected[state] then applySelection();return end

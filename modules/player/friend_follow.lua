@@ -28,11 +28,12 @@ return function(context)
     function follow.GetTarget() return target end
     function follow.GetStatus() return status end
     function follow.Start(friend)
+        if AreFeaturesBlocked and AreFeaturesBlocked()then return false end
         if disposed or not friend or friend == player or friend.Parent ~= Players then return false end
         selectionVersion += 1
         local version = selectionVersion
         local ok, isFriend = pcall(function() return player:IsFriendsWith(friend.UserId) end)
-        if version ~= selectionVersion then return false end
+        if version ~= selectionVersion or(AreFeaturesBlocked and AreFeaturesBlocked())then return false end
         if disposed or not ok or not isFriend or friend.Parent ~= Players then
             status = "No se pudo confirmar la amistad de Roblox."
             return false

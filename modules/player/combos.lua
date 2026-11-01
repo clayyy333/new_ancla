@@ -20,6 +20,7 @@ ComboQueue    = {}
 isComboActive = false
 
 function PlayComboStep(emoteId, emoteName)
+	if AreFeaturesBlocked and AreFeaturesBlocked()then return end
 	local animator = GetAnimator()
 	if not animator then return end
 
@@ -46,7 +47,7 @@ function PlayComboStep(emoteId, emoteName)
 			_animCache[emoteId] = anim
 		end)
 	end
-	if not anim then return end
+	if not anim or(AreFeaturesBlocked and AreFeaturesBlocked())then return end
 
 	pcall(function()
 		local track = animator:LoadAnimation(anim)
@@ -105,6 +106,7 @@ function PlayComboStep(emoteId, emoteName)
 end
 
 function StartCombo(emoteList)
+	if AreFeaturesBlocked and AreFeaturesBlocked()then return end
 	if #emoteList == 0 then return end
 	isComboActive = true
 	_comboLoopList = {}

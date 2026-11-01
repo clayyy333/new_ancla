@@ -8,6 +8,7 @@ return function(context)
 do
 local iconS = isMobile and 50 or 60
 local miniIcon = Instance.new("TextButton")
+miniIcon.Name="WindowLauncher"
 miniIcon.Size = UDim2.new(0, iconS, 0, iconS)
 miniIcon.Position = UDim2.new(0, 20, 0.5, -iconS/2)
 miniIcon.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
