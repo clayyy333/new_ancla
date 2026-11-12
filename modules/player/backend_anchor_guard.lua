@@ -129,7 +129,7 @@ return function(context)
 			job_id=game.JobId,
 			game_name=gameName(),
 			executor=executorName(),
-			script_version="anchor-guard-1",
+			script_version="ancla_emotes",
 		})
 		if not response or type(response.session_token)~="string" then
 			return false
