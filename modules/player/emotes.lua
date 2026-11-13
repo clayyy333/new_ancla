@@ -108,6 +108,11 @@ end)
 _animCache = {}
 
 function PlayEmote(id, name, silent, syncStartTime)
+	-- No Sit replacements are session-only: bypass recent/saved/respawn emote state.
+	if NoSitAnchorCore and NoSitAnchorCore.Running then
+		NoSitAnchorCore:ReplaceEmote(id)
+		return
+	end
 	local animator = GetAnimator()
 	if not animator then return end
 	
