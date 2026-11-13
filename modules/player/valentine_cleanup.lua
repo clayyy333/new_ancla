@@ -9,7 +9,15 @@ return function(context)
  local persistent,rigConnections,backpackConnections,folderConnections={},{},{},{}
  local observed,releaseTimes,tracked,waiting={},{},{},{}
  local character,backpack,folder,operation
- local lastBackup,clearLast=0,-math.huge
+ local lastBackup=0
+ -- Retry limits belong to each tool, not to the whole stream of balloons.
+ local clearTimes=setmetatable({},{__mode="k"})
+ local drain,drainQueued
+ local function queueDrain()
+  if drainQueued or not alive or not Core.Enabled then return end
+  drainQueued=true
+  task.defer(function()drainQueued=false;if drain then drain()end end)
+ end
  local TARGET="ValentineBalloon"
  local function disconnect(list)for _,c in ipairs(list)do c:Disconnect()end;table.clear(list)end
  local function active()return alive and Core.Enabled and (game.GameId==4540138978 or game.PlaceId==12985361032)end
@@ -45,7 +53,7 @@ return function(context)
   local inCharacter=tool.Parent==character
   -- Only recover a Backpack tool if it was displaced during contention.
   if not inCharacter and not (waiting[tool] and tool.Parent==backpack)then return end
-  if os.clock()-clearLast<.25 then return end
+  if clearTimes[tool]and os.clock()-clearTimes[tool]<.25 then waiting[tool]=true;return end
   local _,clear=remotes();if not clear then return end
   local token=CleanupToolGate:Acquire(Core)
   if not token then waiting[tool]=true;return end
@@ -58,9 +66,10 @@ return function(context)
    waiting[tool]=true;CleanupToolGate:Release(token);return
   end
   operation={token=token,tool=tool,character=captured,started=os.clock()}
-  waiting[tool]=nil;clearLast=os.clock();Core.Clears=Core.Clears+1
+  waiting[tool]=nil;clearTimes[tool]=os.clock();Core.Clears=Core.Clears+1
   local ok,err=pcall(function()clear:FireServer(true)end)
   if not ok then Core.LastError=tostring(err);CleanupToolGate:Release(token);operation=nil end
+  queueDrain()
  end
  local function updateOperation()
   if not operation then return end
@@ -68,6 +77,19 @@ return function(context)
   if tool.Parent and tool.Parent~=operation.character then waiting[tool]=true end
   if not active() or operation.character~=character or tool.Parent~=operation.character or os.clock()-operation.started>=1.5 then
    CleanupToolGate:Release(operation.token);operation=nil
+  end
+ end
+ drain=function()
+  updateOperation()
+  if not active()then return end
+  -- Finish an already received tool before requesting another pickup.
+  if character then for _,tool in ipairs(character:GetChildren())do if isTool(tool)then clearBalloon(tool)end end end
+  for tool in pairs(waiting)do if tool.Parent then clearBalloon(tool)else waiting[tool]=nil end end
+  if folder and not CleanupToolGate.Owner then
+   for _,object in ipairs(folder:GetChildren())do
+    releaseBalloon(object)
+    if CleanupToolGate.Owner then break end
+   end
   end
  end
  local function unwatchObjects()
@@ -99,6 +121,7 @@ return function(context)
   disconnect(rigConnections);table.clear(waiting);character=value
   if value then
    table.insert(rigConnections,value.ChildAdded:Connect(function(child)if active()then clearBalloon(child)end end))
+   table.insert(rigConnections,value.ChildRemoved:Connect(function()updateOperation();queueDrain()end))
    for _,child in ipairs(value:GetChildren())do clearBalloon(child)end
   end
  end
@@ -148,9 +171,7 @@ return function(context)
   if not active()then return end
   local now=os.clock();if now-lastBackup<.05 then return end;lastBackup=now
   bindContainers()
-  if folder then for _,object in ipairs(folder:GetChildren())do releaseBalloon(object)end end
-  if character then for _,tool in ipairs(character:GetChildren())do if isTool(tool)then clearBalloon(tool)end end end
-  for tool in pairs(waiting)do if tool.Parent then clearBalloon(tool)else waiting[tool]=nil end end
+  drain()
   for object,time in pairs(tracked)do
    if not object.Parent then
     Core.Completed=Core.Completed+1;Core.LastRemovalMilliseconds=(now-time)*1000;tracked[object]=nil

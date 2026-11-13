@@ -12,6 +12,7 @@ return function(context)
 	end
  local TOOL_ID="FoldingTable"
  local pending
+ local processTable
  local alive,epoch,accumulator=true,0,0
  local connections,rigConnections,backpackConnections,folderConnections={},{},{},{}
  local boundCharacter,boundBackpack,boundFolder,lastObject,lastAttempt
@@ -86,9 +87,11 @@ return function(context)
    if not ok then Core.LastError=tostring(err) end
    CleanupToolGate:Release(token)
    Core.Busy=false
+   -- Continue on the next scheduler turn instead of waiting for the backup scan.
+   if running()then task.defer(processTable)end
   end)
  end
- local function processTable()
+ processTable=function()
   if not running() or Core.Busy then return end
   local existing=findTool()
   if existing then processTool(existing);return end

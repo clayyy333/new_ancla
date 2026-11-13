@@ -27,6 +27,7 @@ local folder={ChildAdded=signal(),items={}}
 function folder:GetChildren()return self.items end
 workspace={FindFirstChild=function(_,name)if name=='ObjectPlaceFolder' then return folder end end}
 local pickups,clears=0,0
+local afterClear
 local release={IsA=function(_,class)return class=='RemoteEvent'end}
 function release:FireServer(action,data)
  assert(action=='InteractWithObject' and data.object==folder.items[2]);pickups=pickups+1
@@ -35,6 +36,7 @@ local clear={IsA=release.IsA}
 function clear:FireServer(value)
  assert(value==true and character.items[1]);clears=clears+1
  character.items[1].Parent=nil;character.items={}
+ if afterClear then afterClear()end
 end
 local remotes={FindFirstChild=function(_,name)if name=='ReleaseObjectRE' then return release elseif name=='ClearToolRE' then return clear end end}
 local services={Players={LocalPlayer=localPlayer},ReplicatedStorage={FindFirstChild=function()return remotes end},RunService={Heartbeat=heartbeat}}
@@ -60,12 +62,21 @@ local tool={Name='FoldingTable',Parent=backpack,IsA=function(_,class)return clas
 local competingToken=CleanupToolGate:Acquire({})
 backpack.items={tool};backpack.ChildAdded:Fire(tool)
 assert(clears==0,'table clearing must not run while balloon clearing owns the gate')
+local secondObject={Parent=folder,GetAttribute=object.GetAttribute}
+local secondLink={Part0=handle,Part1=secondObject,IsA=link.IsA}
+function secondObject:FindFirstChild(name)if name=='weld2target'then return secondLink end end
+-- A following table is already present when the first deletion completes.
+afterClear=function()folder.items[2]=secondObject;afterClear=nil end
 CleanupToolGate:Release(competingToken);heartbeat:Fire(.1)
 assert(clears==1 and core.Cycles==1 and tool.Parent==nil)
+assert(pickups==2,'next table pickup must start on completion without another Heartbeat')
+local nextTool={Name='FoldingTable',Parent=backpack,IsA=tool.IsA,GetAttribute=tool.GetAttribute}
+backpack.items={nextTool};backpack.ChildAdded:Fire(nextTool)
+assert(clears==2 and core.Cycles==2,'consecutive table clears')
 local unrelated={Name='FoldingTable',Parent=backpack,IsA=tool.IsA,GetAttribute=function()return 99 end}
 backpack.items={unrelated};backpack.ChildAdded:Fire(unrelated)
-assert(clears==1,'must not clear an unrelated inventory tool')
-core:SetEnabled(false);local before=pickups;heartbeat:Fire(.2);assert(pickups==before and clears==1)
+assert(clears==2,'must not clear an unrelated inventory tool')
+core:SetEnabled(false);local before=pickups;heartbeat:Fire(.2);assert(pickups==before and clears==2)
 core:Destroy();heartbeat:Fire(.2);assert(pickups==before)
 game.GameId=1;game.PlaceId=2
 assert(not core:IsAvailable() and not core:SetEnabled(true),'cleanup must not enable outside Metro Life')

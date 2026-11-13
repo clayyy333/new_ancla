@@ -3,6 +3,9 @@ local source,gateSource=...
 setfenv=function()end
 table.clear=table.clear or function(t)for k in pairs(t)do t[k]=nil end end
 local time=1;os.clock=function()return time end
+local deferred={}
+task={defer=function(f)deferred[#deferred+1]=f end}
+local function flush()while #deferred>0 do table.remove(deferred,1)()end end
 local function signal()
  local entries={}
  return {Connect=function(_,fn)
@@ -65,9 +68,18 @@ blocked=CleanupToolGate:Acquire({})
 character.ChildAdded:Fire(tool);assert(clears==0,'concurrent clears must wait')
 CleanupToolGate:Release(blocked);time=time+.06;heartbeat:Fire()
 assert(clears==1,'clear must resume when gate becomes available')
+flush()
+-- Two different tools must clear consecutively without advancing the clock .25s.
+for i=1,2 do
+ local nextTool=instance('Tool','ValentineBalloon');nextTool.Parent=character;character.items={nextTool}
+ character.ChildAdded:Fire(nextTool)
+ flush()
+ assert(clears==1+i,'new balloon must not inherit previous tool cooldown')
+ assert(CleanupToolGate.Owner==nil,'successful removal releases turn immediately')
+end
 object.Parent=nil;time=time+.06;heartbeat:Fire()
 assert(core.Completed==1 and CleanupToolGate.Owner==nil)
-core:SetEnabled(false);time=time+1;heartbeat:Fire();assert(releases==1 and clears==1)
+core:SetEnabled(false);time=time+1;heartbeat:Fire();assert(releases==1 and clears==3)
 core:Destroy()
 game.GameId=0;game.PlaceId=0;assert(not core:SetEnabled(true))
 print('Valentine cleanup mock OK: event-triggered release, attachment-only scope, independent default-off toggle, retries, contention, clear and shutdown')

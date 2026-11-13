@@ -13,6 +13,7 @@ return function(context)
 	local persistent,inventoryConnections,folderConnections={},{},{}
 	local observed={}
 	local cooldown=setmetatable({},{__mode="k"})
+	local prioritySince=setmetatable({},{__mode="k"})
 	local step,bindContainers
 	local function disconnect(list)for _,connection in ipairs(list)do connection:Disconnect()end;table.clear(list)end
 	function Core:IsAvailable()return game.GameId==4540138978 or game.PlaceId==12985361032 end
@@ -127,11 +128,16 @@ return function(context)
 		if stepping or not active()then return end
 		stepping=true
 		local ok,err=xpcall(function()
-			if operation then advance();return end
+			if operation then advance();if operation then return end end
 			-- Do not occupy the shared inventory while a known cleaner has work.
 			if FoldingCleanupCore and FoldingCleanupCore.Busy then return end
+			local now=os.clock()
 			for object in pairs(observed)do
-				if excluded[object:GetAttribute("ToolId")]and attached(object)then return end
+				if excluded[object:GetAttribute("ToolId")]and attached(object)then
+					prioritySince[object]=prioritySince[object]or now
+					-- Give its dedicated cleaner a head start, not an indefinite veto.
+					if now-prioritySince[object]<.25 then return end
+				else prioritySince[object]=nil end
 			end
 			for object in pairs(observed)do
 				beginPickup(object)
@@ -147,6 +153,7 @@ return function(context)
 		disconnect(entry.Connections)
 		for _,list in pairs(entry.Links)do disconnect(list)end
 		observed[object]=nil
+		prioritySince[object]=nil
 	end
 	local function observe(object)
 		if observed[object]then return end
