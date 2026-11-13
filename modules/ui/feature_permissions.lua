@@ -42,7 +42,7 @@ return function(context)
         "V8PersistentFlingCore","CustomFlingCore","ObjectV8FlingCore","NoMotosCore","NoMotos2Core",
         "ContactFlingController","AdjustableContactFlingController","MotoFlingCore","MotoFlingXenoCore",
         "CarFling","CarFlingXeno","CarFling2Delta","CarFling2Xeno","CarFlingAutoCoordinator",
-        "FoldingCleanupCore","ValentineCleanupCore","GenericAttachedCleanupCore","SpectatorController",
+        "NoSitAnchorCore","FoldingCleanupCore","ValentineCleanupCore","GenericAttachedCleanupCore","SpectatorController",
         "FlightController","CarControlController","FreeCarController","MovementControlController",
         "UserShortcutController","VerticalControlController","CouplesPositionController","CoupleMovementController",
         "PresetPoseController","AmbientSoundController","AntiAFKController","RejoinController",

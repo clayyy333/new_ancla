@@ -281,6 +281,27 @@ return function(context)
 		local textLimit=Instance.new("UITextSizeConstraint",forceReturnButton);textLimit.MinTextSize=7;textLimit.MaxTextSize=isMobile and 10 or 12
 	end
 	FoldingCleanupControls:Create(card,UDim2.new(0.5,0,0,0),UDim2.new(0.25,-4,0,30))
+	-- Reserve a first row without changing the existing controls' own layout logic.
+	for _,child in ipairs(card:GetChildren())do
+		if child:IsA("GuiObject")and child.Position.Y.Offset>=38 then child.Position=child.Position+UDim2.fromOffset(0,52)end
+	end
+	card.Size=card.Size+UDim2.fromOffset(0,52)
+	local noSitButton=makeButton(38)
+	local previousUpdate=UpdateAnchorPanel
+	UpdateAnchorPanel=function(message)
+		previousUpdate(message)
+		local core=NoSitAnchorCore
+		noSitButton.Text="Ancla - No Sit"..(core.Starting and " | ..."or(core.Running and " | ON"or" | OFF"))
+		noSitButton.BackgroundColor3=core.Running and currentTheme.accent or currentTheme.tertiary
+		if core.LastError then description.Text=core.LastError end
+	end
+	noSitButton.Activated:Connect(function()
+		local core=NoSitAnchorCore
+		local ok,err
+		if core.Running or core.Starting then ok,err=core:Stop()else ok,err=core:Start()end
+		if not ok then description.Text=err end
+		UpdateAnchorPanel()
+	end)
 	UpdateAnchorPanel()
 	return true
 end

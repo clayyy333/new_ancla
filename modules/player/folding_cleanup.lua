@@ -32,7 +32,10 @@ return function(context)
   if not object or not object.Parent or object:GetAttribute("ToolId")~=TOOL_ID then return false end
   local character=LP.Character
   local link=object:FindFirstChild("weld2target")
-  if not character or not link or not (link:IsA("JointInstance") or link:IsA("WeldConstraint")) then return false end
+  if not character then return false end
+  if not link or not (link:IsA("JointInstance") or link:IsA("WeldConstraint")) then
+   return CleanupAttachmentDetector and CleanupAttachmentDetector:IsAttached(object,character)or false
+  end
   local a,b=link.Part0,link.Part1
   local attached
   if a and b then
@@ -40,7 +43,8 @@ return function(context)
    elseif b:IsDescendantOf(character) and (a==object or a:IsDescendantOf(object)) then attached=b end
   end
   local accessory=attached and attached:FindFirstAncestorOfClass("Accessory")
-  return accessory~=nil and accessory:IsDescendantOf(character)
+  if accessory~=nil and accessory:IsDescendantOf(character)then return true end
+  return CleanupAttachmentDetector and CleanupAttachmentDetector:IsAttached(object,character)or false
  end
  local function isOurTool(tool)
   return pending and tool and tool:IsA("Tool") and tool.Name==TOOL_ID

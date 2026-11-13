@@ -43,7 +43,7 @@ return function(context)
 				end
 			end
 		end
-		return false
+		return CleanupAttachmentDetector and CleanupAttachmentDetector:IsAttached(object,character)or false
 	end
 	local function remotes()
 		local remotesFolder=RS:FindFirstChild("Remotes")
