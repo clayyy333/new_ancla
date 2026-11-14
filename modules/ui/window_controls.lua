@@ -133,6 +133,7 @@ minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
 	pcall(function()if NoSitAnchorCore then NoSitAnchorCore:Destroy()end end)
+	pcall(function()if CleanupBacklogCore then CleanupBacklogCore:Destroy()end end)
 	pcall(function()if GenericAttachedCleanupCore then GenericAttachedCleanupCore:Destroy()end end)
 	pcall(function()if NoMotosCore then NoMotosCore:Destroy()end end)
 	pcall(function()if HybridFlingCore then HybridFlingCore:Destroy()end end)

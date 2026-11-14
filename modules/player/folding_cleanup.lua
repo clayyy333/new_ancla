@@ -30,6 +30,7 @@ return function(context)
   Core.LastError="ReleaseObjectRE/ClearToolRE no disponibles."
  end
  local function isTable(object)
+  if CleanupToolGate:IsReservedObject(object)then return false end
   if not object or not object.Parent or object:GetAttribute("ToolId")~=TOOL_ID then return false end
   local character=LP.Character
   local link=object:FindFirstChild("weld2target")
@@ -48,7 +49,7 @@ return function(context)
   return CleanupAttachmentDetector and CleanupAttachmentDetector:IsAttached(object,character)or false
  end
  local function isOurTool(tool)
-  return pending and tool and tool:IsA("Tool") and tool.Name==TOOL_ID
+  return pending and tool and not CleanupToolGate:IsSupplementTool(tool)and tool:IsA("Tool") and tool.Name==TOOL_ID
    and not pending.existing[tool] and tonumber(tool:GetAttribute("CreatedBy"))==pending.creator
  end
  local function findTool()
@@ -118,6 +119,7 @@ return function(context)
    end
    pending={object=object,creator=creator,existing=existingTools,started=now}
   end
+  if not CleanupToolGate:TrackPickup(object)then return end
   lastObject=object;lastAttempt=now;Core.Attempts=Core.Attempts+1
   local ok,err=pcall(function()release:FireServer("InteractWithObject",{object=object})end)
   Core.LastError=not ok and tostring(err) or nil
@@ -147,6 +149,7 @@ return function(context)
   local folder=workspace:FindFirstChild("ObjectPlaceFolder")
   if folder~=boundFolder then bindFolder(folder) end
  end
+ function Core:DrainPending()processTable()end
  function Core:SetEnabled(value)
 	 if value and not self:IsAvailable() then return false,"Disponible únicamente en Metro Life." end
   self.Enabled=value==true;epoch=epoch+1;pending=nil

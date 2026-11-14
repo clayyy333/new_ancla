@@ -28,7 +28,7 @@ return function(context)
   if release and clear and release:IsA("RemoteEvent") and clear:IsA("RemoteEvent")then return release,clear end
   Core.LastError="ReleaseObjectRE/ClearToolRE no disponibles."
  end
- local function isTool(tool)return tool and tool:IsA("Tool") and tool.Name==TARGET end
+ local function isTool(tool)return tool and not CleanupToolGate:IsSupplementTool(tool)and tool:IsA("Tool") and tool.Name==TARGET end
  local function belongs(part)return part and character and part:IsDescendantOf(character)end
  local function attached(object)
   local reference=object:FindFirstChild("AttachParentObject")
@@ -38,11 +38,13 @@ return function(context)
  end
  local function releaseBalloon(object)
   if not active() or not object.Parent or object:GetAttribute("ToolId")~=TARGET or not attached(object)then return end
+  if CleanupToolGate:IsReservedObject(object)then return end
   -- Pickup can auto-equip on the server: do not interrupt an active clear cycle.
   if CleanupToolGate.Owner then return end
   local now=os.clock()
   if releaseTimes[object] and now-releaseTimes[object]<.25 then return end
   local release=remotes();if not release then return end
+  if not CleanupToolGate:TrackPickup(object)then return end
   releaseTimes[object]=now;tracked[object]=tracked[object] or now
   Core.Releases=Core.Releases+1
   local ok,err=pcall(function()release:FireServer("InteractWithObject",{object=object})end)
@@ -147,6 +149,7 @@ return function(context)
   local bp=LP:FindFirstChildOfClass("Backpack");if backpack~=bp then bindBackpack(bp)end
   local f=workspace:FindFirstChild("ObjectPlaceFolder");if folder~=f then bindFolder(f)end
  end
+ function Core:DrainPending()if active()then drain()end end
  function Core:SetEnabled(value)
   if value and not (game.GameId==4540138978 or game.PlaceId==12985361032)then return false end
   self.Enabled=value==true

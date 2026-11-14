@@ -21,6 +21,7 @@ return function(context)
 	local function identity(object)
 		local id=object:GetAttribute("ToolId")
 		local creator=tonumber(object:GetAttribute("CreatedPlayer"))
+		if CleanupToolGate:IsReservedObject(object)then return end
 		if type(id)~="string"or id==""or #id>128 or excluded[id]then return end
 		if not creator or creator~=creator or creator==math.huge or creator<=0 or creator%1~=0 then return end
 		return id,creator
@@ -71,7 +72,7 @@ return function(context)
 		if completed then Core.Completed=Core.Completed+1 end
 	end
 	local function matches(tool,op)
-		return tool:IsA("Tool")and not op.Existing[tool]
+		return tool:IsA("Tool")and not CleanupToolGate:IsSupplementTool(tool)and not op.Existing[tool]
 			and (tool.Name==op.Id or tool:GetAttribute("ToolId")==op.Id)
 			and tonumber(tool:GetAttribute("CreatedBy"))==op.Creator
 	end
@@ -117,6 +118,7 @@ return function(context)
 		local humanoid=character and character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health<=0 then return end
 		local release=remotes();if not release then return end
+		if not CleanupToolGate:TrackPickup(object)then return end
 		local token=CleanupToolGate:Acquire(Core);if not token then return end
 		local existing={};for _,tool in ipairs(inventory())do existing[tool]=true end
 		operation={Object=object,Id=id,Creator=creator,Existing=existing,Character=character,Token=token,Stage="WAIT_TOOL",Deadline=os.clock()+2.5}
@@ -198,6 +200,7 @@ return function(context)
 			for _,object in ipairs(folder:GetChildren())do observe(object)end
 		end
 	end
+	function Core:DrainPending()step()end
 	function Core:SetEnabled(value)
 		if value and (not alive or not self:IsAvailable())then return false end
 		self.Enabled=value==true
