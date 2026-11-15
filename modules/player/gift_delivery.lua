@@ -10,7 +10,8 @@ return function(context)
 	local ITEMS={"Babycar_a","Whistle","FoolBall","LedText","Lightstick","SignText","Skates2"}
 	local BOX="GiftBox5"
 	local EQUIP_TIMEOUT=4
-	local MIN_SEND_INTERVAL=4.25
+	local MIN_REQUEST_GAP=.15
+	local RECIPIENT_COOLDOWN=4.25
 	local OBSERVE_TIMEOUT=5
 	local RETRY_EQUIP_PENDING=.05
 	local POLL=.02
@@ -23,7 +24,8 @@ return function(context)
 	}
 	local nextRecipientIndex=1
 	local lastSendAt=-math.huge
-	local busyUntil=0
+	local lastRecipientId=nil
+	local recipientReadyAt={}
 	local equipBusy=false
 	local monitors=0
 	local MAX_MONITORS=8
@@ -90,7 +92,8 @@ return function(context)
 		local ok,text=pcall(function()return obj.Text end)
 		if not ok or not busyText(text)or not visiblyDisplayed(obj)then return end
 		local now=os.clock();if busyUiReported[obj]and now-busyUiReported[obj]<.35 then return end
-		busyUiReported[obj]=now;busyUntil=math.max(busyUntil,now+4.25)
+		busyUiReported[obj]=now
+		if lastRecipientId then recipientReadyAt[lastRecipientId]=math.max(recipientReadyAt[lastRecipientId]or 0,now+RECIPIENT_COOLDOWN)end
 	end
 	local function watchBusy(obj)
 		if busyUiSeen[obj]or not(obj:IsA("TextLabel")or obj:IsA("TextButton"))then return end
@@ -142,7 +145,7 @@ return function(context)
 		for _=1,#Core.SelectedOrder do
 			local id=Core.SelectedOrder[nextRecipientIndex];nextRecipientIndex=(nextRecipientIndex%#Core.SelectedOrder)+1
 			local candidate=Players:GetPlayerByUserId(id)
-			if candidate and Core.Selected[id]then return{id=id,name=candidate.Name,player=candidate}end
+			if candidate and Core.Selected[id]and os.clock()>=(recipientReadyAt[id]or 0)then return{id=id,name=candidate.Name,player=candidate}end
 		end
 	end
 	local function obtain(token,itemName)
@@ -183,7 +186,7 @@ return function(context)
 		if monitors>=MAX_MONITORS then return"monitor_pending"end
 		local obtained,reason=ensureStock(token,itemName)
 		if not obtained then return reason=="pending"and"equip_pending"or"equip_failed"end
-		local remaining=math.max(MIN_SEND_INTERVAL-(os.clock()-lastSendAt),busyUntil-os.clock())
+		local remaining=MIN_REQUEST_GAP-(os.clock()-lastSendAt)
 		if remaining>0 and not waitControlled(remaining,token)then return"cancelled"end
 		if not valid(token)then return"cancelled"end
 		if Players:GetPlayerByUserId(recipient.id)~=recipient.player then return"waiting"end
@@ -191,6 +194,8 @@ return function(context)
 		Core.State="ENVIANDO CONTINUO";changed()
 		local ok=pcall(function()GiftRE:FireServer({Action="GiveGift",TargetUserId=recipient.id,ToolId=itemName,GiftBox=BOX})end)
 		lastSendAt=os.clock()
+		lastRecipientId=recipient.id
+		recipientReadyAt[recipient.id]=lastSendAt+RECIPIENT_COOLDOWN
 		if not ok then return"unconfirmed"end
 		observeAsync(token,recipient,sourceBefore,targetBefore,itemName)
 		return"complete"
