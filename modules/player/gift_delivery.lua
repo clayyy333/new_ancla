@@ -8,6 +8,14 @@ return function(context)
 	local GiftRE=Remotes:WaitForChild("InteractGiftRE")
 	local ClearRE=Remotes:FindFirstChild("ClearToolRE")
 	local ITEMS={"Babycar_a","Whistle","FoolBall","LedText","Lightstick","SignText","Skates2"}
+	local OWNER_RECIPIENT_IDS={
+		[11739864999]=true,
+		[11743514302]=true,
+		[11747901934]=true,
+		[11794166113]=true,
+		[11797966007]=true,
+		[11866242235]=true,
+	}
 	local BOX="GiftBox5"
 	local EQUIP_TIMEOUT=4
 	local MIN_REQUEST_GAP=.15
@@ -108,13 +116,14 @@ return function(context)
 	function Core:OnChanged(fn)return self._changed.Event:Connect(fn)end
 	function Core:GetSelectedCount()return #self.SelectedOrder end
 	function Core:IsSelected(id)return self.Selected[id]~=nil end
+	function Core:IsOwnerRecipient(id)return OWNER_RECIPIENT_IDS[tonumber(id)]==true end
 	function Core:GetPlayers()
 		local result={}
-		for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player then result[#result+1]=candidate end end
+		for _,candidate in ipairs(Players:GetPlayers())do if candidate~=player and not self:IsOwnerRecipient(candidate.UserId)then result[#result+1]=candidate end end
 		table.sort(result,function(a,b)return a.Name:lower()<b.Name:lower()end);return result
 	end
 	function Core:AddPlayer(candidate)
-		if not candidate or candidate==player or self.Selected[candidate.UserId]then return false end
+		if not candidate or candidate==player or self:IsOwnerRecipient(candidate.UserId)or self.Selected[candidate.UserId]then return false end
 		self.Selected[candidate.UserId]=candidate.Name;self.SelectedOrder[#self.SelectedOrder+1]=candidate.UserId;changed();return true
 	end
 	function Core:RemovePlayer(candidate)
@@ -145,7 +154,7 @@ return function(context)
 		for _=1,#Core.SelectedOrder do
 			local id=Core.SelectedOrder[nextRecipientIndex];nextRecipientIndex=(nextRecipientIndex%#Core.SelectedOrder)+1
 			local candidate=Players:GetPlayerByUserId(id)
-			if candidate and Core.Selected[id]and os.clock()>=(recipientReadyAt[id]or 0)then return{id=id,name=candidate.Name,player=candidate}end
+			if candidate and not Core:IsOwnerRecipient(id)and Core.Selected[id]and os.clock()>=(recipientReadyAt[id]or 0)then return{id=id,name=candidate.Name,player=candidate}end
 		end
 	end
 	local function obtain(token,itemName)
@@ -288,7 +297,10 @@ return function(context)
 
 	connect(Players.PlayerAdded,function(candidate)
 		if candidate==player then return end
-		if Core.Selected[candidate.UserId]then Core.Selected[candidate.UserId]=candidate.Name elseif Core.AutoSelect then Core:AddPlayer(candidate)end;changed()
+		if Core:IsOwnerRecipient(candidate.UserId)then
+			Core.Selected[candidate.UserId]=nil
+			for i,id in ipairs(Core.SelectedOrder)do if id==candidate.UserId then table.remove(Core.SelectedOrder,i)break end end
+		elseif Core.Selected[candidate.UserId]then Core.Selected[candidate.UserId]=candidate.Name elseif Core.AutoSelect then Core:AddPlayer(candidate)end;changed()
 	end)
 	connect(Players.PlayerRemoving,function()changed()end)
 	GiftDeliveryCore=Core
