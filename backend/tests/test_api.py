@@ -337,3 +337,17 @@ def test_owner_panel_login_and_scoped_players():
         )
         assert other_servers.status_code == 200
         assert all(item["user_id"] != 10 for item in other_servers.json()["players"])
+
+
+def test_pyschoooow_can_login_as_owner():
+    with TestClient(main.app) as client:
+        login = client.post(
+            "/api/v1/owner/login",
+            json={
+                "user_id": 11794166113,
+                "username": "pyschoooow",
+                "key": "owner-test-key",
+            },
+        )
+        assert login.status_code == 200
+        assert login.json()["token"]

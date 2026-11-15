@@ -64,6 +64,7 @@ OWNER_IDENTITIES = {
     OWNER_USER_ID: OWNER_USERNAME,
     11743514302: "ksablanca0",
     11747901934: "psycho777oo",
+    11794166113: "pyschoooow",
     11797966007: "psychoop77",
     11866242235: "dldl3341",
 }
