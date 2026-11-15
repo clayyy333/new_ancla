@@ -70,6 +70,7 @@ def init_database() -> None:
                 move_anchored_enabled INTEGER NOT NULL DEFAULT 0,
                 short_fling_enabled INTEGER NOT NULL DEFAULT 0,
                 folding_cleanup_enabled INTEGER NOT NULL DEFAULT 0,
+                gift_access_unlocked INTEGER NOT NULL DEFAULT 0,
                 checkpoint_x REAL,
                 checkpoint_y REAL,
                 checkpoint_z REAL,
@@ -217,6 +218,10 @@ def init_database() -> None:
         if "folding_cleanup_enabled" not in columns:
             db.execute(
                 "ALTER TABLE sessions ADD COLUMN folding_cleanup_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+        if "gift_access_unlocked" not in columns:
+            db.execute(
+                "ALTER TABLE sessions ADD COLUMN gift_access_unlocked INTEGER NOT NULL DEFAULT 0"
             )
         profile_columns = {row["name"] for row in db.execute("PRAGMA table_info(custom_fling_profiles)")}
         for column in ("auto_retry_enabled", "max_chase_enabled"):

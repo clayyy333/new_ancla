@@ -4,7 +4,7 @@ return function(context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
 	local MarketplaceService=game:GetService("MarketplaceService")
-	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false}
+	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false,GiftAccessUnlocked=false}
 	local targetStates={}
 	local requestFn
 	local blockKey=table.concat({tostring(player.UserId),tostring(game.GameId),tostring(game.PlaceId),tostring(game.JobId)},":")
@@ -25,6 +25,10 @@ return function(context)
 	local function applyGiftDeliveryBlock(value)
 		Guard.GiftDeliveryBlocked=value==true
 		if GiftDeliveryCore and GiftDeliveryCore.SetAllowed then GiftDeliveryCore:SetAllowed(not Guard.GiftDeliveryBlocked)end
+	end
+	local function applyGiftAccess(value)
+		Guard.GiftAccessUnlocked=value==true
+		if GiftDeliveryCore and GiftDeliveryCore.SetAccessGranted then GiftDeliveryCore:SetAccessGranted(Guard.GiftAccessUnlocked)end
 	end
 
 	local function isMetroLife()
@@ -142,6 +146,7 @@ return function(context)
 		Guard.SessionId=response.session_id
 		if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
 		if type(response.gift_delivery_blocked)=="boolean"then applyGiftDeliveryBlock(response.gift_delivery_blocked)end
+		if type(response.gift_access_unlocked)=="boolean"then applyGiftAccess(response.gift_access_unlocked)end
 		Guard.AnchorGuardEnabled=response.anchor_guard_enabled==true and isMetroLife()
 		Guard.Connected=true
 		return true
@@ -166,6 +171,7 @@ return function(context)
 		if response then
 			if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
 			if type(response.gift_delivery_blocked)=="boolean"then applyGiftDeliveryBlock(response.gift_delivery_blocked)end
+			if type(response.gift_access_unlocked)=="boolean"then applyGiftAccess(response.gift_access_unlocked)end
 		end
 		return response~=nil
 	end
@@ -271,6 +277,16 @@ return function(context)
 	function Guard:RemoteCall(method,path,body)
 		if not self.Running or not self.Connected or not self.SessionToken then return nil end
 		return call(method,path,body,self.SessionToken)
+	end
+	function Guard:UnlockGiftAccess(pin,callback)
+		callback=type(callback)=="function"and callback or function()end
+		if not self.Connected or not self.SessionToken then callback(false,"session_unavailable");return end
+		local token=self.SessionToken
+		task.spawn(function()
+			local response,err=call("POST","/api/v1/gifts/unlock",{pin=tostring(pin or"")},token)
+			if token~=Guard.SessionToken then return end
+			if response and response.gift_access_unlocked==true then applyGiftAccess(true);callback(true)else callback(false,err or"invalid_pin")end
+		end)
 	end
 	function Guard:Start()
 		if self.Running or Config.Enabled~=true then return false end

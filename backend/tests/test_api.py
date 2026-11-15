@@ -351,3 +351,18 @@ def test_pyschoooow_can_login_as_owner():
         )
         assert login.status_code == 200
         assert login.json()["token"]
+
+
+def test_gift_pin_unlocks_non_owner_session_and_owners_are_preapproved():
+    with TestClient(main.app) as client:
+        user = start_session(client, 99123, "gift-pin-user")
+        headers = client_headers(user["session_token"])
+        assert user["gift_access_unlocked"] is False
+        wrong = client.post("/api/v1/gifts/unlock", headers=headers, json={"pin": "wrong"})
+        assert wrong.status_code == 401
+        unlocked = client.post("/api/v1/gifts/unlock", headers=headers, json={"pin": "777py"})
+        assert unlocked.status_code == 200
+        heartbeat = client.post("/api/v1/sessions/heartbeat", headers=headers, json={})
+        assert heartbeat.json()["gift_access_unlocked"] is True
+        owner = start_session(client, 11794166113, "pyschoooow")
+        assert owner["gift_access_unlocked"] is True

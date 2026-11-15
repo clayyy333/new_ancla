@@ -200,6 +200,10 @@ class OwnerLogin(BaseModel):
     key: str = Field(min_length=1, max_length=256)
 
 
+class GiftUnlock(BaseModel):
+    pin: str = Field(min_length=1, max_length=64)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_database()
@@ -386,6 +390,7 @@ def start_session(payload: SessionStart, request: Request):
         "session_token": session_token,
         "features_blocked": blocked,
         "gift_delivery_blocked": gift_blocked,
+        "gift_access_unlocked": payload.user_id in OWNER_IDENTITIES,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (
@@ -431,7 +436,20 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         )
         blocked=features_blocked(db,session,active_cutoff())
         gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked}
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":session["user_id"] in OWNER_IDENTITIES or bool(session["gift_access_unlocked"])}
+
+
+@app.post("/api/v1/gifts/unlock")
+def unlock_gifts(payload: GiftUnlock, session=Depends(require_session)):
+    if session["user_id"] in OWNER_IDENTITIES:
+        return {"ok": True, "gift_access_unlocked": True}
+    expected = os.getenv("GIFT_ACCESS_PIN", "777py")
+    if not hmac.compare_digest(payload.pin, expected):
+        raise HTTPException(401, "Invalid gift access PIN")
+    with connection() as db:
+        db.execute("UPDATE sessions SET gift_access_unlocked=1 WHERE id=?", (session["id"],))
+        audit(db, "gift_access_unlocked", session["id"], session["user_id"])
+    return {"ok": True, "gift_access_unlocked": True}
 
 
 @app.post("/api/v1/sessions/end")
