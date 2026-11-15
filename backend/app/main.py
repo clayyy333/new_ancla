@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .database import connection, init_database
-from .remote_control import clear_remote_selection, expire_remote_selections, features_blocked
+from .remote_control import clear_remote_selection, expire_remote_selections, features_blocked, gift_delivery_blocked
 
 
 def env_int(name: str, default: int) -> int:
@@ -376,10 +376,15 @@ def start_session(payload: SessionStart, request: Request):
             "user_id": payload.user_id, "game_id": payload.game_id,
             "place_id": payload.place_id, "job_id": payload.job_id,
         }, active_cutoff())
+        gift_blocked = gift_delivery_blocked(db, {
+            "user_id": payload.user_id, "game_id": payload.game_id,
+            "place_id": payload.place_id, "job_id": payload.job_id,
+        }, active_cutoff())
     return {
         "session_id": session_id,
         "session_token": session_token,
         "features_blocked": blocked,
+        "gift_delivery_blocked": gift_blocked,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (
@@ -424,7 +429,8 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
             (timestamp, elapsed, session["user_id"]),
         )
         blocked=features_blocked(db,session,active_cutoff())
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked}
+        gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked}
 
 
 @app.post("/api/v1/sessions/end")

@@ -34,3 +34,25 @@ def test_feature_block_same_server_and_normal_heartbeat():
         assert c.put(path,headers=h,json=body).status_code==200
         c.post('/api/v1/sessions/end',headers=client_headers(owner['session_token']))
         assert heartbeat()['features_blocked'] is False
+
+
+def test_gift_delivery_block_is_independent_and_persistent():
+    with TestClient(main.app) as c:
+        owner=start_session(c,11747901934,'psycho777oo')
+        user=start_session(c,98002,'gift-user')
+        login=c.post('/api/v1/owner/login',json={'user_id':11747901934,'username':'psycho777oo','key':'owner-test-key'})
+        headers={'Authorization':'Bearer '+login.json()['token']}
+        path='/api/v1/owner/remote/gift-delivery/'+user['session_id']
+        body={'controller_session_id':owner['session_id'],'blocked':True}
+        assert c.put(path,headers=headers,json=body).status_code==200
+        heartbeat=lambda: c.post('/api/v1/sessions/heartbeat',headers=client_headers(user['session_token']),json={}).json()
+        state=heartbeat()
+        assert state['gift_delivery_blocked'] is True
+        assert state['features_blocked'] is False
+        c.post('/api/v1/sessions/end',headers=client_headers(user['session_token']))
+        user=start_session(c,98002,'gift-user')
+        assert user['gift_delivery_blocked'] is True
+        path='/api/v1/owner/remote/gift-delivery/'+user['session_id']
+        body['blocked']=False
+        assert c.put(path,headers=headers,json=body).status_code==200
+        assert c.post('/api/v1/sessions/heartbeat',headers=client_headers(user['session_token']),json={}).json()['gift_delivery_blocked'] is False

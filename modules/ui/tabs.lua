@@ -30,7 +30,7 @@ UpdateTabStyles = function()
 	local isMoveAnchored = currentTab == "move_anchored"
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isMoveAnchored or isAnchorAuto
-	local isControl = currentTab == "camera_control" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control"
+	local isControl = currentTab == "camera_control" or currentTab == "gift_delivery" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	local isGraphics = currentTab == "fps_booster" or currentTab == "shaders"
 	if stopBtn then stopBtn.Visible = not isCouples end
@@ -446,13 +446,14 @@ UpdateTabData = function()
 	local isAnchorAuto = currentTab == "anchor_auto"
 	local isAnchor = isAnchorBasic or isMoveAnchored or isAnchorAuto
 	local isCameraControl = currentTab == "camera_control"
+	local isGiftDelivery = currentTab == "gift_delivery"
 	local isCinematicCamera = currentTab == "cinematic_camera"
 	local isFlightControl = currentTab == "flight_control"
 	local isCarControl = currentTab == "car_control"
 	local isFreeCarControl = currentTab == "free_car_control"
 	local isMovementControl = currentTab == "movement_control"
 	local isVerticalControl = currentTab == "vertical_control"
-	local isControl = isCameraControl or isCinematicCamera or isFlightControl or isCarControl or isFreeCarControl or isMovementControl or isVerticalControl
+	local isControl = isCameraControl or isGiftDelivery or isCinematicCamera or isFlightControl or isCarControl or isFreeCarControl or isMovementControl or isVerticalControl
 	local isFPSBooster = currentTab == "fps_booster"
 	local isGraphics = isFPSBooster or currentTab == "shaders"
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
@@ -476,6 +477,7 @@ UpdateTabData = function()
 	moveAnchoredPanel.Visible = isMoveAnchored
 	autoAnchorPanel.Visible = isAnchorAuto
 	cameraControlPanel.Visible = isCameraControl
+	giftDeliveryPanel.Visible = isGiftDelivery
 	cinematicCameraPanel.Visible = isCinematicCamera
 	flightControlPanel.Visible = isFlightControl
 	carControlPanel.Visible = isCarControl
@@ -609,6 +611,9 @@ UpdateTabData = function()
 	elseif currentTab == "camera_control" then
 		title.Text = isES and "Perspectiva Cámara" or "Camera Perspective"
 		if UpdateCameraControlPanel then UpdateCameraControlPanel() end
+	elseif currentTab == "gift_delivery" then
+		title.Text = isES and "Regalos" or "Gifts"
+		if UpdateGiftDeliveryPanel then UpdateGiftDeliveryPanel() end
 	elseif currentTab == "cinematic_camera" then
 		title.Text = isES and "Perspectiva cinemática" or "Cinematic Perspective"
 		if UpdateCinematicCameraPanel then UpdateCinematicCameraPanel() end
@@ -671,6 +676,7 @@ couplesTabBtns["poses"].btn.MouseButton1Click:Connect(function() currentTab="pos
 	controlTabBtns["cinematic_camera"].btn.MouseButton1Click:Connect(function() currentTab = "cinematic_camera"; UpdateTabData() end)
 couplesTabBtns["preset_poses"].btn.MouseButton1Click:Connect(function() currentTab="preset_poses";UpdateTabData() end)
 controlTabBtns["camera_control"].btn.MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
+	controlTabBtns["gift_delivery"].btn.MouseButton1Click:Connect(function() currentTab = "gift_delivery"; UpdateTabData() end)
 controlTabBtns["flight_control"].btn.MouseButton1Click:Connect(function() currentTab = "flight_control"; UpdateTabData() end)
 controlTabBtns["car_control"].btn.MouseButton1Click:Connect(function() currentTab = "car_control"; UpdateTabData() end)
 controlTabBtns["free_car_control"].btn.MouseButton1Click:Connect(function() currentTab = "free_car_control"; UpdateTabData() end)
@@ -712,7 +718,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "move_anchored" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_custom" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "move_anchored" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_custom" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "gift_delivery" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

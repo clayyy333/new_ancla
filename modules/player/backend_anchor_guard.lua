@@ -4,7 +4,7 @@ return function(context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
 	local MarketplaceService=game:GetService("MarketplaceService")
-	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil}
+	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false}
 	local targetStates={}
 	local requestFn
 	local blockKey=table.concat({tostring(player.UserId),tostring(game.GameId),tostring(game.PlaceId),tostring(game.JobId)},":")
@@ -21,6 +21,10 @@ return function(context)
 		if Settings then Settings.featureBlockCache=cache end
 		if ApplyFeatureBlock then ApplyFeatureBlock(Guard.FeaturesBlocked)end
 		if changed and Settings and SaveLocalData and writefile then task.spawn(function()pcall(SaveLocalData)end)end
+	end
+	local function applyGiftDeliveryBlock(value)
+		Guard.GiftDeliveryBlocked=value==true
+		if GiftDeliveryCore and GiftDeliveryCore.SetAllowed then GiftDeliveryCore:SetAllowed(not Guard.GiftDeliveryBlocked)end
 	end
 
 	local function isMetroLife()
@@ -137,6 +141,7 @@ return function(context)
 		Guard.SessionToken=response.session_token
 		Guard.SessionId=response.session_id
 		if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
+		if type(response.gift_delivery_blocked)=="boolean"then applyGiftDeliveryBlock(response.gift_delivery_blocked)end
 		Guard.AnchorGuardEnabled=response.anchor_guard_enabled==true and isMetroLife()
 		Guard.Connected=true
 		return true
@@ -160,6 +165,7 @@ return function(context)
 		end
 		if response then
 			if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
+			if type(response.gift_delivery_blocked)=="boolean"then applyGiftDeliveryBlock(response.gift_delivery_blocked)end
 		end
 		return response~=nil
 	end

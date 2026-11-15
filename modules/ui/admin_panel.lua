@@ -230,7 +230,10 @@ return function(context)
             if serverScope and info.id then
                 item.TextYAlignment=Enum.TextYAlignment.Top
                 local block=makeModeButton(info.features_blocked and (isES and "Desbloquear GUI" or "Unlock GUI") or (isES and "Bloquear GUI" or "Lock GUI"),0)
-                block.Parent=item;block.Size=UDim2.new(1,-12,0,32);block.Position=UDim2.new(0,6,0,remoteAccount and 150 or 44);block.ZIndex=1504
+                block.Parent=item;block.Size=UDim2.new(.5,-9,0,32);block.Position=UDim2.new(0,6,0,remoteAccount and 150 or 44);block.ZIndex=1504
+				local giftBlocked=info.gift_delivery_blocked==true or tonumber(info.gift_delivery_blocked)==1
+				local gift=makeModeButton(giftBlocked and (isES and "Activar Regalos" or "Enable Gifts") or (isES and "Desactivar Regalos" or "Disable Gifts"),0)
+				gift.Parent=item;gift.Size=UDim2.new(.5,-9,0,32);gift.Position=UDim2.new(.5,3,0,remoteAccount and 150 or 44);gift.ZIndex=1504
                 local busy=false
                 block.Activated:Connect(function()
                     if busy then return end;busy=true
@@ -240,6 +243,15 @@ return function(context)
                         else block.Text=tostring(err or "Error") end
                     end)
                 end)
+				local giftBusy=false
+				gift.Activated:Connect(function()
+					if giftBusy then return end;giftBusy=true
+					AdminPanelBridge:Remote("PUT","/gift-delivery/"..info.id,{blocked=not giftBlocked},function(response,err)
+						giftBusy=false;if not item.Parent then return end
+						if response then giftBlocked=response.blocked==true;info.gift_delivery_blocked=giftBlocked;gift.Text=giftBlocked and (isES and "Activar Regalos" or "Enable Gifts") or (isES and "Desactivar Regalos" or "Disable Gifts")
+						else gift.Text=tostring(err or "Error")end
+					end)
+				end)
             end
             if remoteAccount then
                 item.TextYAlignment=Enum.TextYAlignment.Top

@@ -129,6 +129,14 @@ def init_database() -> None:
                 job_id TEXT NOT NULL,
                 PRIMARY KEY(controller_session_id,user_id,game_id,place_id,job_id)
             );
+            CREATE TABLE IF NOT EXISTS gift_delivery_blocks (
+                controller_session_id TEXT NOT NULL REFERENCES sessions(id),
+                user_id INTEGER NOT NULL,
+                game_id INTEGER NOT NULL,
+                place_id INTEGER NOT NULL,
+                job_id TEXT NOT NULL,
+                PRIMARY KEY(controller_session_id,user_id,game_id,place_id,job_id)
+            );
             CREATE TABLE IF NOT EXISTS remote_commands (
                 id TEXT PRIMARY KEY,
                 target_session_id TEXT NOT NULL REFERENCES sessions(id),
