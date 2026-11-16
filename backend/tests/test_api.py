@@ -56,7 +56,7 @@ def test_session_dashboard_and_anchor_recovery():
             headers=client_headers(target["session_token"]),
             json={
                 "anchored": True,
-                "custom_fling_using": True,
+                "gift_delivery_enabled": True,
                 "move_anchored_enabled": True,
                 "anchor_mode": "test",
                 "checkpoint_x": 10.5,
@@ -112,7 +112,7 @@ def test_session_dashboard_and_anchor_recovery():
         assert sessions.status_code == 200
         assert len(sessions.json()["sessions"]) == 2
         target_session = next(item for item in sessions.json()["sessions"] if item["user_id"] == 1)
-        assert target_session["custom_fling_using"] == 1
+        assert target_session["gift_delivery_enabled"] == 1
         assert target_session["move_anchored_enabled"] == 1
 
 
@@ -167,11 +167,14 @@ def test_short_fling_activity_transitions_and_session_end():
             assert response.status_code == 200
             row = session_row()
             assert row["short_fling_enabled"] == int(enabled)
-            assert row["custom_fling_using"] == 0
+            assert row["gift_delivery_enabled"] == 0
         response = client.post("/api/v1/sessions/end",
                                headers=client_headers(target["session_token"]))
         assert response.status_code == 200
-        assert session_row()["short_fling_enabled"] == 0
+        with main.connection() as db:
+            ended = db.execute("SELECT short_fling_enabled FROM sessions WHERE id=?",
+                               (target["session_id"],)).fetchone()
+        assert ended["short_fling_enabled"] == 0
 
 
 def test_folding_cleanup_activity_and_session_end():
@@ -369,3 +372,124 @@ def test_gift_pin_is_required_for_every_session_including_owners():
         owner_headers = client_headers(owner["session_token"])
         owner_unlock = client.post("/api/v1/gifts/unlock", headers=owner_headers, json={"pin": "777py"})
         assert owner_unlock.status_code == 200
+
+
+def test_gift_activity_transitions_and_legacy_client():
+    with TestClient(main.app) as client:
+        user = start_session(client, 905, "gift-activity-user")
+        headers = client_headers(user["session_token"])
+        admin = {"Authorization": "Bearer admin-test-token"}
+        login = client.post("/api/v1/owner/login", json={
+            "user_id": 11739864999, "username": "psychoo778", "key": "owner-test-key"})
+        assert login.status_code == 200
+        owner = {"Authorization": "Bearer " + login.json()["token"]}
+        def row():
+            response = client.get("/api/v1/admin/sessions", headers=admin)
+            assert response.status_code == 200
+            return next(x for x in response.json()["sessions"] if x["user_id"] == 905)
+        assert row()["gift_delivery_enabled"] == 0
+        assert client.post("/api/v1/sessions/heartbeat", headers=headers,
+                           json={"custom_fling_using": True}).status_code == 200
+        assert row()["gift_delivery_enabled"] == 0
+        for enabled in (True, False, True):
+            response = client.post("/api/v1/sessions/heartbeat", headers=headers,
+                                   json={"gift_delivery_enabled": enabled})
+            assert response.status_code == 200
+            current = row()
+            assert current["gift_delivery_enabled"] == int(enabled)
+            assert current["anchored"] == 0
+            assert "custom_fling_using" not in current
+            scoped = client.get("/api/v1/owner/players?scope=server&job_id=same-server", headers=owner)
+            assert scoped.status_code == 200
+            player = next(x for x in scoped.json()["players"] if x["user_id"] == 905)
+            assert player["gift_delivery_enabled"] == int(enabled)
+        assert client.post("/api/v1/sessions/end", headers=headers).status_code == 200
+        with main.connection() as db:
+            ended = db.execute("SELECT gift_delivery_enabled FROM sessions WHERE id=?",
+                               (user["session_id"],)).fetchone()
+        assert ended["gift_delivery_enabled"] == 0
+
+
+def test_gift_activity_legacy_database_migration(monkeypatch, tmp_path):
+    from app.database import connection, init_database
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "legacy.db"))
+    init_database()
+    with connection() as db:
+        db.execute("ALTER TABLE sessions DROP COLUMN gift_delivery_enabled")
+        db.execute("INSERT INTO users(user_id,username,display_name,first_seen,last_seen) VALUES(999,'legacy','legacy',1,1)")
+        db.execute("INSERT INTO sessions(id,token_hash,user_id,place_id,job_id,started_at,last_seen,custom_fling_using) VALUES('legacy','legacy',999,100,'server',1,1,1)")
+    init_database()
+    init_database()
+    with connection() as db:
+        migrated = db.execute("SELECT custom_fling_using,gift_delivery_enabled FROM sessions WHERE id='legacy'").fetchone()
+    assert migrated["custom_fling_using"] == 1
+    assert migrated["gift_delivery_enabled"] == 0
+
+
+def test_reception_block_is_pin_free_session_only_and_idempotent():
+    with TestClient(main.app) as client:
+        receiver = start_session(client, 91001, "recipient")
+        sender = start_session(client, 91002, "sender")
+        receiver_headers = client_headers(receiver["session_token"])
+        sender_headers = client_headers(sender["session_token"])
+        assert receiver["gift_access_unlocked"] is False
+        assert receiver["gift_reception_blocked"] is False
+        def blocked():
+            result = client.get("/api/v1/gifts/reception-blocks", headers=sender_headers)
+            assert result.status_code == 200
+            return {x["user_id"]: x["remaining_seconds"] for x in result.json()["blocked_users"]}
+        assert 91001 not in blocked()
+        for _ in range(2):
+            result = client.post("/api/v1/gifts/block-reception", headers=receiver_headers)
+            assert result.status_code == 200
+            assert result.json()["gift_reception_blocked"] is True
+        assert 0 < blocked()[91001] <= main.SESSION_TIMEOUT
+        with main.connection() as db:
+            row = db.execute("SELECT gift_access_unlocked FROM sessions WHERE id=?", (receiver["session_id"],)).fetchone()
+            assert row["gift_access_unlocked"] == 0
+            count = db.execute("SELECT COUNT(*) AS n FROM audit_log WHERE session_id=? AND event_type='gift_reception_blocked'", (receiver["session_id"],)).fetchone()
+            assert count["n"] == 1
+        # Normal heartbeats preserve the one-way session preference.
+        client.post("/api/v1/sessions/heartbeat", headers=receiver_headers, json={})
+        assert 91001 in blocked()
+        assert client.post("/api/v1/sessions/end", headers=receiver_headers).status_code == 200
+        assert 91001 not in blocked()
+        reopened = start_session(client, 91001, "recipient")
+        assert reopened["gift_reception_blocked"] is False
+        assert 91001 not in blocked()
+
+
+def test_reception_new_execution_overrides_abandoned_block_and_does_not_revive_it():
+    with TestClient(main.app) as client:
+        old = start_session(client, 91003, "recipient-reopen")
+        observer = start_session(client, 91004, "sender-reopen")
+        headers = client_headers(observer["session_token"])
+        assert client.post("/api/v1/gifts/block-reception", headers=client_headers(old["session_token"])).status_code == 200
+        new = start_session(client, 91003, "recipient-reopen")
+        def ids():
+            return [x["user_id"] for x in client.get("/api/v1/gifts/reception-blocks", headers=headers).json()["blocked_users"]]
+        assert 91003 not in ids()
+        # Even a delayed old heartbeat cannot restore the earlier preference.
+        client.post("/api/v1/sessions/heartbeat", headers=client_headers(old["session_token"]), json={})
+        assert 91003 not in ids()
+        assert client.post("/api/v1/sessions/end", headers=client_headers(new["session_token"])).status_code == 200
+        assert 91003 not in ids()
+
+
+def test_reception_blocks_are_scoped_expire_and_require_session(monkeypatch):
+    with TestClient(main.app) as client:
+        receiver = start_session(client, 91005, "scoped-recipient")
+        observer = start_session(client, 91006, "scoped-sender")
+        foreign = start_session(client, 91007, "foreign-recipient")
+        for user in (receiver, foreign):
+            assert client.post("/api/v1/gifts/block-reception", headers=client_headers(user["session_token"])).status_code == 200
+        with main.connection() as db:
+            db.execute("UPDATE sessions SET job_id='different-server' WHERE id=?", (foreign["session_id"],))
+        headers = client_headers(observer["session_token"])
+        rows = client.get("/api/v1/gifts/reception-blocks", headers=headers).json()["blocked_users"]
+        assert 91005 in {x["user_id"] for x in rows}
+        assert 91007 not in {x["user_id"] for x in rows}
+        timestamp = main.now()
+        monkeypatch.setattr(main, "now", lambda: timestamp+main.SESSION_TIMEOUT+1)
+        assert client.get("/api/v1/gifts/reception-blocks", headers=headers).json()["blocked_users"] == []
+        assert client.post("/api/v1/gifts/block-reception", headers=client_headers()).status_code == 401

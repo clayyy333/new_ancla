@@ -140,7 +140,7 @@ class SessionStart(BaseModel):
 
 class Heartbeat(BaseModel):
     anchored: bool = False
-    custom_fling_using: bool = False
+    gift_delivery_enabled: bool = False
     move_anchored_enabled: bool = False
     short_fling_enabled: bool = False
     folding_cleanup_enabled: bool = False
@@ -391,6 +391,7 @@ def start_session(payload: SessionStart, request: Request):
         "features_blocked": blocked,
         "gift_delivery_blocked": gift_blocked,
         "gift_access_unlocked": False,
+        "gift_reception_blocked": False,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (
@@ -414,13 +415,13 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         anchored = payload.anchored and anchor_guard_allowed(session)
         db.execute(
             """UPDATE sessions SET last_seen=?,credited_seconds=credited_seconds+?,
-               anchored=?,anchor_mode=?,custom_fling_using=?,move_anchored_enabled=?,short_fling_enabled=?,folding_cleanup_enabled=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
+               anchored=?,anchor_mode=?,gift_delivery_enabled=?,move_anchored_enabled=?,short_fling_enabled=?,folding_cleanup_enabled=?,checkpoint_x=?,checkpoint_y=?,checkpoint_z=? WHERE id=?""",
             (
                 timestamp,
                 elapsed,
                 int(anchored),
                 payload.anchor_mode if anchored else "",
-                int(payload.custom_fling_using),
+                int(payload.gift_delivery_enabled),
                 int(payload.move_anchored_enabled),
                 int(payload.short_fling_enabled),
                 int(payload.folding_cleanup_enabled),
@@ -436,7 +437,41 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         )
         blocked=features_blocked(db,session,active_cutoff())
         gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"])}
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"]), "gift_reception_blocked":bool(session["gift_reception_blocked"])}
+
+
+@app.post("/api/v1/gifts/block-reception")
+def block_gift_reception(session=Depends(require_session)):
+    # One-way preference on this execution only. No PIN/owner permission required.
+    with connection() as db:
+        changed = db.execute(
+            "UPDATE sessions SET gift_reception_blocked=1 WHERE id=? AND ended_at IS NULL AND gift_reception_blocked=0",
+            (session["id"],),
+        ).rowcount
+        if changed:
+            audit(db, "gift_reception_blocked", session["id"], session["user_id"])
+    return {"ok": True, "gift_reception_blocked": True}
+
+
+@app.get("/api/v1/gifts/reception-blocks")
+def gift_reception_blocks(session=Depends(require_session)):
+    timestamp = now()
+    with connection() as db:
+        # Rank before filtering ended/expired sessions: reopening resets reception,
+        # and closing the newest execution must not revive an older block.
+        rows = db.execute(
+            """WITH latest AS (
+                SELECT user_id,gift_reception_blocked,ended_at,last_seen,
+                    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY started_at DESC,rowid DESC) AS rn
+                FROM sessions WHERE game_id=? AND place_id=? AND job_id=?
+            ) SELECT user_id,last_seen FROM latest
+              WHERE rn=1 AND ended_at IS NULL AND last_seen>=? AND gift_reception_blocked=1""",
+            (session["game_id"], session["place_id"], session["job_id"], timestamp-SESSION_TIMEOUT),
+        ).fetchall()
+    return {"blocked_users": [
+        {"user_id": row["user_id"], "remaining_seconds": max(0, row["last_seen"]+SESSION_TIMEOUT-timestamp)}
+        for row in rows
+    ]}
 
 
 @app.post("/api/v1/gifts/unlock")
@@ -455,7 +490,7 @@ def end_session(session=Depends(require_session)):
     timestamp = now()
     with connection() as db:
         clear_remote_selection(db, session["id"], timestamp)
-        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,custom_fling_using=0,move_anchored_enabled=0,short_fling_enabled=0,folding_cleanup_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
+        db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,gift_reception_blocked=0,gift_delivery_enabled=0,move_anchored_enabled=0,short_fling_enabled=0,folding_cleanup_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}
 
@@ -710,7 +745,7 @@ def owner_players(
         rows = db.execute(
             f"""SELECT u.user_id,u.username,u.display_name,u.country_code,
                 MAX(s.last_seen) AS last_seen,
-                MAX(s.custom_fling_using) AS custom_fling_using,
+                MAX(s.gift_delivery_enabled) AS gift_delivery_enabled,
                 COUNT(DISTINCT s.job_id) AS active_servers,
                 COALESCE((
                     SELECT SUM(s2.credited_seconds)
@@ -796,7 +831,7 @@ def admin_sessions(
                 SELECT s.id,s.user_id,u.username,u.display_name,u.country_code,
                     s.place_id,s.job_id,s.game_name,s.executor,s.script_version,
                     s.started_at,s.last_seen,s.ended_at,s.credited_seconds,s.anchored,
-                    s.anchor_mode,s.custom_fling_using,s.move_anchored_enabled,s.short_fling_enabled,s.folding_cleanup_enabled,
+                    s.anchor_mode,s.gift_delivery_enabled,s.move_anchored_enabled,s.short_fling_enabled,s.folding_cleanup_enabled,
                     ROW_NUMBER() OVER (
                         PARTITION BY s.user_id,s.place_id,s.job_id
                         ORDER BY s.last_seen DESC,s.started_at DESC
@@ -806,7 +841,7 @@ def admin_sessions(
             )
             SELECT id,user_id,username,display_name,country_code,place_id,job_id,
                 game_name,executor,script_version,started_at,last_seen,ended_at,
-                credited_seconds,anchored,anchor_mode,custom_fling_using,move_anchored_enabled,short_fling_enabled,folding_cleanup_enabled
+                credited_seconds,anchored,anchor_mode,gift_delivery_enabled,move_anchored_enabled,short_fling_enabled,folding_cleanup_enabled
             FROM ranked WHERE row_number=1
             ORDER BY last_seen DESC LIMIT ?""",
             values,

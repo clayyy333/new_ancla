@@ -29,6 +29,7 @@ return function(context)
 		Allowed=not(BackendAnchorGuard and BackendAnchorGuard.GiftDeliveryBlocked==true),
 		AccessGranted=(BackendAnchorGuard and BackendAnchorGuard.GiftAccessUnlocked==true)or false,
 		Selected={},SelectedOrder={},Generation=0,Alive=true,AntiEnabled=false,
+		ReceptionBlocked=(BackendAnchorGuard and BackendAnchorGuard.GiftReceptionBlocked==true)or false,ReceptionBusy=false,ReceptionMessage=nil,
 		AntiDetected=0,AntiRemoved=0,AntiFailures=0,_changed=Instance.new("BindableEvent")
 	}
 	local nextRecipientIndex=1
@@ -114,6 +115,27 @@ return function(context)
 	for _,obj in ipairs(playerGui:GetDescendants())do watchBusy(obj)end
 	connect(playerGui.DescendantAdded,watchBusy,busyUiConnections)
 
+	function Core:SetReceptionBlocked(value)
+		self.ReceptionBlocked=value==true;self.ReceptionBusy=false;self.ReceptionMessage=nil;changed()
+	end
+	function Core:BlockReception()
+		if not self.Alive or self.ReceptionBlocked or self.ReceptionBusy then return end
+		if not BackendAnchorGuard or not BackendAnchorGuard.BlockGiftReception then
+			self.ReceptionMessage=isES and "Servicio no disponible. Intenta de nuevo."or"Service unavailable. Try again.";changed();return
+		end
+		self.ReceptionBusy=true;self.ReceptionMessage=nil;changed()
+		BackendAnchorGuard:BlockGiftReception(function(ok)
+			if not Core.Alive then return end
+			Core.ReceptionBusy=false
+			if ok then Core.ReceptionBlocked=true
+			else Core.ReceptionMessage=isES and "No se pudo bloquear. Intenta de nuevo."or"Could not block. Try again."end
+			changed()
+		end)
+	end
+	local function receptionBlocked(userId)
+		return BackendAnchorGuard and BackendAnchorGuard.IsGiftRecipientBlocked
+			and BackendAnchorGuard:IsGiftRecipientBlocked(userId)or false
+	end
 	function Core:OnChanged(fn)return self._changed.Event:Connect(fn)end
 	function Core:GetSelectedCount()return #self.SelectedOrder end
 	function Core:IsSelected(id)return self.Selected[id]~=nil end
@@ -155,7 +177,7 @@ return function(context)
 		for _=1,#Core.SelectedOrder do
 			local id=Core.SelectedOrder[nextRecipientIndex];nextRecipientIndex=(nextRecipientIndex%#Core.SelectedOrder)+1
 			local candidate=Players:GetPlayerByUserId(id)
-			if candidate and not Core:IsOwnerRecipient(id)and Core.Selected[id]and os.clock()>=(recipientReadyAt[id]or 0)then return{id=id,name=candidate.Name,player=candidate}end
+			if candidate and not receptionBlocked(id)and not Core:IsOwnerRecipient(id)and Core.Selected[id]and os.clock()>=(recipientReadyAt[id]or 0)then return{id=id,name=candidate.Name,player=candidate}end
 		end
 	end
 	local function obtain(token,itemName)
@@ -199,6 +221,7 @@ return function(context)
 		local remaining=MIN_REQUEST_GAP-(os.clock()-lastSendAt)
 		if remaining>0 and not waitControlled(remaining,token)then return"cancelled"end
 		if not valid(token)then return"cancelled"end
+		if receptionBlocked(recipient.id)then return"skipped"end
 		if Players:GetPlayerByUserId(recipient.id)~=recipient.player then return"waiting"end
 		local sourceBefore=snapshot(player,itemName);local targetBefore=snapshot(recipient.player,itemName)
 		Core.State="ENVIANDO CONTINUO";changed()

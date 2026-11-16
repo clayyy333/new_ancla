@@ -3,7 +3,7 @@ return function(context)
 	setfenv(1,context)
 	local Core=GiftDeliveryCore
 	giftDeliveryPanel=Instance.new("ScrollingFrame");giftDeliveryPanel.Name="GiftDeliveryPanel";giftDeliveryPanel.Size=UDim2.new(1,-16,1,-(titleH+20));giftDeliveryPanel.Position=UDim2.new(0,8,0,titleH+8);giftDeliveryPanel.BackgroundTransparency=1;giftDeliveryPanel.BorderSizePixel=0;giftDeliveryPanel.ScrollBarThickness=3;giftDeliveryPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;giftDeliveryPanel.CanvasSize=UDim2.new();giftDeliveryPanel.Visible=false;giftDeliveryPanel.ZIndex=6;giftDeliveryPanel.Parent=content
-	local card=Instance.new("Frame");card.Size=UDim2.new(1,0,0,350);card.BackgroundColor3=currentTheme.secondary;card.BorderSizePixel=0;card.ZIndex=7;card.Parent=giftDeliveryPanel;Instance.new("UICorner",card).CornerRadius=UDim.new(0,14);RegisterTheme(card,"BackgroundColor3","secondary")
+	local card=Instance.new("Frame");card.Size=UDim2.new(1,0,0,440);card.BackgroundColor3=currentTheme.secondary;card.BorderSizePixel=0;card.ZIndex=7;card.Parent=giftDeliveryPanel;Instance.new("UICorner",card).CornerRadius=UDim.new(0,14);RegisterTheme(card,"BackgroundColor3","secondary")
 	local function button(parent,text,size,pos,z)
 		local b=Instance.new("TextButton");b.Size=size;b.Position=pos;b.BackgroundColor3=currentTheme.tertiary;b.BorderSizePixel=0;b.Text=text;b.TextColor3=currentTheme.text;b.Font=Enum.Font.GothamBold;b.TextSize=isMobile and 10 or 12;b.TextWrapped=true;b.AutoButtonColor=false;b.ZIndex=z or 8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,9);RegisterTheme(b,"BackgroundColor3","tertiary");RegisterTheme(b,"TextColor3","text");return b
 	end
@@ -18,6 +18,8 @@ return function(context)
 	local status=label("",UDim2.new(0,12,0,216),38);status.TextXAlignment=Enum.TextXAlignment.Center
 	local cleanupToggle=button(card,"",UDim2.new(1,-24,0,44),UDim2.new(0,12,0,260),8)
 	local cleanupStatus=label("",UDim2.new(0,12,0,314),24);cleanupStatus.TextXAlignment=Enum.TextXAlignment.Center
+	local blockReception=button(card,"Bloquear Regalos ( Solo  desactiva envios de este mismo script )",UDim2.new(1,-24,0,54),UDim2.new(0,12,0,350),8)
+	local receptionStatus=label("",UDim2.new(0,12,0,410),22);receptionStatus.TextXAlignment=Enum.TextXAlignment.Center
 	local pinShade=Instance.new("Frame");pinShade.Size=UDim2.fromScale(1,1);pinShade.BackgroundColor3=Color3.new(0,0,0);pinShade.BackgroundTransparency=.18;pinShade.BorderSizePixel=0;pinShade.Visible=false;pinShade.ZIndex=60;pinShade.Parent=card;Instance.new("UICorner",pinShade).CornerRadius=UDim.new(0,14)
 	local pinBox=Instance.new("Frame");pinBox.Size=UDim2.new(1,-40,0,190);pinBox.AnchorPoint=Vector2.new(.5,.5);pinBox.Position=UDim2.fromScale(.5,.5);pinBox.BackgroundColor3=currentTheme.secondary;pinBox.BorderSizePixel=0;pinBox.ZIndex=61;pinBox.Parent=pinShade;Instance.new("UICorner",pinBox).CornerRadius=UDim.new(0,12);RegisterTheme(pinBox,"BackgroundColor3","secondary")
 	local pinTitle=Instance.new("TextLabel");pinTitle.Size=UDim2.new(1,-24,0,42);pinTitle.Position=UDim2.new(0,12,0,10);pinTitle.BackgroundTransparency=1;pinTitle.Text=isES and"Acceso a Regalos"or"Gift Access";pinTitle.TextColor3=currentTheme.text;pinTitle.Font=Enum.Font.GothamBold;pinTitle.TextSize=14;pinTitle.ZIndex=62;pinTitle.Parent=pinBox;RegisterTheme(pinTitle,"TextColor3","text")
@@ -68,11 +70,15 @@ return function(context)
 	pinSubmit.Activated:Connect(submitPin);pinInput.FocusLost:Connect(function(enter)if enter then submitPin()end end);pinCancel.Activated:Connect(function()if not pinBusy then pinInput.Text="";pinShade.Visible=false end end)
 	sendToggle.Activated:Connect(function()closeLists();if Core.Running then Core:Stop()else local ok,err=Core:Start();if not ok and err=="pin_required"then openPin()elseif not ok and err then status.Text=err end end end)
 	cleanupToggle.Activated:Connect(function()Core:SetAntiEnabled(not Core.AntiEnabled)end)
+	blockReception.Activated:Connect(function()closeLists();Core:BlockReception()end)
 
 	UpdateGiftDeliveryPanel=function(message)
 		local allowed=Core.Allowed==true
 		playerButton.Active=allowed;itemButton.Active=allowed;sendToggle.Active=allowed;cleanupToggle.Active=allowed
-		if controlTabBtns and controlTabBtns.gift_delivery then controlTabBtns.gift_delivery.btn.Active=allowed end
+		if controlTabBtns and controlTabBtns.gift_delivery then controlTabBtns.gift_delivery.btn.Active=true end
+		blockReception.Active=not Core.ReceptionBlocked and not Core.ReceptionBusy
+		blockReception.BackgroundColor3=Core.ReceptionBlocked and currentTheme.accent or currentTheme.tertiary
+		receptionStatus.Text=Core.ReceptionMessage or(Core.ReceptionBusy and(isES and"Aplicando bloqueo..."or"Applying block...")or(Core.ReceptionBlocked and(isES and"Bloqueado durante esta sesión"or"Blocked for this session")or(isES and"Sin PIN · Solo durante esta sesión"or"No PIN · This session only")))
 		playerButton.Text=(isES and"Usuarios seleccionados: "or"Selected users: ")..Core:GetSelectedCount().."  ▼"
 		itemButton.Text=Core.Item.."  ▼"
 		sendToggle.Text=Core.Running and(isES and"ENVÍO CONTINUO: ACTIVADO"or"CONTINUOUS DELIVERY: ON")or(isES and"ENVÍO CONTINUO: DESACTIVADO"or"CONTINUOUS DELIVERY: OFF")

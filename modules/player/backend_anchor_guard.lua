@@ -4,7 +4,7 @@ return function(context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
 	local MarketplaceService=game:GetService("MarketplaceService")
-	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false,GiftAccessUnlocked=false}
+	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false,GiftAccessUnlocked=false,GiftReceptionBlocked=false,GiftReceptionBusy=false,GiftRecipientBlocks={}}
 	local targetStates={}
 	local requestFn
 	local blockKey=table.concat({tostring(player.UserId),tostring(game.GameId),tostring(game.PlaceId),tostring(game.JobId)},":")
@@ -142,6 +142,10 @@ return function(context)
 		if not response or type(response.session_token)~="string" then
 			return false
 		end
+		Guard.GiftReceptionBlocked=response.gift_reception_blocked==true
+		Guard.GiftReceptionBusy=false
+		table.clear(Guard.GiftRecipientBlocks)
+		if GiftDeliveryCore and GiftDeliveryCore.SetReceptionBlocked then GiftDeliveryCore:SetReceptionBlocked(Guard.GiftReceptionBlocked)end
 		Guard.SessionToken=response.session_token
 		Guard.SessionId=response.session_id
 		if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
@@ -152,14 +156,14 @@ return function(context)
 		return true
 	end
 
-	local function heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled)
+	local function heartbeat(anchored,mode,checkpoint,giftDeliveryEnabled,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled)
 		local response,_,status=call("POST","/api/v1/sessions/heartbeat",{
 			anchored=anchored,
 			anchor_mode=mode,
 			checkpoint_x=checkpoint and checkpoint.X or nil,
 			checkpoint_y=checkpoint and checkpoint.Y or nil,
 			checkpoint_z=checkpoint and checkpoint.Z or nil,
-			custom_fling_using=customFlingUsing==true,
+			gift_delivery_enabled=giftDeliveryEnabled==true,
 			move_anchored_enabled=moveAnchoredEnabled==true,
 			short_fling_enabled=shortFlingEnabled==true,
 			folding_cleanup_enabled=foldingCleanupEnabled==true,
@@ -278,6 +282,38 @@ return function(context)
 		if not self.Running or not self.Connected or not self.SessionToken then return nil end
 		return call(method,path,body,self.SessionToken)
 	end
+	function Guard:IsGiftRecipientBlocked(userId)
+		local deadline=self.GiftRecipientBlocks[tonumber(userId)]
+		return deadline~=nil and os.clock()<deadline
+	end
+	local function refreshGiftReceptionBlocks()
+		local token=Guard.SessionToken
+		local requestedAt=os.clock()
+		local response=call("GET","/api/v1/gifts/reception-blocks",nil,token)
+		if token~=Guard.SessionToken or not response or type(response.blocked_users)~="table"then return end
+		local updated={}
+		for _,entry in ipairs(response.blocked_users)do
+			local id,ttl=tonumber(entry.user_id),tonumber(entry.remaining_seconds)
+			if id and ttl and ttl>0 then updated[id]=requestedAt+ttl end
+		end
+		Guard.GiftRecipientBlocks=updated
+	end
+	function Guard:BlockGiftReception(callback)
+		callback=type(callback)=="function"and callback or function()end
+		if self.GiftReceptionBlocked then callback(true);return end
+		if self.GiftReceptionBusy then return end
+		if not self.Connected or not self.SessionToken then callback(false,"session_unavailable");return end
+		self.GiftReceptionBusy=true
+		local token=self.SessionToken
+		task.spawn(function()
+			local response,err=call("POST","/api/v1/gifts/block-reception",{},token)
+			if token~=Guard.SessionToken then callback(false,"session_changed");return end
+			Guard.GiftReceptionBusy=false
+			local ok=response and response.gift_reception_blocked==true
+			if ok then Guard.GiftReceptionBlocked=true end
+			callback(ok==true,err)
+		end)
+	end
 	function Guard:UnlockGiftAccess(pin,callback)
 		callback=type(callback)=="function"and callback or function()end
 		if not self.Connected or not self.SessionToken then callback(false,"session_unavailable");return end
@@ -298,10 +334,11 @@ return function(context)
 		self.Running=true
 		task.spawn(function()
 			local retryAt,heartbeatAt,targetsAt,commandsAt,inspectAt=0,0,0,0,0
-			local lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing,lastMoveAnchored=nil,nil,nil,nil,nil
+			local lastAnchored,lastMode,lastCheckpoint,lastGiftDelivery,lastMoveAnchored=nil,nil,nil,nil,nil
 			local lastShortFling=nil
 			local lastFoldingCleanup=nil
 			local connecting,heartbeatBusy,targetsBusy,commandsBusy=false,false,false,false
+			local giftBlocksAt,giftBlocksBusy=0,false
 			while Guard.Running and Guard.Generation==generation do
 				local timestamp=os.clock()
 				if not Guard.Connected then
@@ -310,28 +347,31 @@ return function(context)
 						task.spawn(function() startSession();connecting=false end)
 					end
 				else
+					if GiftDeliveryCore and GiftDeliveryCore.Running and timestamp>=giftBlocksAt and not giftBlocksBusy then
+						giftBlocksAt=timestamp+2;giftBlocksBusy=true
+						task.spawn(function()refreshGiftReceptionBlocks();giftBlocksBusy=false end)
+					end
 					local anchored,mode,checkpoint=anchorState()
-					local customFlingUsing=customFlingPanel~=nil and customFlingPanel.Visible==true and CustomFlingUsageActive==true
+					local giftDeliveryEnabled=GiftDeliveryCore~=nil and GiftDeliveryCore.Running==true
 					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning()) or (MobileAnchorV13Core~=nil and MobileAnchorV13Core:IsRunning())
 					local shortFlingEnabled=Fling2EfficientCore~=nil and Fling2EfficientCore.Running==true and Fling2EfficientCore:IsShortDisplacementEnabled() and not (Fling2AutoController and Fling2AutoController.Running)
 					local anchorFeatures=Guard.AnchorGuardEnabled==true
 					local foldingCleanupEnabled=FoldingCleanupCore~=nil and FoldingCleanupCore.Enabled==true and FoldingCleanupCore:IsAvailable()
 					if not anchorFeatures then
 						anchored,mode,checkpoint=false,"",nil
-						customFlingUsing=false
 						moveAnchoredEnabled=false
 					end
 					local checkpointChanged=(checkpoint~=lastCheckpoint)
-					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or customFlingUsing~=lastCustomFlingUsing or moveAnchoredEnabled~=lastMoveAnchored or shortFlingEnabled~=lastShortFling or foldingCleanupEnabled~=lastFoldingCleanup then
+					if timestamp>=heartbeatAt or anchored~=lastAnchored or mode~=lastMode or checkpointChanged or giftDeliveryEnabled~=lastGiftDelivery or moveAnchoredEnabled~=lastMoveAnchored or shortFlingEnabled~=lastShortFling or foldingCleanupEnabled~=lastFoldingCleanup then
 						if not heartbeatBusy then
 							local interval=anchorFeatures and (tonumber(Config.HeartbeatSeconds) or 30) or (tonumber(Config.ActivityHeartbeatSeconds) or 60)
 							heartbeatAt=timestamp+interval
-							lastAnchored,lastMode,lastCheckpoint,lastCustomFlingUsing,lastMoveAnchored=anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled
+							lastAnchored,lastMode,lastCheckpoint,lastGiftDelivery,lastMoveAnchored=anchored,mode,checkpoint,giftDeliveryEnabled,moveAnchoredEnabled
 							lastShortFling=shortFlingEnabled
 							lastFoldingCleanup=foldingCleanupEnabled
 							heartbeatBusy=true
 							task.spawn(function()
-								if not heartbeat(anchored,mode,checkpoint,customFlingUsing,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
+								if not heartbeat(anchored,mode,checkpoint,giftDeliveryEnabled,moveAnchoredEnabled,shortFlingEnabled,foldingCleanupEnabled) then heartbeatAt=math.min(heartbeatAt,os.clock()+3) end
 								heartbeatBusy=false
 							end)
 						end

@@ -215,9 +215,9 @@ return function(context)
                 (tonumber(info.total_seconds) or 0) / 3600,
                 tostring(info.country_code or "UN"),
                 tostring(info.user_id or ""),
-                ((info.custom_fling_using == true or tonumber(info.custom_fling_using) == 1)
-                    and (isES and "Usando Fling personalizado" or "Using Custom Fling")
-                    or (isES and "Fuera" or "Outside"))
+                ((info.gift_delivery_enabled == true or tonumber(info.gift_delivery_enabled) == 1)
+                    and (isES and "Regalos activos" or "Gifts active")
+                    or (isES and "Regalos inactivos" or "Gifts inactive"))
             )
             item.TextColor3 = currentTheme.text
             item.Font = Enum.Font.Gotham
