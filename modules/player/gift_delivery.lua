@@ -16,7 +16,6 @@ return function(context)
 		[11797966007]=true,
 		[11866242235]=true,
 	}
-	local LOCAL_IS_OWNER=OWNER_RECIPIENT_IDS[player.UserId]==true
 	local BOX="GiftBox5"
 	local EQUIP_TIMEOUT=4
 	local MIN_REQUEST_GAP=.15
@@ -28,7 +27,7 @@ return function(context)
 	local Core={
 		Items=ITEMS,Item=ITEMS[1],Running=false,State="DETENIDO",AutoSelect=false,
 		Allowed=not(BackendAnchorGuard and BackendAnchorGuard.GiftDeliveryBlocked==true),
-		AccessGranted=LOCAL_IS_OWNER or(BackendAnchorGuard and BackendAnchorGuard.GiftAccessUnlocked==true)or false,
+		AccessGranted=(BackendAnchorGuard and BackendAnchorGuard.GiftAccessUnlocked==true)or false,
 		Selected={},SelectedOrder={},Generation=0,Alive=true,AntiEnabled=false,
 		AntiDetected=0,AntiRemoved=0,AntiFailures=0,_changed=Instance.new("BindableEvent")
 	}
@@ -242,10 +241,9 @@ return function(context)
 		changed()
 	end
 	function Core:SetAccessGranted(granted)
-		self.AccessGranted=LOCAL_IS_OWNER or granted==true
+		self.AccessGranted=granted==true
 		changed()
 	end
-	function Core:IsLocalOwner()return LOCAL_IS_OWNER end
 
 	local antiEpoch=0;local antiExisting={};local antiSeen={};local antiPending={};local antiConnections={};local antiToolConnections={};local antiBusy=false;local antiOwner=nil
 	local function antiProtected(tool)for _,name in ipairs(ITEMS)do if tool.Name==name then return true end end;return false end

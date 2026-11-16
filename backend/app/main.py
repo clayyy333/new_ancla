@@ -390,7 +390,7 @@ def start_session(payload: SessionStart, request: Request):
         "session_token": session_token,
         "features_blocked": blocked,
         "gift_delivery_blocked": gift_blocked,
-        "gift_access_unlocked": payload.user_id in OWNER_IDENTITIES,
+        "gift_access_unlocked": False,
         "heartbeat_interval_seconds": 30,
         "command_poll_interval_seconds": 0.5,
         "anchor_guard_enabled": (
@@ -436,13 +436,11 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         )
         blocked=features_blocked(db,session,active_cutoff())
         gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":session["user_id"] in OWNER_IDENTITIES or bool(session["gift_access_unlocked"])}
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"])}
 
 
 @app.post("/api/v1/gifts/unlock")
 def unlock_gifts(payload: GiftUnlock, session=Depends(require_session)):
-    if session["user_id"] in OWNER_IDENTITIES:
-        return {"ok": True, "gift_access_unlocked": True}
     expected = os.getenv("GIFT_ACCESS_PIN", "777py")
     if not hmac.compare_digest(payload.pin, expected):
         raise HTTPException(401, "Invalid gift access PIN")
