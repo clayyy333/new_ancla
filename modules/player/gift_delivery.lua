@@ -2,6 +2,7 @@
 -- autoseleccion, reconexiones, envio continuo y limpieza no bloqueante.
 return function(context)
 	setfenv(1,context)
+	if game.GameId~=4540138978 then return true end
 
 	local Remotes=game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 	local EquipRF=Remotes:WaitForChild("EquipToolRF")

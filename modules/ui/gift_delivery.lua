@@ -1,6 +1,7 @@
 -- Panel compacto de regalos dentro de la categoria Control.
 return function(context)
 	setfenv(1,context)
+	if game.GameId~=4540138978 or not GiftDeliveryCore then return true end
 	local Core=GiftDeliveryCore
 	giftDeliveryPanel=Instance.new("ScrollingFrame");giftDeliveryPanel.Name="GiftDeliveryPanel";giftDeliveryPanel.Size=UDim2.new(1,-16,1,-(titleH+20));giftDeliveryPanel.Position=UDim2.new(0,8,0,titleH+8);giftDeliveryPanel.BackgroundTransparency=1;giftDeliveryPanel.BorderSizePixel=0;giftDeliveryPanel.ScrollBarThickness=3;giftDeliveryPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;giftDeliveryPanel.CanvasSize=UDim2.new();giftDeliveryPanel.Visible=false;giftDeliveryPanel.ZIndex=6;giftDeliveryPanel.Parent=content
 	local card=Instance.new("Frame");card.Size=UDim2.new(1,0,0,440);card.BackgroundColor3=currentTheme.secondary;card.BorderSizePixel=0;card.ZIndex=7;card.Parent=giftDeliveryPanel;Instance.new("UICorner",card).CornerRadius=UDim.new(0,14);RegisterTheme(card,"BackgroundColor3","secondary")

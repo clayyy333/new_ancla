@@ -424,6 +424,7 @@ RefreshPlaylistsList = function()
 end
 
 UpdateTabData = function()
+	if currentTab=="gift_delivery" and game.GameId~=4540138978 then currentTab="camera_control"end
 	if currentTab=="fling_object"and(not ObjectV8FlingCore or not ObjectV8FlingCore:IsAuthorized())then currentTab="fling2"end
 	hideTrendingDropdown()
 	search.Text = ""
@@ -477,7 +478,7 @@ UpdateTabData = function()
 	moveAnchoredPanel.Visible = isMoveAnchored
 	autoAnchorPanel.Visible = isAnchorAuto
 	cameraControlPanel.Visible = isCameraControl
-	giftDeliveryPanel.Visible = isGiftDelivery
+	if giftDeliveryPanel then giftDeliveryPanel.Visible = isGiftDelivery end
 	cinematicCameraPanel.Visible = isCinematicCamera
 	flightControlPanel.Visible = isFlightControl
 	carControlPanel.Visible = isCarControl
@@ -676,7 +677,9 @@ couplesTabBtns["poses"].btn.MouseButton1Click:Connect(function() currentTab="pos
 	controlTabBtns["cinematic_camera"].btn.MouseButton1Click:Connect(function() currentTab = "cinematic_camera"; UpdateTabData() end)
 couplesTabBtns["preset_poses"].btn.MouseButton1Click:Connect(function() currentTab="preset_poses";UpdateTabData() end)
 controlTabBtns["camera_control"].btn.MouseButton1Click:Connect(function() currentTab = "camera_control"; UpdateTabData() end)
+	if controlTabBtns.gift_delivery then
 	controlTabBtns["gift_delivery"].btn.MouseButton1Click:Connect(function() currentTab = "gift_delivery"; UpdateTabData() end)
+	end
 controlTabBtns["flight_control"].btn.MouseButton1Click:Connect(function() currentTab = "flight_control"; UpdateTabData() end)
 controlTabBtns["car_control"].btn.MouseButton1Click:Connect(function() currentTab = "car_control"; UpdateTabData() end)
 controlTabBtns["free_car_control"].btn.MouseButton1Click:Connect(function() currentTab = "free_car_control"; UpdateTabData() end)

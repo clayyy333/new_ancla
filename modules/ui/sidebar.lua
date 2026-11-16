@@ -399,7 +399,6 @@ return function(context)
 
 	local controlLabels = {
 		{"camera_control", isES and "Perspectiva Cámara" or "Camera Perspective"},
-		{"gift_delivery", isES and "Regalos" or "Gifts"},
 		{"cinematic_camera", isES and "Perspectiva cinemática" or "Cinematic Perspective"},
 		{"flight_control", isES and "Control de vuelo" or "Flight Control"},
 		{"car_control", isES and "Control de auto" or "Car Control"},
@@ -407,6 +406,7 @@ return function(context)
 		{"movement_control", isES and "Control de velocidad" or "Speed Control"},
 		{"vertical_control", isES and "Desplazamiento vertical" or "Vertical Displacement"},
 	}
+	if game.GameId==4540138978 then table.insert(controlLabels,2,{"gift_delivery",isES and "Regalos"or"Gifts"})end
 	for index, item in ipairs(controlLabels) do
 		local btn, stroke, gradient = CreateTextButton(
 			controlNav, item[2], item[1],
