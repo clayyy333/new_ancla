@@ -258,10 +258,7 @@ def require_owner_panel(
     return row_dict(session)
 
 
-def require_session(
-    authorization: Annotated[str | None, Header()] = None,
-    _: None = Depends(require_client_key),
-):
+def require_public_session(authorization: Annotated[str | None, Header()] = None):
     supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
     if not supplied:
         raise HTTPException(401, "Missing session token")
@@ -273,6 +270,13 @@ def require_session(
     if not session:
         raise HTTPException(401, "Invalid or ended session")
     return row_dict(session)
+
+
+def require_session(
+    session=Depends(require_public_session),
+    _: None = Depends(require_client_key),
+):
+    return session
 
 
 def audit(db, event_type: str, session_id=None, user_id=None, details=None) -> None:
@@ -305,8 +309,7 @@ def dashboard():
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.post("/api/v1/sessions/start", dependencies=[Depends(require_client_key)])
-def start_session(payload: SessionStart, request: Request):
+def _start_session(payload: SessionStart, request: Request):
     timestamp = now()
     session_id = str(uuid.uuid4())
     session_token = secrets.token_urlsafe(32)
@@ -401,8 +404,19 @@ def start_session(payload: SessionStart, request: Request):
     }
 
 
-@app.post("/api/v1/sessions/heartbeat")
-def heartbeat(payload: Heartbeat, session=Depends(require_session)):
+@app.post("/api/v1/sessions/start", dependencies=[Depends(require_client_key)])
+def start_session(payload: SessionStart, request: Request):
+    return _start_session(payload, request)
+
+
+@app.post("/api/v1/public/babycar/sessions/start")
+def start_public_babycar_session(payload: SessionStart, request: Request):
+    if payload.script_version != "babycar_sender_lite":
+        raise HTTPException(403, "This endpoint is limited to Babycar Sender Lite")
+    return _start_session(payload, request)
+
+
+def _heartbeat(payload: Heartbeat, session):
     timestamp = now()
     with connection() as db:
         expire_remote_selections(db, timestamp - SESSION_TIMEOUT, timestamp)
@@ -438,6 +452,18 @@ def heartbeat(payload: Heartbeat, session=Depends(require_session)):
         blocked=features_blocked(db,session,active_cutoff())
         gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
     return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"]), "gift_reception_blocked":bool(session["gift_reception_blocked"])}
+
+
+@app.post("/api/v1/sessions/heartbeat")
+def heartbeat(payload: Heartbeat, session=Depends(require_session)):
+    return _heartbeat(payload, session)
+
+
+@app.post("/api/v1/public/babycar/sessions/heartbeat")
+def public_babycar_heartbeat(payload: Heartbeat, session=Depends(require_public_session)):
+    # The public client may only report the gift activity field.
+    restricted = Heartbeat(gift_delivery_enabled=payload.gift_delivery_enabled)
+    return _heartbeat(restricted, session)
 
 
 @app.post("/api/v1/gifts/block-reception")
@@ -485,14 +511,23 @@ def unlock_gifts(payload: GiftUnlock, session=Depends(require_session)):
     return {"ok": True, "gift_access_unlocked": True}
 
 
-@app.post("/api/v1/sessions/end")
-def end_session(session=Depends(require_session)):
+def _end_session(session):
     timestamp = now()
     with connection() as db:
         clear_remote_selection(db, session["id"], timestamp)
         db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,gift_reception_blocked=0,gift_delivery_enabled=0,move_anchored_enabled=0,short_fling_enabled=0,folding_cleanup_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}
+
+
+@app.post("/api/v1/sessions/end")
+def end_session(session=Depends(require_session)):
+    return _end_session(session)
+
+
+@app.post("/api/v1/public/babycar/sessions/end")
+def end_public_babycar_session(session=Depends(require_public_session)):
+    return _end_session(session)
 
 
 @app.get("/api/v1/anchor/targets")

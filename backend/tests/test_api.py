@@ -493,3 +493,45 @@ def test_reception_blocks_are_scoped_expire_and_require_session(monkeypatch):
         monkeypatch.setattr(main, "now", lambda: timestamp+main.SESSION_TIMEOUT+1)
         assert client.get("/api/v1/gifts/reception-blocks", headers=headers).json()["blocked_users"] == []
         assert client.post("/api/v1/gifts/block-reception", headers=client_headers()).status_code == 401
+
+
+def test_public_babycar_presence_has_no_backend_key_or_private_access():
+    payload = {
+        "user_id": 987654,
+        "username": "babycar_user",
+        "display_name": "Babycar User",
+        "game_id": 200,
+        "place_id": 100,
+        "job_id": "babycar-server",
+        "game_name": "Test Game",
+        "executor": "Delta",
+        "script_version": "babycar_sender_lite",
+    }
+    with TestClient(main.app) as client:
+        rejected = client.post(
+            "/api/v1/public/babycar/sessions/start",
+            json={**payload, "script_version": "another_script"},
+        )
+        assert rejected.status_code == 403
+
+        started = client.post("/api/v1/public/babycar/sessions/start", json=payload)
+        assert started.status_code == 200
+        token = started.json()["session_token"]
+        public_headers = {"Authorization": "Bearer " + token}
+
+        heartbeat = client.post(
+            "/api/v1/public/babycar/sessions/heartbeat",
+            headers=public_headers,
+            json={"gift_delivery_enabled": True, "anchored": True},
+        )
+        assert heartbeat.status_code == 200
+
+        private = client.post(
+            "/api/v1/sessions/heartbeat", headers=public_headers, json={}
+        )
+        assert private.status_code == 401
+
+        ended = client.post(
+            "/api/v1/public/babycar/sessions/end", headers=public_headers
+        )
+        assert ended.status_code == 200
