@@ -413,6 +413,11 @@ def start_session(payload: SessionStart, request: Request):
 def start_public_babycar_session(payload: SessionStart, request: Request):
     if payload.script_version != "babycar_sender_lite":
         raise HTTPException(403, "This endpoint is limited to Babycar Sender Lite")
+    if (
+        payload.game_id != ANCHOR_ALLOWED_GAME_ID
+        or payload.place_id != ANCHOR_ALLOWED_PLACE_ID
+    ):
+        raise HTTPException(403, "Babycar presence is limited to Metro Life")
     return _start_session(payload, request)
 
 

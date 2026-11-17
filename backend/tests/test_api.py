@@ -514,6 +514,12 @@ def test_public_babycar_presence_has_no_backend_key_or_private_access():
         )
         assert rejected.status_code == 403
 
+        outside_metro = client.post(
+            "/api/v1/public/babycar/sessions/start",
+            json={**payload, "place_id": 999},
+        )
+        assert outside_metro.status_code == 403
+
         started = client.post("/api/v1/public/babycar/sessions/start", json=payload)
         assert started.status_code == 200
         token = started.json()["session_token"]
