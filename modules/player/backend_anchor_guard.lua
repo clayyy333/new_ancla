@@ -4,7 +4,7 @@ return function(context)
 	local Config=BackendAnchorConfig or {}
 	local LocalizationService=game:GetService("LocalizationService")
 	local MarketplaceService=game:GetService("MarketplaceService")
-	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false,GiftAccessUnlocked=false,GiftReceptionBlocked=false,GiftReceptionBusy=false,GiftRecipientBlocks={}}
+	local Guard={Running=false,Connected=false,AnchorGuardEnabled=false,Generation=0,SessionToken=nil,GiftDeliveryBlocked=false,GiftAccessUnlocked=false,GiftReceptionBlocked=false,GiftReceptionBusy=false,GiftRecipientBlocks={},EmoteSyncRequested=false}
 	local targetStates={}
 	local requestFn
 	local blockKey=table.concat({tostring(player.UserId),tostring(game.GameId),tostring(game.PlaceId),tostring(game.JobId)},":")
@@ -146,6 +146,7 @@ return function(context)
 		Guard.GiftReceptionBusy=false
 		table.clear(Guard.GiftRecipientBlocks)
 		if GiftDeliveryCore and GiftDeliveryCore.SetReceptionBlocked then GiftDeliveryCore:SetReceptionBlocked(Guard.GiftReceptionBlocked)end
+		Guard.EmoteSyncRequested=false
 		Guard.SessionToken=response.session_token
 		Guard.SessionId=response.session_id
 		if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
@@ -173,6 +174,7 @@ return function(context)
 			Guard.SessionToken=nil
 		end
 		if response then
+			Guard.EmoteSyncRequested=response.emote_sync_requested==true
 			if type(response.features_blocked)=="boolean"then applyBlock(response.features_blocked)end
 			if type(response.gift_delivery_blocked)=="boolean"then applyGiftDeliveryBlock(response.gift_delivery_blocked)end
 			if type(response.gift_access_unlocked)=="boolean"then applyGiftAccess(response.gift_access_unlocked)end
@@ -351,6 +353,7 @@ return function(context)
 						giftBlocksAt=timestamp+2;giftBlocksBusy=true
 						task.spawn(function()refreshGiftReceptionBlocks();giftBlocksBusy=false end)
 					end
+					if EmoteSyncTransport then EmoteSyncTransport:Tick()end
 					local anchored,mode,checkpoint=anchorState()
 					local giftDeliveryEnabled=GiftDeliveryCore~=nil and GiftDeliveryCore.Running==true
 					local moveAnchoredEnabled=(MobileAnchorCore~=nil and MobileAnchorCore:IsRunning()) or (MobileAnchorV11Core~=nil and MobileAnchorV11Core:IsRunning()) or (MobileAnchorV13Core~=nil and MobileAnchorV13Core:IsRunning())
@@ -405,6 +408,7 @@ return function(context)
 	end
 	function Guard:Destroy()
 		if not self.Running then return end
+		if EmoteSyncTransport then EmoteSyncTransport:Destroy()end
 		self.Running=false
 		self.Generation+=1
 		local token=self.SessionToken

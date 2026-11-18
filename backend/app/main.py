@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .database import connection, init_database
+from . import emote_sync
 from .remote_control import clear_remote_selection, expire_remote_selections, features_blocked, gift_delivery_blocked
 
 
@@ -148,6 +149,26 @@ class Heartbeat(BaseModel):
     checkpoint_x: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
     checkpoint_y: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
     checkpoint_z: float | None = Field(default=None, ge=-1_000_000, le=1_000_000)
+
+
+class EmoteFollowRequest(BaseModel):
+    target_user_id: int = Field(gt=0)
+    sequence: int = Field(ge=1, le=9_000_000_000_000_000)
+
+
+class EmoteFollowStop(BaseModel):
+    sequence: int = Field(ge=1, le=9_000_000_000_000_000)
+
+
+class EmoteSample(BaseModel):
+    active: bool = False
+    emote_id: int = Field(default=1, gt=0, le=9_000_000_000_000_000)
+    playback_key: str = Field(default="", max_length=100)
+    name: str = Field(default="", max_length=160)
+    position: float = Field(default=0, ge=0, le=86400)
+    speed: float = Field(default=1, ge=-20, le=20)
+    looped: bool = True
+    sample_time: float = Field(default=0, ge=0, le=1_000_000_000_000)
 
 
 class AnchorObservation(BaseModel):
@@ -456,7 +477,8 @@ def _heartbeat(payload: Heartbeat, session):
         )
         blocked=features_blocked(db,session,active_cutoff())
         gift_blocked=gift_delivery_blocked(db,session,active_cutoff())
-    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"]), "gift_reception_blocked":bool(session["gift_reception_blocked"])}
+        sync_requested=emote_sync.requested(db,session,timestamp,active_cutoff())
+    return {"ok": True, "credited_seconds": elapsed, "server_time": timestamp, "features_blocked":blocked, "gift_delivery_blocked":gift_blocked, "gift_access_unlocked":bool(session["gift_access_unlocked"]), "gift_reception_blocked":bool(session["gift_reception_blocked"]), "emote_sync_requested":sync_requested}
 
 
 @app.post("/api/v1/sessions/heartbeat")
@@ -469,6 +491,48 @@ def public_babycar_heartbeat(payload: Heartbeat, session=Depends(require_public_
     # The public client may only report the gift activity field.
     restricted = Heartbeat(gift_delivery_enabled=payload.gift_delivery_enabled)
     return _heartbeat(restricted, session)
+
+
+@app.post("/api/v1/emote-sync/follow")
+def follow_emotes(payload: EmoteFollowRequest, session=Depends(require_session)):
+    if payload.target_user_id == session["user_id"]:
+        raise HTTPException(400, "Cannot follow yourself")
+    timestamp = now()
+    with connection() as db:
+        if not emote_sync.source_session(db, session, payload.target_user_id, active_cutoff()):
+            raise HTTPException(404, "Target script is not connected in this server")
+        if emote_sync.would_cycle(db, session, payload.target_user_id, timestamp, active_cutoff()):
+            raise HTTPException(409, "Emote following cycle")
+        if not emote_sync.set_follow(db, session["id"], payload.sequence, payload.target_user_id, timestamp):
+            raise HTTPException(409, "Stale follow request")
+    return {"ok": True}
+
+
+@app.delete("/api/v1/emote-sync/follow")
+def stop_following_emotes(payload: EmoteFollowStop, session=Depends(require_session)):
+    with connection() as db:
+        applied = emote_sync.set_follow(db, session["id"], payload.sequence, None, now())
+    return {"ok": True, "applied": applied}
+
+
+@app.get("/api/v1/emote-sync/state")
+def get_emote_sync_state(session=Depends(require_session)):
+    with connection() as db:
+        return emote_sync.read_state(db, session, now(), active_cutoff())
+
+
+@app.put("/api/v1/emote-sync/state")
+def publish_emote_sync_state(payload: EmoteSample, session=Depends(require_session)):
+    timestamp = now()
+    with connection() as db:
+        requested = emote_sync.requested(db, session, timestamp, active_cutoff())
+        if requested:
+            db.execute(
+                """INSERT INTO emote_sync_samples(source_session_id,payload,updated_at) VALUES(?,?,?)
+                   ON CONFLICT(source_session_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at""",
+                (session["id"], payload.model_dump_json(), timestamp),
+            )
+    return {"ok": True, "requested": requested}
 
 
 @app.post("/api/v1/gifts/block-reception")
@@ -520,6 +584,8 @@ def _end_session(session):
     timestamp = now()
     with connection() as db:
         clear_remote_selection(db, session["id"], timestamp)
+        db.execute("DELETE FROM emote_sync_followers WHERE follower_session_id=?", (session["id"],))
+        db.execute("DELETE FROM emote_sync_samples WHERE source_session_id=?", (session["id"],))
         db.execute("UPDATE sessions SET ended_at=?,last_seen=?,anchored=0,gift_reception_blocked=0,gift_delivery_enabled=0,move_anchored_enabled=0,short_fling_enabled=0,folding_cleanup_enabled=0 WHERE id=?", (timestamp, timestamp, session["id"]))
         audit(db, "session_ended", session["id"], session["user_id"])
     return {"ok": True}

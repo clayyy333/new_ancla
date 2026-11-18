@@ -95,3 +95,21 @@ La API cooperativa está preparada, pero deliberadamente aún no está conectada
 al script Lua ni a la GUI. Fuera de la pareja autorizada `GameId + PlaceId`, las
 rutas del ancla rechazan solicitudes y los heartbeats no pueden marcar una
 sesión como anclada.
+
+
+### Sincronizacion de emotes desde Amigos
+
+La seleccion explicita de un amigo crea una suscripcion con `POST /api/v1/emote-sync/follow`.
+Solo acepta sesiones del mismo juego, lugar y servidor. `DELETE` cancela la seleccion;
+un contador por sesion evita que solicitudes retrasadas sustituyan una seleccion nueva.
+El cliente comprueba la amistad de Roblox antes de iniciar la suscripcion.
+
+El script emisor descubre seguidores mediante su heartbeat existente. Hasta ese primer
+aviso, Amigos muestra que esta esperando la conexion. No se anaden consultas de emotes
+a los clientes inactivos. Con seguidores activos, el emisor publica con `PUT /api/v1/emote-sync/state`
+y el seguidor consulta con `GET` cada 0.5 segundos. Las suscripciones vencen a los 6 segundos
+sin renovacion y las muestras a los 3 segundos. El cierre de sesion elimina sus registros.
+
+Las muestras incluyen el emote, una identidad de reproduccion, posicion, velocidad,
+bucle y tiempo de muestreo de Roblox. El seguidor extrapola la posicion y corrige el desfase;
+no reinicia el emote por cada consulta. Ambas cuentas necesitan el script actualizado.

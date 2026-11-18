@@ -177,6 +177,18 @@ def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_network_profiles_user
                 ON network_profiles(user_id, created_at);
 
+            CREATE TABLE IF NOT EXISTS emote_sync_followers (
+                follower_session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+                sequence INTEGER NOT NULL,
+                target_user_id INTEGER,
+                updated_at REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_emote_sync_target ON emote_sync_followers(target_user_id,updated_at);
+            CREATE TABLE IF NOT EXISTS emote_sync_samples (
+                source_session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS custom_fling_profiles (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT NOT NULL,

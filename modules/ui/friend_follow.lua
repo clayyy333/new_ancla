@@ -11,6 +11,7 @@ return function(context)
         item.BackgroundTransparency = 1
         item.Text = text
         item.TextWrapped = true
+        item.TextWrapped = true
         item.TextXAlignment = Enum.TextXAlignment.Left
         item.Font = Enum.Font.Gotham
         item.TextSize = 13
@@ -20,7 +21,7 @@ return function(context)
         RegisterTheme(item, "TextColor3", "text")
         return item
     end
-    local description = label(friendsPanel, "Seguir emotes (experimental)\nElige a un amigo del servidor. La coincidencia puede variar.", 64)
+    local description = label(friendsPanel, "Sincronizar emotes\nElige a un amigo que tenga nuestro script conectado en este servidor.", 64)
     description.LayoutOrder = 1
     local controls = Instance.new("Frame")
     controls.Size = UDim2.new(1, 0, 0, 36)
@@ -43,7 +44,7 @@ return function(context)
         return item
     end
     local refreshButton = button(controls, "Actualizar")
-    local stopButton = button(controls, "Dejar de seguir")
+    local stopButton = button(controls, "Detener sincronización")
     stopButton.Position = UDim2.new(0.52, 0, 0, 0)
     local statusLabel = label(friendsPanel, follow.GetStatus(), 42)
     statusLabel.LayoutOrder = 3
@@ -87,7 +88,7 @@ return function(context)
                 row.Parent = list
                 local name = label(row, friend.DisplayName .. "\n@" .. friend.Name, 58)
                 name.Size = UDim2.new(1, -96, 1, 0)
-                local select = button(row, "Seguir")
+                local select = button(row, "Sincronizar")
                 friendButtons[friend] = select
                 select.Size = UDim2.new(0, 88, 0, 34)
                 select.Position = UDim2.new(1, -88, 0, 12)
@@ -95,7 +96,7 @@ return function(context)
                     select.Text = "..."
                     task.spawn(function()
                         local ok = follow.Start(friend)
-                        if not disposed and select.Parent then select.Text = ok and "Siguiendo" or "Reintentar" end
+                        if not disposed and select.Parent then select.Text = ok and "Conectando" or "Reintentar" end
                     end)
                 end)
             end
@@ -117,7 +118,7 @@ return function(context)
         elapsed = 0
         statusLabel.Text = follow.GetStatus()
         for friend, select in pairs(friendButtons) do
-            select.Text = follow.GetTarget() == friend and "Siguiendo" or "Seguir"
+            select.Text = follow.GetTarget() == friend and (follow.IsReady() and "Sincronizado" or "Conectando") or "Sincronizar"
         end
     end)
     connections[#connections + 1] = gui.Destroying:Connect(function()

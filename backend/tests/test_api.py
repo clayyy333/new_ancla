@@ -541,3 +541,72 @@ def test_public_babycar_presence_has_no_backend_key_or_private_access():
             "/api/v1/public/babycar/sessions/end", headers=public_headers
         )
         assert ended.status_code == 200
+
+
+def test_emote_sync_opt_in_publish_stop_and_sequence_guards():
+    with TestClient(main.app) as client:
+        source = start_session(client, 92001, "emote-source")
+        follower = start_session(client, 92002, "emote-follower")
+        sh, fh = client_headers(source["session_token"]), client_headers(follower["session_token"])
+        idle = client.put("/api/v1/emote-sync/state", headers=sh, json={"active": False})
+        assert idle.status_code == 200 and idle.json()["requested"] is False
+        assert client.get("/api/v1/emote-sync/state", headers=fh).json()["ready"] is False
+        with main.connection() as db:
+            assert db.execute("SELECT COUNT(*) AS n FROM emote_sync_samples WHERE source_session_id=?", (source["session_id"],)).fetchone()["n"] == 0
+        assert client.post("/api/v1/emote-sync/follow", headers=fh, json={"target_user_id": 92001, "sequence": 1}).status_code == 200
+        assert client.post("/api/v1/sessions/heartbeat", headers=sh, json={}).json()["emote_sync_requested"] is True
+        sample = {"active": True, "emote_id": 1234567, "playback_key": "track-1", "name": "Wave", "position": 2.5, "speed": 1.25, "looped": True, "sample_time": main.now()}
+        response = client.put("/api/v1/emote-sync/state", headers=sh, json=sample)
+        assert response.status_code == 200 and response.json()["requested"] is True
+        state = client.get("/api/v1/emote-sync/state", headers=fh).json()
+        assert state["ready"] is True and state["source_session_id"] == source["session_id"]
+        assert state["state"] == sample
+        sample.update(speed=0, position=3.0)
+        client.put("/api/v1/emote-sync/state", headers=sh, json=sample)
+        assert client.get("/api/v1/emote-sync/state", headers=fh).json()["state"]["speed"] == 0
+        stopped = client.request("DELETE", "/api/v1/emote-sync/follow", headers=fh, json={"sequence": 2})
+        assert stopped.status_code == 200 and stopped.json()["applied"] is True
+        assert client.get("/api/v1/emote-sync/state", headers=fh).json()["ready"] is False
+        assert client.post("/api/v1/sessions/heartbeat", headers=sh, json={}).json()["emote_sync_requested"] is False
+        assert client.post("/api/v1/emote-sync/follow", headers=fh, json={"target_user_id": 92001, "sequence": 1}).status_code == 409
+        assert client.post("/api/v1/emote-sync/follow", headers=fh, json={"target_user_id": 92001, "sequence": 3}).status_code == 200
+        late = client.request("DELETE", "/api/v1/emote-sync/follow", headers=fh, json={"sequence": 2})
+        assert late.json()["applied"] is False
+        assert client.get("/api/v1/emote-sync/state", headers=fh).json()["ready"] is True
+
+
+def test_emote_sync_scope_cycles_and_validation():
+    with TestClient(main.app) as client:
+        a, b, other = [start_session(client, uid, "sync"+str(uid)) for uid in (92003, 92004, 92005)]
+        ah, bh = client_headers(a["session_token"]), client_headers(b["session_token"])
+        with main.connection() as db:
+            db.execute("UPDATE sessions SET job_id='other-server' WHERE id=?", (other["session_id"],))
+        assert client.post("/api/v1/emote-sync/follow", headers=ah, json={"target_user_id": 92005, "sequence": 1}).status_code == 404
+        assert client.post("/api/v1/emote-sync/follow", headers=ah, json={"target_user_id": 92003, "sequence": 1}).status_code == 400
+        assert client.post("/api/v1/emote-sync/follow", headers=ah, json={"target_user_id": 92004, "sequence": 1}).status_code == 200
+        assert client.post("/api/v1/emote-sync/follow", headers=bh, json={"target_user_id": 92003, "sequence": 1}).status_code == 409
+        assert client.get("/api/v1/emote-sync/state", headers=bh).json()["ready"] is False
+        assert client.put("/api/v1/emote-sync/state", headers=bh, json={"speed": 100}).status_code == 422
+        assert client.put("/api/v1/emote-sync/state", headers=bh, json={"emote_id": 0}).status_code == 422
+        assert client.get("/api/v1/emote-sync/state", headers=client_headers()).status_code == 401
+
+
+def test_emote_sync_expiry_and_session_cleanup(monkeypatch):
+    with TestClient(main.app) as client:
+        source, follower = start_session(client, 92006, "sync-expiring-source"), start_session(client, 92007, "sync-expiring-follower")
+        sh, fh = client_headers(source["session_token"]), client_headers(follower["session_token"])
+        client.post("/api/v1/emote-sync/follow", headers=fh, json={"target_user_id": 92006, "sequence": 1})
+        client.put("/api/v1/emote-sync/state", headers=sh, json={"active": False})
+        timestamp=main.now()
+        monkeypatch.setattr(main,"now",lambda: timestamp+4)
+        result=client.get("/api/v1/emote-sync/state",headers=fh).json()
+        assert result["ready"] is False and result["reason"] == "waiting_for_source"
+        monkeypatch.setattr(main,"now",lambda: timestamp+11)
+        assert client.post("/api/v1/sessions/heartbeat",headers=sh,json={}).json()["emote_sync_requested"] is False
+        assert client.get("/api/v1/emote-sync/state",headers=fh).json()["reason"] == "not_following"
+        client.post("/api/v1/sessions/end", headers=sh)
+        with main.connection() as db:
+            assert db.execute("SELECT COUNT(*) AS n FROM emote_sync_samples WHERE source_session_id=?",(source["session_id"],)).fetchone()["n"] == 0
+        client.post("/api/v1/sessions/end", headers=fh)
+        with main.connection() as db:
+            assert db.execute("SELECT COUNT(*) AS n FROM emote_sync_followers WHERE follower_session_id=?",(follower["session_id"],)).fetchone()["n"] == 0
