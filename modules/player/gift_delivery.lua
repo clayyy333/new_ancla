@@ -33,6 +33,17 @@ return function(context)
 		ReceptionBlocked=(BackendAnchorGuard and BackendAnchorGuard.GiftReceptionBlocked==true)or false,ReceptionBusy=false,ReceptionMessage=nil,
 		AntiDetected=0,AntiRemoved=0,AntiFailures=0,_changed=Instance.new("BindableEvent")
 	}
+	local stateNamesEN={
+		["DETENIDO"]="STOPPED",
+		["OBTENIENDO"]="OBTAINING ITEM",
+		["ESPERANDO JUGADORES"]="WAITING FOR PLAYERS",
+		["ENVIANDO CONTINUO"]="SENDING GIFTS CONTINUOUSLY",
+		["ESPERANDO SIGUIENTE OBJETO"]="WAITING FOR NEXT ITEM",
+		["INICIANDO"]="STARTING",
+	}
+	function Core:GetStateText()
+		return isES and self.State or(stateNamesEN[self.State]or self.State)
+	end
 	local nextRecipientIndex=1
 	local lastSendAt=-math.huge
 	local lastRecipientId=nil

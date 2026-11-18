@@ -19,7 +19,7 @@ return function(context)
 	local status=label("",UDim2.new(0,12,0,216),38);status.TextXAlignment=Enum.TextXAlignment.Center
 	local cleanupToggle=button(card,"",UDim2.new(1,-24,0,44),UDim2.new(0,12,0,260),8)
 	local cleanupStatus=label("",UDim2.new(0,12,0,314),24);cleanupStatus.TextXAlignment=Enum.TextXAlignment.Center
-	local blockReception=button(card,"Bloquear Regalos ( Solo  desactiva envios de este mismo script )",UDim2.new(1,-24,0,54),UDim2.new(0,12,0,350),8)
+	local blockReception=button(card,isES and"Bloquear Regalos ( Solo  desactiva envios de este mismo script )"or"Block Gifts ( Only blocks gifts sent by this script )",UDim2.new(1,-24,0,54),UDim2.new(0,12,0,350),8)
 	local receptionStatus=label("",UDim2.new(0,12,0,410),22);receptionStatus.TextXAlignment=Enum.TextXAlignment.Center
 	local pinShade=Instance.new("Frame");pinShade.Size=UDim2.fromScale(1,1);pinShade.BackgroundColor3=Color3.new(0,0,0);pinShade.BackgroundTransparency=.18;pinShade.BorderSizePixel=0;pinShade.Visible=false;pinShade.ZIndex=60;pinShade.Parent=card;Instance.new("UICorner",pinShade).CornerRadius=UDim.new(0,14)
 	local pinBox=Instance.new("Frame");pinBox.Size=UDim2.new(1,-40,0,190);pinBox.AnchorPoint=Vector2.new(.5,.5);pinBox.Position=UDim2.fromScale(.5,.5);pinBox.BackgroundColor3=currentTheme.secondary;pinBox.BorderSizePixel=0;pinBox.ZIndex=61;pinBox.Parent=pinShade;Instance.new("UICorner",pinBox).CornerRadius=UDim.new(0,12);RegisterTheme(pinBox,"BackgroundColor3","secondary")
@@ -84,7 +84,7 @@ return function(context)
 		itemButton.Text=Core.Item.."  ▼"
 		sendToggle.Text=Core.Running and(isES and"ENVÍO CONTINUO: ACTIVADO"or"CONTINUOUS DELIVERY: ON")or(isES and"ENVÍO CONTINUO: DESACTIVADO"or"CONTINUOUS DELIVERY: OFF")
 		sendToggle.BackgroundColor3=Core.Running and currentTheme.accent or currentTheme.tertiary
-		status.Text=not allowed and(isES and"Desactivado por el administrador"or"Disabled by administrator")or message or((isES and"Estado: "or"Status: ")..Core.State.." · "..Core:GetSelectedCount()..(isES and" destinatario(s)"or" recipient(s)"))
+		status.Text=not allowed and(isES and"Desactivado por el administrador"or"Disabled by administrator")or message or((isES and"Estado: "or"Status: ")..Core:GetStateText().." · "..Core:GetSelectedCount()..(isES and" destinatario(s)"or" recipient(s)"))
 		cleanupToggle.Text=(isES and"LIMPIEZA DE REGALOS (NO BLOQUEA): "or"GIFT CLEANUP (NON-BLOCKING): ")..(Core.AntiEnabled and"ON"or"OFF")
 		cleanupToggle.BackgroundColor3=Core.AntiEnabled and currentTheme.accent or currentTheme.tertiary
 		cleanupStatus.Text=string.format(isES and"Detectados: %d · Limpiados: %d · Fallos: %d"or"Detected: %d · Cleaned: %d · Failures: %d",Core.AntiDetected,Core.AntiRemoved,Core.AntiFailures)
