@@ -423,9 +423,10 @@ RefreshPlaylistsList = function()
 	end
 end
 
-UpdateTabData = function()
+UpdateTabData = function(retry)
 	if currentTab=="gift_delivery" and game.GameId~=4540138978 then currentTab="camera_control"end
 	if currentTab=="fling_object"and(not ObjectV8FlingCore or not ObjectV8FlingCore:IsAuthorized())then currentTab="fling2"end
+	local panelReady=not LazyPanels or LazyPanels:Ensure(currentTab,retry~=false)
 	hideTrendingDropdown()
 	search.Text = ""
 	page = 1
@@ -462,42 +463,42 @@ UpdateTabData = function()
 	if randBtn then randBtn.Visible = not isCouples end
 	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
-	settingsPanel.Visible  = isSettings
-	friendsPanel.Visible   = isFriends
-	keybindsPanel.Visible  = isKeybinds
-	fling2Panel.Visible = isFling2
-	customFlingPanel.Visible = isCustomFling
-	contactFlingPanel.Visible = isContactFling
-	carFlingPanel.Visible = isFlingCar
-	carFling2Panel.Visible = isFlingCar2
-	objectFlingPanel.Visible = isFlingObject
-	motoFlingPanel.Visible = isFlingMoto
-	motoFlingXenoPanel.Visible = isFlingMotoXeno
-	experimentalFlingPanel.Visible = currentTab=="fling_experimental" and ExperimentalFlingCore:IsAuthorized()
-	anchorPanel.Visible = isAnchorBasic
-	moveAnchoredPanel.Visible = isMoveAnchored
-	autoAnchorPanel.Visible = isAnchorAuto
-	cameraControlPanel.Visible = isCameraControl
-	if giftDeliveryPanel then giftDeliveryPanel.Visible = isGiftDelivery end
-	cinematicCameraPanel.Visible = isCinematicCamera
-	flightControlPanel.Visible = isFlightControl
-	carControlPanel.Visible = isCarControl
-	freeCarControlPanel.Visible = isFreeCarControl
-	movementControlPanel.Visible = isMovementControl
-	verticalControlPanel.Visible = isVerticalControl
-	graphicsPanel.Visible = isFPSBooster
-	clothingScanPanel.Visible = currentTab == "clothing_scan"
-	shaderPanel.Visible = currentTab == "shaders"
-	couplesPanel.Visible = currentTab == "couples"
-	coupleMovementPanel.Visible = currentTab == "couple_movement"
-	posesPanel.Visible = currentTab == "poses"
-	presetPosePanel.Visible = currentTab == "preset_poses"
+	if settingsPanel then settingsPanel.Visible = (isSettings) and panelReady end
+	if friendsPanel then friendsPanel.Visible = (isFriends) and panelReady end
+	if keybindsPanel then keybindsPanel.Visible = (isKeybinds) and panelReady end
+	if fling2Panel then fling2Panel.Visible = (isFling2) and panelReady end
+	if customFlingPanel then customFlingPanel.Visible = (isCustomFling) and panelReady end
+	if contactFlingPanel then contactFlingPanel.Visible = (isContactFling) and panelReady end
+	if carFlingPanel then carFlingPanel.Visible = (isFlingCar) and panelReady end
+	if carFling2Panel then carFling2Panel.Visible = (isFlingCar2) and panelReady end
+	if objectFlingPanel then objectFlingPanel.Visible = (isFlingObject) and panelReady end
+	if motoFlingPanel then motoFlingPanel.Visible = (isFlingMoto) and panelReady end
+	if motoFlingXenoPanel then motoFlingXenoPanel.Visible = (isFlingMotoXeno) and panelReady end
+	if experimentalFlingPanel then experimentalFlingPanel.Visible = (currentTab=="fling_experimental" and ExperimentalFlingCore:IsAuthorized()) and panelReady end
+	if anchorPanel then anchorPanel.Visible = (isAnchorBasic) and panelReady end
+	if moveAnchoredPanel then moveAnchoredPanel.Visible = (isMoveAnchored) and panelReady end
+	if autoAnchorPanel then autoAnchorPanel.Visible = (isAnchorAuto) and panelReady end
+	if cameraControlPanel then cameraControlPanel.Visible = (isCameraControl) and panelReady end
+	if giftDeliveryPanel then giftDeliveryPanel.Visible = (isGiftDelivery) and panelReady end
+	if cinematicCameraPanel then cinematicCameraPanel.Visible = (isCinematicCamera) and panelReady end
+	if flightControlPanel then flightControlPanel.Visible = (isFlightControl) and panelReady end
+	if carControlPanel then carControlPanel.Visible = (isCarControl) and panelReady end
+	if freeCarControlPanel then freeCarControlPanel.Visible = (isFreeCarControl) and panelReady end
+	if movementControlPanel then movementControlPanel.Visible = (isMovementControl) and panelReady end
+	if verticalControlPanel then verticalControlPanel.Visible = (isVerticalControl) and panelReady end
+	if graphicsPanel then graphicsPanel.Visible = (isFPSBooster) and panelReady end
+	if clothingScanPanel then clothingScanPanel.Visible = (currentTab == "clothing_scan") and panelReady end
+	if shaderPanel then shaderPanel.Visible = (currentTab == "shaders") and panelReady end
+	if couplesPanel then couplesPanel.Visible = (currentTab == "couples") and panelReady end
+	if coupleMovementPanel then coupleMovementPanel.Visible = (currentTab == "couple_movement") and panelReady end
+	if posesPanel then posesPanel.Visible = (currentTab == "poses") and panelReady end
+	if presetPosePanel then presetPosePanel.Visible = (currentTab == "preset_poses") and panelReady end
 	local viewingPlaylist = isPlaylists and (_currentPlaylistId ~= nil)
 	
-	if isPlaylists and not viewingPlaylist then
+	if isPlaylists and not viewingPlaylist and panelReady then
 		if RefreshPlaylistsList then RefreshPlaylistsList() end
 	end
-	playlistsPanel.Visible = isPlaylists and not viewingPlaylist
+	if playlistsPanel then playlistsPanel.Visible = (isPlaylists and not viewingPlaylist) and panelReady end
 	local hideNormal = isSettings or isFriends or isKeybinds or isFlingView or (isPlaylists and not viewingPlaylist)
 	scroll.Visible  = not hideNormal
 	search.Visible  = not hideNormal
@@ -515,7 +516,7 @@ UpdateTabData = function()
 	if hideNormal then
 		emptyLbl.Visible = false
 	end
-	if isKeybinds then
+	if isKeybinds and panelReady then
 		if RefreshKeybindsPanel then RefreshKeybindsPanel() end
 	end
 	
@@ -663,7 +664,8 @@ UpdateTabData = function()
 	UpdateTabStyles()
 	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and not isFlingView and (not isPlaylists or viewingPlaylist)
 	local waiting=CatalogLoadPanel and CatalogLoadPanel:SetTab(currentTab)
-	if shouldRefresh and not waiting then Refresh(true) end
+	if LazyPanels then LazyPanels:Show(currentTab,not panelReady)end
+	if shouldRefresh and not waiting and panelReady then Refresh(true) end
 end
 
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fling2"; UpdateTabData() end)

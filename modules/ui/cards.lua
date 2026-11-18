@@ -776,6 +776,7 @@ function UpdateCards(animate)
 end
 
 function Refresh(animate)
+	if LazyPanels and LazyPanels:IsPending(currentTab)then return end
 	if CatalogLoadState and CatalogLoadState:IsPending(currentTab)then return end
 	CalcLayout()
 	UpdatePageUI()
