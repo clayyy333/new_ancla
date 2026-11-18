@@ -602,6 +602,7 @@ return function(context)
 		if originalAnimate and originalAnimate.Parent then pcall(restoreOriginal,originalAnimate)end
 	end
 	function ReapplyAnimationSelection()
+		if not CatalogLoadState or not CatalogLoadState.Alive or not CatalogLoadState.Animations.Loaded then return end
 		for _,state in ipairs(stateOrder) do
 			if selected[state] then applySelection();return end
 		end
@@ -628,10 +629,12 @@ return function(context)
 		end
 	end
 	local savedBundleId=tonumber(Settings.animationPackBundleId)
+	function RestoreSavedAnimationSelection()
+		if not CatalogLoadState or not CatalogLoadState.Alive or not CatalogLoadState.Animations.Loaded then return end
 	if restoredSelection then
 		task.defer(function()
 			local character=player.Character or player.CharacterAdded:Wait()
-			if character and character:WaitForChild("Animate",5) then applySelection() end
+			if character and character:WaitForChild("Animate",5) and CatalogLoadState.Alive then applySelection() end
 		end)
 	elseif savedBundleId then
 		task.defer(function()
@@ -641,10 +644,11 @@ return function(context)
 			end
 			if not savedPack then return end
 			local character=player.Character or player.CharacterAdded:Wait()
-			if character and character:WaitForChild("Animate",5) then
+			if character and character:WaitForChild("Animate",5) and CatalogLoadState.Alive then
 				EquipAnimationPack(savedPack,true)
 			end
 		end)
+	end
 	end
 	return true
 end

@@ -76,7 +76,7 @@ if not isMobile then
 end
 
 task.wait(0.25)
-Notify(SafeUtf8Char(0x2705) .. " " .. L.ready, #Emotes .. " emotes")
+Notify(SafeUtf8Char(0x2705) .. " " .. L.ready, isES and "Emotes y animaciones disponibles para cargar." or "Emotes and animations available to load.")
 
 -- ================================================================
 -- Bölüm 1: Dinamik Tema  |  Bölüm 2: Animation Blending & Combo

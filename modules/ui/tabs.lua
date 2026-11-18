@@ -662,7 +662,8 @@ UpdateTabData = function()
 
 	UpdateTabStyles()
 	local shouldRefresh = not isSettings and not isKeybinds and not isFriends and not isFlingView and (not isPlaylists or viewingPlaylist)
-	if shouldRefresh then Refresh(true) end
+	local waiting=CatalogLoadPanel and CatalogLoadPanel:SetTab(currentTab)
+	if shouldRefresh and not waiting then Refresh(true) end
 end
 
 mainNavBtns["fling2"].MouseButton1Click:Connect(function() if os.clock() < mainNavDragSuppressUntil then return end; currentTab = "fling2"; UpdateTabData() end)

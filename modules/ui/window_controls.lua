@@ -132,6 +132,7 @@ end
 minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
+	pcall(function()if CatalogLoadState then CatalogLoadState:Destroy()end end)
 	pcall(function()if NoSitAnchorCore then NoSitAnchorCore:Destroy()end end)
 	pcall(function()if CleanupBacklogCore then CleanupBacklogCore:Destroy()end end)
 	pcall(function()if GenericAttachedCleanupCore then GenericAttachedCleanupCore:Destroy()end end)
