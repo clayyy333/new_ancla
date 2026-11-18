@@ -785,7 +785,7 @@ end
 -- CONSTRUIR CACHE LOD
 --==========================================================
 
-local function buildLODCache()
+local function buildLODCache(progress)
 
     lodGroups = {}
 
@@ -801,6 +801,7 @@ local function buildLODCache()
     --
     -- No depende exclusivamente de ART_City.
 
+    if progress then progress(.65,"scan");task.wait()end
     local descendants =
         Workspace:GetDescendants()
 
@@ -810,7 +811,8 @@ local function buildLODCache()
             registerLODGroup(object)
         end
 
-        if index % 1500 == 0 then
+        if index % 250 == 0 then
+            if progress then progress(.65+.30*index/math.max(1,#descendants),"scan")end
             task.wait()
         end
     end
@@ -1335,14 +1337,16 @@ end
 -- INICIALIZACION
 --==========================================================
 
-task.spawn(function()
-
-    buildLODCache()
-
-    if not destroyed then
-        startLODWatcher()
-    end
-end)
+local prepared=false
+function FPSBooster:Prepare(progress)
+    if destroyed then return false end
+    if prepared then return true end
+    buildLODCache(progress)
+    if destroyed then return false end
+    prepared=true
+    startLODWatcher()
+    return true
+end
 
 FPSBoosterCore = FPSBooster
 return true

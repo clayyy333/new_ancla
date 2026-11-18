@@ -4,9 +4,9 @@ return function(context)
 	shaderPanel=Instance.new("ScrollingFrame")
 	shaderPanel.Name="ShaderPanel";shaderPanel.Size=UDim2.new(1,-16,1,-(titleH+20));shaderPanel.Position=UDim2.new(0,8,0,titleH+8)
 	shaderPanel.BackgroundTransparency=1;shaderPanel.BorderSizePixel=0;shaderPanel.ScrollBarThickness=3;shaderPanel.AutomaticCanvasSize=Enum.AutomaticSize.Y;shaderPanel.CanvasSize=UDim2.new();shaderPanel.Visible=false;shaderPanel.ZIndex=6;shaderPanel.Parent=content
-	Instance.new("UIListLayout",shaderPanel).Padding=UDim.new(0,8);Instance.new("UIPadding",shaderPanel).PaddingBottom=UDim.new(0,8)
+	local layout=Instance.new("UIListLayout",shaderPanel);layout.Padding=UDim.new(0,8);layout.SortOrder=Enum.SortOrder.LayoutOrder;Instance.new("UIPadding",shaderPanel).PaddingBottom=UDim.new(0,8)
 	local card=Instance.new("Frame")
-	card.Size=UDim2.new(1,-4,0,isMobile and 260 or 238);card.BackgroundColor3=currentTheme.secondary;card.BorderSizePixel=0;card.ZIndex=7;card.Parent=shaderPanel
+	card.LayoutOrder=1;card.Size=UDim2.new(1,-4,0,isMobile and 260 or 238);card.BackgroundColor3=currentTheme.secondary;card.BorderSizePixel=0;card.ZIndex=7;card.Parent=shaderPanel
 	Instance.new("UICorner",card).CornerRadius=UDim.new(0,12);RegisterTheme(card,"BackgroundColor3","secondary")
 	local heading=Instance.new("TextLabel")
 	heading.Size=UDim2.new(1,-24,0,28);heading.Position=UDim2.new(0,12,0,10);heading.BackgroundTransparency=1;heading.Text=isES and "Shaders nocturnos" or "Night shaders";heading.TextColor3=currentTheme.text;heading.Font=Enum.Font.GothamBold;heading.TextSize=isMobile and 14 or 16;heading.TextXAlignment=Enum.TextXAlignment.Left;heading.ZIndex=8;heading.Parent=card;RegisterTheme(heading,"TextColor3","text")
@@ -23,7 +23,7 @@ return function(context)
 	local status=Instance.new("TextLabel")
 	status.Size=UDim2.new(1,-24,0,24);status.Position=UDim2.new(0,12,0,212);status.BackgroundTransparency=1;status.TextColor3=currentTheme.textDim;status.Font=Enum.Font.Gotham;status.TextSize=isMobile and 10 or 11;status.TextXAlignment=Enum.TextXAlignment.Left;status.ZIndex=8;status.Parent=card;RegisterTheme(status,"TextColor3","textDim")
 	local fireworksCard=Instance.new("Frame")
-	fireworksCard.Size=UDim2.new(1,-4,0,isMobile and 250 or 230);fireworksCard.BackgroundColor3=currentTheme.secondary;fireworksCard.BorderSizePixel=0;fireworksCard.ZIndex=7;fireworksCard.Parent=shaderPanel
+	fireworksCard.LayoutOrder=3;fireworksCard.Size=UDim2.new(1,-4,0,isMobile and 250 or 230);fireworksCard.BackgroundColor3=currentTheme.secondary;fireworksCard.BorderSizePixel=0;fireworksCard.ZIndex=7;fireworksCard.Parent=shaderPanel
 	Instance.new("UICorner",fireworksCard).CornerRadius=UDim.new(0,12);RegisterTheme(fireworksCard,"BackgroundColor3","secondary")
 	local fireworksHeading=Instance.new("TextLabel")
 	fireworksHeading.Size=UDim2.new(1,-24,0,28);fireworksHeading.Position=UDim2.new(0,12,0,10);fireworksHeading.BackgroundTransparency=1;fireworksHeading.Text=isES and "Fuegos Artificiales" or "Fireworks";fireworksHeading.TextColor3=currentTheme.text;fireworksHeading.Font=Enum.Font.GothamBold;fireworksHeading.TextSize=isMobile and 14 or 16;fireworksHeading.TextXAlignment=Enum.TextXAlignment.Left;fireworksHeading.ZIndex=8;fireworksHeading.Parent=fireworksCard;RegisterTheme(fireworksHeading,"TextColor3","text")
@@ -39,6 +39,7 @@ return function(context)
 	fireworksStatus.Size=UDim2.new(1,-24,0,42);fireworksStatus.Position=UDim2.new(0,12,0,169);fireworksStatus.BackgroundTransparency=1;fireworksStatus.TextColor3=currentTheme.textDim;fireworksStatus.Font=Enum.Font.Gotham;fireworksStatus.TextSize=isMobile and 9 or 11;fireworksStatus.TextWrapped=true;fireworksStatus.TextXAlignment=Enum.TextXAlignment.Left;fireworksStatus.ZIndex=8;fireworksStatus.Parent=fireworksCard;RegisterTheme(fireworksStatus,"TextColor3","textDim")
 	local function updateFireworks(message)
 		local active=SkyFireworksCore and SkyFireworksCore:IsEnabled()
+		fireworksToggle.Active=SkyFireworksCore~=nil;applyName.Active=SkyFireworksCore~=nil
 		fireworksToggle.Text=active and (isES and "Desactivar fuegos" or "Disable fireworks") or (isES and "Activar fuegos" or "Enable fireworks")
 		fireworksStatus.Text=message or (active and (isES and "Estado: activado" or "Status: enabled") or (isES and "Estado: desactivado" or "Status: disabled"))
 	end
@@ -76,5 +77,7 @@ return function(context)
 	night4Button.Activated:Connect(function() setMode("NIGHT4") end)
 	horrorButton.Activated:Connect(function() setMode("HORROR") end)
 	disableButton.Activated:Connect(function() if not busy and NightShaderCore then NightShaderCore:Disable();UpdateShaderPanel() end end)
+	CreateGraphicsLoadControl(shaderPanel,"NightShader",isES and"Shaders nocturnos"or"Night shaders",0,function(loaded)card.Visible=loaded;UpdateShaderPanel()end)
+	CreateGraphicsLoadControl(shaderPanel,"SkyFireworks",isES and"Fuegos artificiales"or"Fireworks",2,function(loaded)fireworksCard.Visible=loaded;updateFireworks()end)
 	UpdateShaderPanel();return true
 end

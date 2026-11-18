@@ -17,10 +17,12 @@ return function(context)
 
 	local layout=Instance.new("UIListLayout",graphicsPanel)
 	layout.Padding=UDim.new(0,8)
+	layout.SortOrder=Enum.SortOrder.LayoutOrder
 	local padding=Instance.new("UIPadding",graphicsPanel)
 	padding.PaddingBottom=UDim.new(0,8)
 
 	local card=Instance.new("Frame")
+	card.LayoutOrder=1
 	card.Size=UDim2.new(1,-4,0,isMobile and 300 or 274)
 	card.BackgroundColor3=currentTheme.secondary
 	card.BorderSizePixel=0
@@ -113,7 +115,7 @@ return function(context)
 		local value=FPSBoosterCore and FPSBoosterCore:GetRenderDistance()
 		distance.Text=value and (tostring(value).." studs") or "— studs"
 		status.Text=stateText(message)
-		local active=not busy
+		local active=not busy and FPSBoosterCore~=nil
 		suave.Active=active
 		fuerte.Active=active
 		extremo.Active=active
@@ -153,6 +155,7 @@ return function(context)
 		end)
 	end)
 
+	CreateGraphicsLoadControl(graphicsPanel,"FPSBooster","FPS Booster",0,function(loaded)card.Visible=loaded;UpdateFPSBoosterPanel()end)
 	UpdateFPSBoosterPanel()
 	return true
 end

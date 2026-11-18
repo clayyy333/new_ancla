@@ -28,6 +28,7 @@ return function(context)
             end
         end
     end
+    RegisterFeatureController=register
     -- Solo se inspeccionan los controladores de esta aplicacion, nunca Workspace.
     for name,value in pairs(context)do
         if type(name)=="string"and(name:match("Core$")or name:match("Controller$")or name:match("Coordinator$")
