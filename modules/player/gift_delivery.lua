@@ -280,55 +280,94 @@ return function(context)
 		changed()
 	end
 
-	local antiEpoch=0;local antiExisting={};local antiSeen={};local antiPending={};local antiConnections={};local antiToolConnections={};local antiBusy=false;local antiOwner=nil
-	local function antiProtected(tool)for _,name in ipairs(ITEMS)do if tool.Name==name then return true end end;return false end
+	local antiEpoch=0;local antiExisting={};local antiSeen={};local antiPending={};local antiConnections={};local antiToolConnections={};local antiBusy=false
 	local function antiLocation(tool)local char=player.Character;local backpack=player:FindFirstChildOfClass("Backpack");return(char and tool.Parent==char)or(backpack and tool.Parent==backpack)end
-	local function antiValid(epoch,tool)return Core.Alive and Core.AntiEnabled and antiEpoch==epoch and tool and antiLocation(tool)and not antiExisting[tool]and not antiProtected(tool)and tool:GetAttribute("IsGift")==true end
+	local function antiReceived(tool)
+		if tool:GetAttribute("IsGift")==true then return true end
+		-- Same creator attribute used to correlate tools by the Folding Table cleaner.
+		local creator=tonumber(tool:GetAttribute("CreatedBy"))
+		return creator~=nil and creator>0 and creator%1==0 and creator~=player.UserId
+	end
+	local function antiValid(epoch,tool)return Core.Alive and Core.AntiEnabled and antiEpoch==epoch and tool and tool:IsA("Tool")and antiLocation(tool)and not antiExisting[tool]and antiReceived(tool)end
 	local function antiIsEquipped(tool,char)
 		if tool.Parent~=char then return false end
 		for _,item in ipairs(char:GetChildren())do if item:IsA("Tool")and item~=tool then return false end end
 		return true
 	end
 	local antiAttempt
+	local function antiDrain(epoch)
+		if antiBusy or not Core.AntiEnabled or antiEpoch~=epoch then return end
+		for tool,record in pairs(antiPending)do
+			if not antiValid(epoch,tool)then antiPending[tool]=nil
+			elseif os.clock()>=record.NextAt then antiAttempt(tool,epoch);if antiBusy then return end end
+		end
+	end
+	local function antiFailed(tool,record,reason)
+		Core.AntiFailures+=1;Core.AntiLastError=reason
+		if record.Attempts>=3 then antiPending[tool]=nil else record.NextAt=os.clock()+.25 end
+	end
 	antiAttempt=function(tool,epoch)
-		if antiBusy or not antiValid(epoch,tool)then return end
-		ClearRE=ClearRE or Remotes:FindFirstChild("ClearToolRE");if not ClearRE then Core.AntiFailures+=1;changed();return end
-		local gate=rawget(context,"CleanupToolGate");local gateToken
-		if gate and type(gate.Acquire)=="function"then local ok,result=pcall(function()return gate:Acquire("GiftDeliveryCleanup")end);if not ok or not result then return end;gateToken=result elseif antiOwner then return end
-		antiOwner=tool;antiBusy=true
+		local record=antiPending[tool]
+		if antiBusy or not record or not antiValid(epoch,tool)then return end
+		ClearRE=ClearRE or Remotes:FindFirstChild("ClearToolRE")
+		if not ClearRE or not ClearRE:IsA("RemoteEvent")then
+			record.Attempts+=1;antiFailed(tool,record,isES and"ClearToolRE no disponible."or"ClearToolRE unavailable.");changed();return
+		end
+		-- Context may expose shared controllers through __index; rawget skips them.
+		local gate=context.CleanupToolGate;local gateToken
+		if gate and type(gate.Acquire)=="function"then
+			local ok,result=pcall(function()return gate:Acquire("GiftDeliveryCleanup")end)
+			if not ok or not result then return end
+			gateToken=result
+		end
+		record.Attempts+=1;antiBusy=true
 		task.spawn(function()
 			local removed=false
-			pcall(function()
-				local char=player.Character;local humanoid=char and char:FindFirstChildOfClass("Humanoid");if not humanoid or not antiValid(epoch,tool)then return end
+			local ok,err=pcall(function()
+				local char=player.Character;local humanoid=char and char:FindFirstChildOfClass("Humanoid")
+				if not humanoid or humanoid.Health<=0 or not antiValid(epoch,tool)then return end
+				local function valid()return player.Character==char and antiValid(epoch,tool)and(not gate or gate.Owner==gateToken)end
 				if tool.Parent~=char then humanoid:EquipTool(tool)end
-				local deadline=os.clock()+1.5;while antiValid(epoch,tool)and tool.Parent~=char and os.clock()<deadline do RunService.Heartbeat:Wait()end
-				if not antiValid(epoch,tool)or not antiIsEquipped(tool,char)then return end
-				ClearRE:FireServer(true);local timeout=os.clock()+1.5;while Core.Alive and antiEpoch==epoch and tool.Parent~=nil and os.clock()<timeout do RunService.Heartbeat:Wait()end;removed=tool.Parent==nil
+				local deadline=os.clock()+1.5;while valid()and tool.Parent~=char and os.clock()<deadline do RunService.Heartbeat:Wait()end
+				if not valid()or not antiIsEquipped(tool,char)then return end
+				ClearRE:FireServer(true)
+				local timeout=os.clock()+1.5
+				while Core.Alive and Core.AntiEnabled and antiEpoch==epoch and tool.Parent~=nil and os.clock()<timeout do RunService.Heartbeat:Wait()end
+				removed=tool.Parent==nil
 			end)
 			if gate and gateToken then pcall(function()gate:Release(gateToken)end)end
-			antiOwner=nil;antiBusy=false;antiPending[tool]=nil
-			if removed then Core.AntiRemoved+=1 else Core.AntiFailures+=1 end;changed()
-			for candidate in pairs(antiPending)do if antiValid(epoch,candidate)then task.defer(antiAttempt,candidate,epoch)break else antiPending[candidate]=nil end end
+			antiBusy=false
+			if Core.Alive and Core.AntiEnabled and antiEpoch==epoch then
+				if removed then antiPending[tool]=nil;Core.AntiRemoved+=1;Core.AntiLastError=nil
+				else antiFailed(tool,record,ok and(isES and"No se confirmó la retirada del regalo."or"Gift removal was not confirmed.")or tostring(err))end
+				changed();task.defer(antiDrain,epoch)
+			end
 		end)
 	end
 	local function antiConsider(tool,epoch)
 		if not antiValid(epoch,tool)or antiSeen[tool]then return end
-		antiSeen[tool]=true;Core.AntiDetected+=1;antiPending[tool]=true;changed();if not antiBusy then task.defer(antiAttempt,tool,epoch)end
+		antiSeen[tool]=true;Core.AntiDetected+=1;antiPending[tool]={Attempts=0,NextAt=0};changed();task.defer(antiDrain,epoch)
 	end
 	local function antiWatch(tool,epoch)
-		if not tool:IsA("Tool")or antiExisting[tool]or antiProtected(tool)or antiToolConnections[tool]then return end
-		antiToolConnections[tool]=tool:GetAttributeChangedSignal("IsGift"):Connect(function()antiConsider(tool,epoch)end);antiConsider(tool,epoch)
+		if not tool:IsA("Tool")or antiExisting[tool]or antiToolConnections[tool]then return end
+		local links={};antiToolConnections[tool]=links
+		for _,attribute in ipairs({"IsGift","CreatedBy"})do links[#links+1]=tool:GetAttributeChangedSignal(attribute):Connect(function()antiConsider(tool,epoch)end)end
+		antiConsider(tool,epoch)
 	end
 	local function antiStop()
-		Core.AntiEnabled=false;antiEpoch+=1;disconnect(antiConnections);for _,c in pairs(antiToolConnections)do pcall(function()c:Disconnect()end)end;table.clear(antiToolConnections);table.clear(antiPending);changed()
+		Core.AntiEnabled=false;antiEpoch+=1;disconnect(antiConnections);for _,links in pairs(antiToolConnections)do disconnect(links)end;table.clear(antiToolConnections);table.clear(antiPending);changed()
 	end
 	local function antiStart()
-		antiStop();Core.AntiEnabled=true;local epoch=antiEpoch;table.clear(antiExisting);table.clear(antiSeen)
+		antiStop();Core.AntiEnabled=true;Core.AntiLastError=nil;local epoch=antiEpoch;table.clear(antiExisting);table.clear(antiSeen)
+		-- Protect inventory by instance, not by model name. New received tools of any model are eligible.
 		for _,container in ipairs(containers(player))do for _,item in ipairs(container:GetChildren())do if item:IsA("Tool")then antiExisting[item]=true end end end
 		local watched={};local function watchContainer(container)if not container or watched[container]then return end;watched[container]=true;connect(container.ChildAdded,function(item)if Core.AntiEnabled and antiEpoch==epoch then antiWatch(item,epoch)end end,antiConnections)end
 		for _,container in ipairs(containers(player))do watchContainer(container)end
 		connect(player.CharacterAdded,function(char)if Core.AntiEnabled and antiEpoch==epoch then watchContainer(char)end end,antiConnections)
-		connect(player.ChildAdded,function(child)if Core.AntiEnabled and antiEpoch==epoch and child:IsA("Backpack")then watchContainer(child)end end,antiConnections);changed()
+		connect(player.ChildAdded,function(child)if Core.AntiEnabled and antiEpoch==epoch and child:IsA("Backpack")then watchContainer(child)end end,antiConnections)
+		local elapsed=0
+		connect(RunService.Heartbeat,function(dt)elapsed+=dt;if elapsed>=.05 then elapsed=0;antiDrain(epoch)end end,antiConnections)
+		changed()
 	end
 	function Core:SetAntiEnabled(enabled)if enabled then antiStart()else antiStop()end end
 	function Core:Destroy()
