@@ -262,7 +262,6 @@ return function(context)
 	end
 	function Core:Start()
 		if not self.Allowed then return false,isES and"Regalos desactivado por el administrador."or"Gifts disabled by the administrator."end
-		if not self.AccessGranted then return false,"pin_required"end
 		if self.Running then return true end
 		if #self.SelectedOrder<1 then return false,isES and"Selecciona al menos un jugador."or"Select at least one player."end
 		self.Generation+=1;local token=self.Generation;self.Running=true;self.State="INICIANDO";changed()

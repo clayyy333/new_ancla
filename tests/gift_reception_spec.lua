@@ -62,3 +62,12 @@ Guard={GiftRecipientBlocks={[2]=120}}
 assert(load(cacheMethod))()
 assert(Guard:IsGiftRecipientBlocked(2));now=121;assert(not Guard:IsGiftRecipientBlocked(2))
 print('gift_reception_spec OK: PIN-free one-way session action, retries, cached skipping, expiration, pre-send recheck and unchanged unblocked path')
+
+-- Starting delivery no longer requires unlocking a PIN, including after a backend lock update.
+local startMethod=extract(giftSource,'function Core:Start()','function Core:Stop()')
+Core.Allowed=true;Core.AccessGranted=false;Core.Generation=0;Core.Running=false
+Core.SelectedOrder={1};task={spawn=function()end}
+assert(load(startMethod))()
+assert(Core:Start()==true and Core.Running,'delivery must start without PIN')
+Core.Running=false;Core.Allowed=false
+assert(Core:Start()==false,'administrator disable remains effective')
