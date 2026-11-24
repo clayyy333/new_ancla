@@ -296,26 +296,13 @@ return function(context)
 	}
 	local rootGuardOwnerName=rootGuardOwners[player.UserId]
 	local canSeeRootGuard=rootGuardOwnerName~=nil and string.lower(player.Name)==rootGuardOwnerName
-	if canSeeRootGuard then
-		for _,child in ipairs(card:GetChildren())do
-			if child:IsA("GuiObject")and child.Position.Y.Offset>=90 then child.Position=child.Position+UDim2.fromOffset(0,52)end
-		end
-		card.Size=card.Size+UDim2.fromOffset(0,52)
-	end
 	local noSitButton=makeButton(38)
-	local rootGuardButton,copyRootLogsButton,clearRootLogsButton
+	local rootGuardButton
 	if canSeeRootGuard then
 		noSitButton.Size=UDim2.new(0.5,-4,0,44)
 		rootGuardButton=makeButton(38)
 		rootGuardButton.Size=UDim2.new(0.5,-4,0,44)
 		rootGuardButton.Position=UDim2.new(0.5,4,0,38)
-		copyRootLogsButton=makeButton(90)
-		copyRootLogsButton.Size=UDim2.new(0.5,-4,0,44)
-		copyRootLogsButton.Text="COPIAR REGISTROS"
-		clearRootLogsButton=makeButton(90)
-		clearRootLogsButton.Size=UDim2.new(0.5,-4,0,44)
-		clearRootLogsButton.Position=UDim2.new(0.5,4,0,90)
-		clearRootLogsButton.Text="LIMPIAR REGISTROS"
 	end
 	local previousUpdate=UpdateAnchorPanel
 	UpdateAnchorPanel=function(message)
@@ -325,8 +312,8 @@ return function(context)
 		noSitButton.BackgroundColor3=core.Running and currentTheme.accent or currentTheme.tertiary
 		local guard=AssemblyRootGuardCore
 		if rootGuardButton then
-			rootGuardButton.Text="Refuerzo de raíz | "..(guard.Enabled and "ON"or"OFF")
-			rootGuardButton.BackgroundColor3=guard.Enabled and currentTheme.accent or currentTheme.tertiary
+			rootGuardButton.Text="Ancla - Caída"..(guard.Starting and " | ..."or(guard.Running and " | ON"or" | OFF"))
+			rootGuardButton.BackgroundColor3=guard.Running and currentTheme.accent or currentTheme.tertiary
 		end
 		if core.LastError then description.Text=core.LastError end
 		if guard.LastError then description.Text=guard.LastError end
@@ -334,24 +321,23 @@ return function(context)
 	noSitButton.Activated:Connect(function()
 		local core=NoSitAnchorCore
 		local ok,err
-		if core.Running or core.Starting then ok,err=core:Stop()else ok,err=core:Start()end
+		if core.Running or core.Starting then ok,err=core:Stop()else
+			if AssemblyRootGuardCore and(AssemblyRootGuardCore.Running or AssemblyRootGuardCore.Starting)then AssemblyRootGuardCore:Stop()end
+			ok,err=core:Start()
+		end
 		if not ok then description.Text=err end
 		UpdateAnchorPanel()
 	end)
 	if rootGuardButton then
 		rootGuardButton.Activated:Connect(function()
-			local ok,err=AssemblyRootGuardCore:Toggle()
+			local guard=AssemblyRootGuardCore
+			local ok,err
+			if guard.Running or guard.Starting then ok,err=guard:Stop()else
+				if NoSitAnchorCore and(NoSitAnchorCore.Running or NoSitAnchorCore.Starting)then NoSitAnchorCore:Stop()end
+				ok,err=guard:Start()
+			end
 			if not ok then description.Text=err end
 			UpdateAnchorPanel()
-		end)
-		copyRootLogsButton.Activated:Connect(function()
-			local ok,message=AssemblyRootGuardCore:CopyRecords()
-			description.Text=message
-			if not ok then copyRootLogsButton.BackgroundColor3=currentTheme.tertiary end
-		end)
-		clearRootLogsButton.Activated:Connect(function()
-			AssemblyRootGuardCore:ClearRecords()
-			description.Text="Registros del refuerzo eliminados."
 		end)
 	end
 	UpdateAnchorPanel()

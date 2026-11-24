@@ -113,6 +113,10 @@ function PlayEmote(id, name, silent, syncStartTime)
 		NoSitAnchorCore:ReplaceEmote(id)
 		return
 	end
+	if AssemblyRootGuardCore and AssemblyRootGuardCore.Running then
+		AssemblyRootGuardCore:ReplaceEmote(id)
+		return
+	end
 	local animator = GetAnimator()
 	if not animator then return end
 	

@@ -1,218 +1,403 @@
+-- Independent falling-state anchor with its own defense and emote lifecycle.
 return function(context)
  setfenv(1,context)
  local Players=game:GetService("Players")
  local RunService=game:GetService("RunService")
  local player=Players.LocalPlayer
- local Core={Enabled=false,Active=false,Interventions=0,LastError=nil,Logs={},MaxLogs=900}
- local alive=true
- local startedAt=os.clock()
- local character,root
- local nativeParts=setmetatable({},{__mode="k"})
- local savedParts=setmetatable({},{__mode="k"})
- local seenExternal=setmetatable({},{__mode="k"})
- local lastAssemblyRoot=nil
- local connections={}
- local characterConnections={}
+local Core={Running=false,Starting=false,LastError=nil}
+local alive = true
+local defenseOn = false
+local virtualFallOn = false
 
- local function connect(signal,callback,collection)
-  local connection=signal:Connect(callback)
-  table.insert(collection or connections,connection)
-  return connection
- end
- local function disconnectAll(collection)
-  for _,connection in ipairs(collection)do pcall(function()connection:Disconnect()end)end
-  table.clear(collection)
- end
- local function updateUI()
-  if UpdateAnchorPanel then UpdateAnchorPanel()end
- end
- local function pathOf(instance)
-  if not instance then return "nil"end
-  local ok,path=pcall(function()return instance:GetFullName()end)
-  return ok and path or tostring(instance)
- end
- local function log(kind,detail)
-  local line=string.format("[%.4fs] [%s] %s",os.clock()-startedAt,tostring(kind),tostring(detail or ""))
-  Core.Logs[#Core.Logs+1]=line
-  while #Core.Logs>Core.MaxLogs do table.remove(Core.Logs,1)end
- end
- local function partState(part)
-  if not part then return "part=nil"end
-  local ok,state=pcall(function()
-   return "part="..pathOf(part).." rootPriority="..tostring(part.RootPriority).." massless="..tostring(part.Massless).." anchored="..tostring(part.Anchored).." assemblyRoot="..pathOf(part.AssemblyRootPart).." linear="..tostring(part.AssemblyLinearVelocity).." angular="..tostring(part.AssemblyAngularVelocity)
-  end)
-  return ok and state or("part="..pathOf(part).." unavailable="..tostring(state))
- end
- local function remember(part)
-  if not part or savedParts[part]then return end
-  savedParts[part]={RootPriority=part.RootPriority,Massless=part.Massless,CanCollide=part.CanCollide}
- end
- local function restore()
-  for part,state in pairs(savedParts)do
-   if part and part.Parent then
-    pcall(function()part.RootPriority=state.RootPriority end)
-    pcall(function()part.Massless=state.Massless end)
-    pcall(function()part.CanCollide=state.CanCollide end)
-   end
-  end
-  table.clear(savedParts)
-  Core.Active=false
-  lastAssemblyRoot=nil
- end
- local function noSitRunning()
-  return NoSitAnchorCore and NoSitAnchorCore.Running
- end
- local function protectPart(part)
-  if not part or not part.Parent then return end
-  local firstSeen=not seenExternal[part]
-  if firstSeen then
-   seenExternal[part]=true
-   log("EXTERNAL_BEFORE",partState(part))
-  end
-  remember(part)
-  pcall(function()part.RootPriority=-127 end)
-  pcall(function()part.Massless=true end)
-  pcall(function()part.CanCollide=false end)
-  pcall(function()part.AssemblyLinearVelocity=Vector3.zero end)
-  pcall(function()part.AssemblyAngularVelocity=Vector3.zero end)
-  if firstSeen then log("EXTERNAL_AFTER",partState(part))end
- end
- local function apply()
-  if not alive then return end
-  if not Core.Enabled or not noSitRunning()then
-   if Core.Active then log("PAUSED","Ancla No Sit no está activa");restore()updateUI()end
-   return
-  end
-  if not character or character~=player.Character or not root or not root.Parent then return end
-  Core.Active=true
-  remember(root)
-  pcall(function()root.RootPriority=127 end)
-  pcall(function()root.Massless=false end)
-  local before=root.AssemblyRootPart
-  if before~=lastAssemblyRoot then
-   log("ASSEMBLY_ROOT","before="..pathOf(before).." hrp="..pathOf(root))
-   lastAssemblyRoot=before
-  end
-  local ok,connected=pcall(function()return root:GetConnectedParts(true)end)
-  if ok and type(connected)=="table"then
-   for _,part in ipairs(connected)do
-    if part~=root and not nativeParts[part]then protectPart(part)end
-   end
-  end
-  if before and before~=root and not nativeParts[before]then protectPart(before)end
-  pcall(function()root.RootPriority=127 end)
-  pcall(function()root.AssemblyLinearVelocity=Vector3.zero end)
-  pcall(function()root.AssemblyAngularVelocity=Vector3.zero end)
-  local after=root.AssemblyRootPart
-  if before~=root or after~=root then
-   Core.Interventions+=1
-   if after~=lastAssemblyRoot then log("ASSEMBLY_ROOT_AFTER","after="..pathOf(after).." hrp="..pathOf(root));lastAssemblyRoot=after end
-  end
- end
- local function bindCharacter(newCharacter)
-  disconnectAll(characterConnections)
-  restore()
-  table.clear(nativeParts)
-  character=newCharacter
-  root=nil
-  local newRoot=newCharacter and newCharacter:WaitForChild("HumanoidRootPart",10)
-  if not alive or player.Character~=newCharacter or not newRoot then return end
-  root=newRoot
-  local humanoid=newCharacter:FindFirstChildOfClass("Humanoid")
-  table.clear(seenExternal)
-  lastAssemblyRoot=nil
-  for _,descendant in ipairs(newCharacter:GetDescendants())do
-   if descendant:IsA("BasePart")then nativeParts[descendant]=true end
-  end
-  connect(newCharacter.DescendantAdded,function(descendant)
-   if not alive or not Core.Enabled then return end
-   if descendant:IsA("BasePart")then
-    log("PART_ADDED",partState(descendant))
-    task.defer(apply)
-   elseif descendant:IsA("WeldConstraint")then
-    local function logWeld(stage)
-     log(stage,"weld="..pathOf(descendant).." part0="..pathOf(descendant.Part0).." part1="..pathOf(descendant.Part1).." enabled="..tostring(descendant.Enabled))
+local connections = {}
+local characterConnections = {}
+
+local humanoid
+local root
+local character
+
+local checkpoint
+local original
+local forceField
+
+local lastFallRequest = 0
+local fallRecoveries = 0
+local stateEscapes = 0
+local positionCorrections = 0
+
+local function connect(signal, callback, collection)
+    local connection = signal:Connect(callback)
+    table.insert(collection or connections, connection)
+    return connection
+end
+
+local function disconnectAll(collection)
+    for _, connection in ipairs(collection) do
+        pcall(function()
+            connection:Disconnect()
+        end)
     end
-    logWeld("WELD_ADDED")
-    connect(descendant:GetPropertyChangedSignal("Part0"),function()if Core.Enabled then logWeld("WELD_PART0")task.defer(apply)end end,characterConnections)
-    connect(descendant:GetPropertyChangedSignal("Part1"),function()if Core.Enabled then logWeld("WELD_PART1")task.defer(apply)end end,characterConnections)
-    connect(descendant:GetPropertyChangedSignal("Enabled"),function()if Core.Enabled then logWeld("WELD_ENABLED")task.defer(apply)end end,characterConnections)
-    task.defer(apply)
-   end
-  end,characterConnections)
-  connect(newCharacter.DescendantRemoving,function(descendant)
-   if not alive or not Core.Enabled then return end
-   if descendant:IsA("BasePart")or descendant:IsA("WeldConstraint")then log("DESCENDANT_REMOVING",pathOf(descendant))end
-  end,characterConnections)
-  if humanoid then
-   connect(humanoid.StateChanged,function(oldState,newState)
-    if Core.Enabled then log("HUMANOID_STATE",tostring(oldState).." -> "..tostring(newState))end
-   end,characterConnections)
-   connect(humanoid:GetPropertyChangedSignal("Health"),function()
-    if Core.Enabled then log("HEALTH","value="..tostring(humanoid.Health).." state="..tostring(humanoid:GetState()))end
-   end,characterConnections)
-   connect(humanoid.Died,function()if Core.Enabled then log("HUMANOID_DIED","health="..tostring(humanoid.Health))end end,characterConnections)
+    table.clear(collection)
+end
+
+local function clearForceField()
+    if forceField then
+        pcall(function()
+            forceField:Destroy()
+        end)
+        forceField = nil
+    end
+end
+
+local function restoreDefense()
+    clearForceField()
+
+    if original then
+        local h = original.humanoid
+        local r = original.root
+
+        if h and h.Parent then
+            pcall(function()
+                h.BreakJointsOnDeath = original.breakJoints
+                h.MaxHealth = original.maxHealth
+                h:SetStateEnabled(
+                    Enum.HumanoidStateType.Dead,
+                    original.deadEnabled
+                )
+
+                if h.Health > 0 then
+                    h.Health = math.min(
+                        original.health,
+                        original.maxHealth
+                    )
+                end
+            end)
+        end
+
+        if r and r.Parent then
+            pcall(function()
+                r.AssemblyLinearVelocity = Vector3.zero
+                r.AssemblyAngularVelocity = Vector3.zero
+                r.Anchored = original.anchored
+            end)
+        end
+    end
+
+    original = nil
+    checkpoint = nil
+end
+
+local function captureDefense()
+    if not defenseOn or not humanoid or not root then
+        return
+    end
+
+    restoreDefense()
+
+    original = {
+        humanoid = humanoid,
+        root = root,
+        anchored = root.Anchored,
+        health = humanoid.Health,
+        maxHealth = humanoid.MaxHealth,
+        breakJoints = humanoid.BreakJointsOnDeath,
+        deadEnabled = humanoid:GetStateEnabled(
+            Enum.HumanoidStateType.Dead
+        )
+    }
+
+    checkpoint = root.CFrame
+
+    pcall(function()
+        humanoid.BreakJointsOnDeath = false
+        humanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Dead,
+            false
+        )
+
+        humanoid.MaxHealth = math.huge
+
+        if humanoid.Health > 0 then
+            humanoid.Health = math.huge
+        end
+    end)
+
+    forceField = Instance.new("ForceField")
+    forceField.Name = "AnclaCaidaForceField"
+    forceField.Visible = false
+    forceField.Parent = character
+
+    pcall(function()
+        root.Anchored = true
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local function applyPhysicalDefense()
+    if not defenseOn or not root or not checkpoint then
+        return
+    end
+
+    if not root.Parent then return end
+
+    pcall(function()
+        if (root.Position - checkpoint.Position).Magnitude > 0.01 then
+            positionCorrections += 1
+        end
+
+        root.Anchored = true
+        root.CFrame = checkpoint
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local function applyHumanoidDefense()
+    if not defenseOn or not humanoid then
+        return
+    end
+
+    if not humanoid.Parent then return end
+
+    pcall(function()
+        humanoid.BreakJointsOnDeath = false
+        humanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Dead,
+            false
+        )
+
+        if humanoid.Health > 0 then
+            humanoid.MaxHealth = math.huge
+            humanoid.Health = math.huge
+        end
+    end)
+end
+
+local requestingFall = false
+
+local function applyVirtualFall()
+    if not virtualFallOn or not humanoid then
+        return
+    end
+
+    if not humanoid.Parent or humanoid.Health <= 0 then
+        return
+    end
+
+    pcall(function()
+        humanoid.Sit = false
+    end)
+
+    if requestingFall then return end
+
+    local state = humanoid:GetState()
+
+    if state == Enum.HumanoidStateType.FallingDown then
+        return
+    end
+
+    local now = os.clock()
+    if now - lastFallRequest < 0.015 then
+        return
+    end
+
+    lastFallRequest = now
+    requestingFall = true
+
+    local ok = pcall(function()
+        humanoid:ChangeState(
+            Enum.HumanoidStateType.FallingDown
+        )
+    end)
+
+    requestingFall = false
+
+    if ok then
+        fallRecoveries += 1
+    end
+end
+
+local function stopVirtualFall()
+    if humanoid and humanoid.Parent and humanoid.Health > 0 then
+        pcall(function()
+            humanoid.Sit = false
+            humanoid:ChangeState(
+                Enum.HumanoidStateType.GettingUp
+            )
+        end)
+    end
+end
+
+local function bindCharacter(newCharacter)
+    disconnectAll(characterConnections)
+
+    restoreDefense()
+
+    character = newCharacter
+    humanoid = nil
+    root = nil
+
+    local h = newCharacter:WaitForChild("Humanoid", 10)
+    local r = newCharacter:WaitForChild("HumanoidRootPart", 10)
+
+    if not alive or player.Character ~= newCharacter then
+        return
+    end
+
+    if not h or not r then return end
+
+    humanoid = h
+    root = r
+    lastFallRequest = 0
+    requestingFall = false
+
+    connect(h.StateChanged, function(oldState, newState)
+        if not alive then return end
+
+        if virtualFallOn
+            and newState ~= Enum.HumanoidStateType.FallingDown then
+            stateEscapes += 1
+            applyVirtualFall()
+        end
+    end, characterConnections)
+
+    if defenseOn then
+        captureDefense()
+    end
+
+    if virtualFallOn then
+        applyVirtualFall()
+    end
+end
+
+
+local defaultId=116197008542581
+local generation=0
+local emoteTrack,emoteAnimation
+local function updateUI()
+ Core.FallRecoveries=fallRecoveries;Core.StateEscapes=stateEscapes;Core.PositionCorrections=positionCorrections
+ if UpdateAnchorPanel then UpdateAnchorPanel()end
+end
+local function stopAnimation()
+ if emoteTrack then pcall(function()emoteTrack:Stop(0);emoteTrack:Destroy()end);emoteTrack=nil end
+ if emoteAnimation then emoteAnimation:Destroy();emoteAnimation=nil end
+end
+local function playAnimation(id,mine)
+ local animationId="rbxassetid://"..tostring(id)
+ local ok,objects=pcall(function()return game:GetObjects(animationId)end)
+ if ok and type(objects)=="table"then
+  for _,object in ipairs(objects)do
+   local found=object:IsA("Animation")and object or object:FindFirstChildWhichIsA("Animation",true)
+   if found and found.AnimationId~=""then animationId=found.AnimationId end
+   object:Destroy()
   end
-  connect(root:GetPropertyChangedSignal("AssemblyRootPart"),function()
-   if Core.Enabled then log("ROOT_PROPERTY_CHANGED",partState(root));task.defer(apply)end
-  end,characterConnections)
-  log("CHARACTER_BOUND","character="..pathOf(newCharacter).." nativeParts="..tostring(#newCharacter:GetDescendants()).." "..partState(root))
-  apply()
  end
- function Core:SetEnabled(enabled)
-  enabled=enabled and true or false
-  if self.Enabled==enabled then return true end
-  self.Enabled=enabled
-  self.LastError=nil
-  log(enabled and "ENABLED"or"DISABLED","NoSit="..tostring(noSitRunning()))
+ if mine~=generation or not alive or not humanoid or not humanoid.Parent then return false end
+ local h=humanoid
+ local animator=h:FindFirstChildOfClass("Animator")
+ if not animator then animator=Instance.new("Animator");animator.Parent=h end
+ local animation=Instance.new("Animation");animation.AnimationId=animationId
+ local okLoad,track=pcall(function()return animator:LoadAnimation(animation)end)
+ if not okLoad then animation:Destroy();error(track)end
+ if mine~=generation or h~=humanoid or not alive then track:Destroy();animation:Destroy();return false end
+ stopAnimation()
+ emoteTrack=track;emoteAnimation=animation
+ track.Priority=Enum.AnimationPriority.Action4;track.Looped=true
+ track:Play(0)
+ return true
+end
+local function orderedActivation(mine)
+ if not playAnimation(defaultId,mine)then return end
+ defenseOn=true
+ captureDefense()
+ virtualFallOn=true
+ lastFallRequest=0
+ applyVirtualFall()
+ Core.Starting=false;Core.Running=true
+ updateUI()
+end
+function Core:Start()
+ if self.Running or self.Starting then return true end
+ if not alive then return false,"Flujo cerrado."end
+ generation=generation+1;local mine=generation
+ if StopEmote then StopEmote(false)end
+ self.Starting=true;self.LastError=nil;updateUI()
+ task.spawn(function()
+  local ok,err=pcall(function()
+   local current=player.Character
+   if not current then error("Personaje no disponible.")end
+   if character~=current or not humanoid or not root then bindCharacter(current)end
+   if mine~=generation then return end
+   if not humanoid or not root then error("Personaje no disponible.")end
+   orderedActivation(mine)
+  end)
+  if mine==generation and not ok then self.Starting=false;self.LastError=tostring(err);updateUI()end
+ end)
+ return true
+end
+function Core:ReplaceEmote(id)
+ if not self.Running then return false end
+ generation=generation+1;local mine=generation
+ task.spawn(function()
+  local ok,err=pcall(playAnimation,id,mine)
+  if not ok and mine==generation then self.LastError=tostring(err);updateUI()end
+ end)
+ return true
+end
+function Core:Stop()
+ generation=generation+1
+ virtualFallOn=false
+ stopVirtualFall()
+ defenseOn=false
+ restoreDefense()
+ stopAnimation()
+ self.Running=false;self.Starting=false;updateUI()
+ return true
+end
+-- Independent falling anchor maintenance.
+if RunService.PreSimulation then
+ connect(RunService.PreSimulation,function()
+  if not alive then return end
+  applyPhysicalDefense()
+  applyVirtualFall()
+ end)
+end
+local uiElapsed=0
+connect(RunService.Heartbeat,function(dt)
+ if not alive then return end
+ applyPhysicalDefense()
+ applyHumanoidDefense()
+ applyVirtualFall()
+ uiElapsed=uiElapsed+dt
+ if uiElapsed>=0.25 then uiElapsed=0;updateUI()end
+end)
+connect(player.CharacterAdded,function(newCharacter)
+ local enabled=Core.Running or Core.Starting
+ if enabled then
+  -- Reset only the per-character resources; keep the user's enabled intent.
+  Core:Stop()
+  Core.Starting=true
+ end
+ generation=generation+1;local mine=generation
+ task.spawn(function()
+  bindCharacter(newCharacter)
+  if not alive or mine~=generation then return end
   if enabled then
-   if player.Character and(character~=player.Character or not root)then bindCharacter(player.Character)end
-   apply()
-  else
-   restore()
+   local ok,err=pcall(orderedActivation,mine)
+   if not ok then Core.Starting=false;Core.LastError=tostring(err)end
   end
   updateUI()
-  return true
- end
- function Core:Toggle()return self:SetEnabled(not self.Enabled)end
- function Core:GetRecords()
-  local header={
-   "=== REFUERZO DE RAÍZ — REGISTROS ===",
-   "Jugador: "..tostring(player.Name).." | UserId="..tostring(player.UserId),
-   "Enabled: "..tostring(self.Enabled).." | Active: "..tostring(self.Active).." | Intervenciones="..tostring(self.Interventions),
-   "NoSit: "..tostring(noSitRunning()),
-   "Líneas: "..tostring(#self.Logs),
-   "",
-  }
-  return table.concat(header,"\n")..table.concat(self.Logs,"\n")
- end
- function Core:CopyRecords()
-  local text=self:GetRecords()
-  local environment=getgenv and getgenv()or nil
-  local copier=(environment and environment.setclipboard)or setclipboard or toclipboard
-  if type(copier)~="function"then return false,"El ejecutor no ofrece portapapeles.",text end
-  local ok,err=pcall(copier,text)
-  return ok,ok and("Registros copiados: "..tostring(#self.Logs))or tostring(err),text
- end
- function Core:ClearRecords()
-  table.clear(self.Logs)
-  self.Interventions=0
-  startedAt=os.clock()
-  return true
- end
- function Core:Destroy()
-  if not alive then return true end
-  self:SetEnabled(false)
-  alive=false
-  disconnectAll(characterConnections)
-  disconnectAll(connections)
-  return true
- end
- if RunService.PreSimulation then connect(RunService.PreSimulation,apply)end
- connect(RunService.Heartbeat,apply)
- connect(player.CharacterAdded,function(newCharacter)task.spawn(function()bindCharacter(newCharacter)updateUI()end)end)
- connect(player.CharacterRemoving,function(oldCharacter)if Core.Enabled then log("CHARACTER_REMOVING","character="..pathOf(oldCharacter).." root="..partState(root))end end)
- if player.Character then task.spawn(function()bindCharacter(player.Character)end)end
- AssemblyRootGuardCore=Core
+ end)
+end)
+function Core:Destroy()
+ if not alive then return true end
+ self:Stop()
+ alive=false
+ disconnectAll(connections)
+ disconnectAll(characterConnections)
  return true
+end
+AssemblyRootGuardCore=Core
+return true
 end
