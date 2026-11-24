@@ -296,13 +296,26 @@ return function(context)
 	}
 	local rootGuardOwnerName=rootGuardOwners[player.UserId]
 	local canSeeRootGuard=rootGuardOwnerName~=nil and string.lower(player.Name)==rootGuardOwnerName
+	if canSeeRootGuard then
+		for _,child in ipairs(card:GetChildren())do
+			if child:IsA("GuiObject")and child.Position.Y.Offset>=90 then child.Position=child.Position+UDim2.fromOffset(0,52)end
+		end
+		card.Size=card.Size+UDim2.fromOffset(0,52)
+	end
 	local noSitButton=makeButton(38)
-	local rootGuardButton
+	local rootGuardButton,copyRootLogsButton,clearRootLogsButton
 	if canSeeRootGuard then
 		noSitButton.Size=UDim2.new(0.5,-4,0,44)
 		rootGuardButton=makeButton(38)
 		rootGuardButton.Size=UDim2.new(0.5,-4,0,44)
 		rootGuardButton.Position=UDim2.new(0.5,4,0,38)
+		copyRootLogsButton=makeButton(90)
+		copyRootLogsButton.Size=UDim2.new(0.5,-4,0,44)
+		copyRootLogsButton.Text="COPIAR REGISTROS"
+		clearRootLogsButton=makeButton(90)
+		clearRootLogsButton.Size=UDim2.new(0.5,-4,0,44)
+		clearRootLogsButton.Position=UDim2.new(0.5,4,0,90)
+		clearRootLogsButton.Text="LIMPIAR REGISTROS"
 	end
 	local previousUpdate=UpdateAnchorPanel
 	UpdateAnchorPanel=function(message)
@@ -330,6 +343,15 @@ return function(context)
 			local ok,err=AssemblyRootGuardCore:Toggle()
 			if not ok then description.Text=err end
 			UpdateAnchorPanel()
+		end)
+		copyRootLogsButton.Activated:Connect(function()
+			local ok,message=AssemblyRootGuardCore:CopyRecords()
+			description.Text=message
+			if not ok then copyRootLogsButton.BackgroundColor3=currentTheme.tertiary end
+		end)
+		clearRootLogsButton.Activated:Connect(function()
+			AssemblyRootGuardCore:ClearRecords()
+			description.Text="Registros del refuerzo eliminados."
 		end)
 	end
 	UpdateAnchorPanel()
