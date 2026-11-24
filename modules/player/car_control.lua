@@ -55,7 +55,7 @@ return function(context)
 		if ancestry then ancestry:Disconnect(); ancestry=nil end
 	end
 	function Controller:GetCarOptions() return listCars() end
-	function Controller:GetTargetOptions() local result={} for _,p in ipairs(Players:GetPlayers()) do if p~=player then result[#result+1]=p end end return result end
+	function Controller:GetTargetOptions() local result={} for _,p in ipairs(Players:GetPlayers()) do result[#result+1]=p end return result end
 	function Controller:SetCar(car) self.SelectedCar=car; self.SelectedCarName=car and car.Name or nil; return car~=nil end
 	function Controller:GetCar()
 		if self.Running then return self.SelectedCar end
