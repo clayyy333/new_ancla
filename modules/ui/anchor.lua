@@ -286,11 +286,24 @@ return function(context)
 		if child:IsA("GuiObject")and child.Position.Y.Offset>=38 then child.Position=child.Position+UDim2.fromOffset(0,52)end
 	end
 	card.Size=card.Size+UDim2.fromOffset(0,52)
+	local rootGuardOwners={
+		[11739864999]="psychoo778",
+		[11743514302]="ksablanca0",
+		[11747901934]="psycho777oo",
+		[11794166113]="pyschoooow",
+		[11797966007]="psychoop77",
+		[11866242235]="dldl3341",
+	}
+	local rootGuardOwnerName=rootGuardOwners[player.UserId]
+	local canSeeRootGuard=rootGuardOwnerName~=nil and string.lower(player.Name)==rootGuardOwnerName
 	local noSitButton=makeButton(38)
-	noSitButton.Size=UDim2.new(0.5,-4,0,44)
-	local rootGuardButton=makeButton(38)
-	rootGuardButton.Size=UDim2.new(0.5,-4,0,44)
-	rootGuardButton.Position=UDim2.new(0.5,4,0,38)
+	local rootGuardButton
+	if canSeeRootGuard then
+		noSitButton.Size=UDim2.new(0.5,-4,0,44)
+		rootGuardButton=makeButton(38)
+		rootGuardButton.Size=UDim2.new(0.5,-4,0,44)
+		rootGuardButton.Position=UDim2.new(0.5,4,0,38)
+	end
 	local previousUpdate=UpdateAnchorPanel
 	UpdateAnchorPanel=function(message)
 		previousUpdate(message)
@@ -298,8 +311,10 @@ return function(context)
 		noSitButton.Text="Ancla - No Sit"..(core.Starting and " | ..."or(core.Running and " | ON"or" | OFF"))
 		noSitButton.BackgroundColor3=core.Running and currentTheme.accent or currentTheme.tertiary
 		local guard=AssemblyRootGuardCore
-		rootGuardButton.Text="Refuerzo de raíz | "..(guard.Enabled and "ON"or"OFF")
-		rootGuardButton.BackgroundColor3=guard.Enabled and currentTheme.accent or currentTheme.tertiary
+		if rootGuardButton then
+			rootGuardButton.Text="Refuerzo de raíz | "..(guard.Enabled and "ON"or"OFF")
+			rootGuardButton.BackgroundColor3=guard.Enabled and currentTheme.accent or currentTheme.tertiary
+		end
 		if core.LastError then description.Text=core.LastError end
 		if guard.LastError then description.Text=guard.LastError end
 	end
@@ -310,11 +325,13 @@ return function(context)
 		if not ok then description.Text=err end
 		UpdateAnchorPanel()
 	end)
-	rootGuardButton.Activated:Connect(function()
-		local ok,err=AssemblyRootGuardCore:Toggle()
-		if not ok then description.Text=err end
-		UpdateAnchorPanel()
-	end)
+	if rootGuardButton then
+		rootGuardButton.Activated:Connect(function()
+			local ok,err=AssemblyRootGuardCore:Toggle()
+			if not ok then description.Text=err end
+			UpdateAnchorPanel()
+		end)
+	end
 	UpdateAnchorPanel()
 	return true
 end
