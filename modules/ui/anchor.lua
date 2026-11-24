@@ -287,18 +287,31 @@ return function(context)
 	end
 	card.Size=card.Size+UDim2.fromOffset(0,52)
 	local noSitButton=makeButton(38)
+	noSitButton.Size=UDim2.new(0.5,-4,0,44)
+	local rootGuardButton=makeButton(38)
+	rootGuardButton.Size=UDim2.new(0.5,-4,0,44)
+	rootGuardButton.Position=UDim2.new(0.5,4,0,38)
 	local previousUpdate=UpdateAnchorPanel
 	UpdateAnchorPanel=function(message)
 		previousUpdate(message)
 		local core=NoSitAnchorCore
 		noSitButton.Text="Ancla - No Sit"..(core.Starting and " | ..."or(core.Running and " | ON"or" | OFF"))
 		noSitButton.BackgroundColor3=core.Running and currentTheme.accent or currentTheme.tertiary
+		local guard=AssemblyRootGuardCore
+		rootGuardButton.Text="Refuerzo de raíz | "..(guard.Enabled and "ON"or"OFF")
+		rootGuardButton.BackgroundColor3=guard.Enabled and currentTheme.accent or currentTheme.tertiary
 		if core.LastError then description.Text=core.LastError end
+		if guard.LastError then description.Text=guard.LastError end
 	end
 	noSitButton.Activated:Connect(function()
 		local core=NoSitAnchorCore
 		local ok,err
 		if core.Running or core.Starting then ok,err=core:Stop()else ok,err=core:Start()end
+		if not ok then description.Text=err end
+		UpdateAnchorPanel()
+	end)
+	rootGuardButton.Activated:Connect(function()
+		local ok,err=AssemblyRootGuardCore:Toggle()
 		if not ok then description.Text=err end
 		UpdateAnchorPanel()
 	end)
