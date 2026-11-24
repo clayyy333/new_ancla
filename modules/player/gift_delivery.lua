@@ -8,7 +8,7 @@ return function(context)
 	local EquipRF=Remotes:WaitForChild("EquipToolRF")
 	local GiftRE=Remotes:WaitForChild("InteractGiftRE")
 	local ClearRE=Remotes:FindFirstChild("ClearToolRE")
-	local ITEMS={"Babycar_a","Whistle","FoolBall","LedText","Lightstick","SignText","Skates2","HardHat"}
+	local ITEMS={"Babycar_a","Whistle","FoolBall","LedText","Lightstick","SignText","Skates2","HardHat","SchoolBag"}
 	local OWNER_RECIPIENT_IDS={
 		[11739864999]=true,
 		[11743514302]=true,
