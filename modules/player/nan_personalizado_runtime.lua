@@ -722,7 +722,7 @@ local viewerColors={attachments=Color3.fromRGB(255,74,88),hrpAttachments=Color3.
 local viewerButtons={}
 local viewerNames={attachments="ATTACHMENTS",mesh="MALLA 3D",boxes="HANDLE BOX",hrp="HRP 3D"}
 for index,key in ipairs({"attachments","mesh","boxes","hrp"})do
- local button=Instance.new("TextButton")button.Size=UDim2.new(.5,-21,0,38)button.Position=UDim2.new((index-1)%2*.5,index%2==1 and 14 or 7,0,index<=2 and 82 or 126)button.BackgroundColor3=C.PANEL button.Text=viewerNames[key].." — OFF"button.TextColor3=viewerColors[key]button.TextSize=11 button.Font=Enum.Font.GothamBold button.BorderSizePixel=0 button.ZIndex=201 button.Parent=viewerPanel mc(8,button)ms(viewerColors[key],1,button)viewerButtons[key]=button
+ local button=Instance.new("TextButton")button.Size=UDim2.new(.5,-21,0,38)button.Position=UDim2.new((index-1)%2*.5,index%2==1 and 14 or 7,0,index<=2 and 82 or 126)button.BackgroundColor3=C.PANEL button.Text=viewerNames[key].." - OFF"button.TextColor3=viewerColors[key]button.TextSize=mob and 10 or 11 button.Font=Enum.Font.GothamMedium button.TextStrokeTransparency=1 button.BorderSizePixel=0 button.AutoButtonColor=false button.ZIndex=201 button.Parent=viewerPanel mc(8,button)viewerButtons[key]=button
 end
 local viewerStatus=Instance.new("TextLabel")viewerStatus.Size=UDim2.new(1,-28,0,38)viewerStatus.Position=UDim2.new(0,14,0,178)viewerStatus.BackgroundColor3=C.PANEL viewerStatus.Text="  MARCADORES: 0"viewerStatus.TextColor3=C.GREY viewerStatus.TextSize=10 viewerStatus.Font=Enum.Font.RobotoMono viewerStatus.TextXAlignment=Enum.TextXAlignment.Left viewerStatus.ZIndex=201 viewerStatus.Parent=viewerPanel mc(8,viewerStatus)ms(C.STROKE,1,viewerStatus)
 local function viewerRemove(group,object)local marker=group[object]if marker then marker:Destroy()group[object]=nil end end
@@ -746,7 +746,7 @@ local function viewerUpdate()
  for key,group in pairs(viewerMarkers)do for object in pairs(group)do if not valid[key][object]then viewerRemove(group,object)end end end
  viewerStatus.Text="  MARCADORES: "..count.."  |  JUGADORES: "..#viewerTargets()
 end
-for key,button in pairs(viewerButtons)do button.MouseButton1Click:Connect(function()viewerOptions[key]=not viewerOptions[key]button.Text=viewerNames[key]..(viewerOptions[key]and" — ON"or" — OFF")button.BackgroundColor3=viewerOptions[key]and Color3.fromRGB(29,55,44)or C.PANEL viewerUpdate()end)end
+for key,button in pairs(viewerButtons)do button.MouseButton1Click:Connect(function()viewerOptions[key]=not viewerOptions[key]button.Text=viewerNames[key]..(viewerOptions[key]and" - ON"or" - OFF")button.BackgroundColor3=viewerOptions[key]and Color3.fromRGB(29,55,44)or C.PANEL viewerUpdate()end)end
 viewerButton.MouseButton1Click:Connect(function()viewerOpen=true viewerPanel.Visible=true viewerUpdate()end)
 viewerClose.MouseButton1Click:Connect(function()viewerOpen=false viewerPanel.Visible=false viewerClear()end)
 local viewerElapsed=0
