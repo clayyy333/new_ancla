@@ -19,6 +19,7 @@ UpdateTabStyles = function()
 	end
 
 	local isFling2 = currentTab == "fling2"
+	local isNanPersonalizado = currentTab == "no_entrar"
 	local isCustomFling = currentTab == "fling_custom"
 	local isContactFling = currentTab == "contact_fling"
 	local isFlingCar = currentTab == "fling_car"
@@ -35,7 +36,7 @@ UpdateTabStyles = function()
 	local isGraphics = currentTab == "fps_booster" or currentTab == "shaders"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
+	local isFling2Category = isFling2 or isNanPersonalizado or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	movementNav.Visible = not isFlingView
 	fling2Nav.Visible = isFling2Category
@@ -436,6 +437,7 @@ UpdateTabData = function(retry)
 	local isKeybinds  = currentTab == "keybinds"
 	local isPlaylists = currentTab == "playlists"
 	local isFling2 = currentTab == "fling2"
+	local isNanPersonalizado = currentTab == "no_entrar"
 	local isCustomFling = currentTab == "fling_custom"
 	local isContactFling = currentTab == "contact_fling"
 	local isFlingCar = currentTab == "fling_car"
@@ -461,12 +463,13 @@ UpdateTabData = function(retry)
 	local isCouples = currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses"
 	if stopBtn then stopBtn.Visible = not isCouples end
 	if randBtn then randBtn.Visible = not isCouples end
-	local isFling2Category = isFling2 or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
+	local isFling2Category = isFling2 or isNanPersonalizado or isCustomFling or isContactFling or isFlingCar or isFlingCar2 or isFlingObject or isFlingMoto or isFlingMotoXeno or currentTab=="fling_experimental"
 	local isFlingView = isFling2Category or isAnchor or isControl or isGraphics or isCouples or currentTab == "clothing_scan"
 	if settingsPanel then settingsPanel.Visible = (isSettings) and panelReady end
 	if friendsPanel then friendsPanel.Visible = (isFriends) and panelReady end
 	if keybindsPanel then keybindsPanel.Visible = (isKeybinds) and panelReady end
 	if fling2Panel then fling2Panel.Visible = (isFling2) and panelReady end
+	if nanPersonalizadoPanel then nanPersonalizadoPanel.Visible = (isNanPersonalizado) and panelReady end
 	if customFlingPanel then customFlingPanel.Visible = (isCustomFling) and panelReady end
 	if contactFlingPanel then contactFlingPanel.Visible = (isContactFling) and panelReady end
 	if carFlingPanel then carFlingPanel.Visible = (isFlingCar) and panelReady end
@@ -586,6 +589,9 @@ UpdateTabData = function(retry)
 	elseif currentTab == "fling2" then
 		title.Text = "Fling 2"
 		if UpdateFling2Panel then UpdateFling2Panel() end
+	elseif currentTab == "no_entrar" then
+		title.Text = "NO ENTRAR"
+		if UpdateNanPersonalizadoPanel then UpdateNanPersonalizadoPanel() end
 	elseif currentTab == "fling_custom" then
 		title.Text = isES and "Fling personalizable" or "Custom Fling"
 		if UpdateCustomFlingPanel then UpdateCustomFlingPanel() end
@@ -694,6 +700,7 @@ anchorTabBtns["move_anchored"].btn.MouseButton1Click:Connect(function() currentT
 anchorTabBtns["anchor_auto"].btn.MouseButton1Click:Connect(function() currentTab = "anchor_auto"; UpdateTabData() end)
 	graphicsTabBtns["shaders"].btn.MouseButton1Click:Connect(function() currentTab = "shaders"; UpdateTabData() end)
 fling2TabBtns["fling2"].btn.MouseButton1Click:Connect(function() currentTab = "fling2"; UpdateTabData() end)
+fling2TabBtns["no_entrar"].btn.MouseButton1Click:Connect(function() currentTab = "no_entrar"; UpdateTabData() end)
 fling2TabBtns["contact_fling"].btn.MouseButton1Click:Connect(function() currentTab = "contact_fling"; UpdateTabData() end)
 	fling2TabBtns["fling_custom"].btn.MouseButton1Click:Connect(function() currentTab = "fling_custom"; UpdateTabData() end)
 fling2TabBtns["fling_car"].btn.MouseButton1Click:Connect(function() currentTab = "fling_car"; UpdateTabData() end)
@@ -724,7 +731,7 @@ if not isMobile then tabBtns["keybinds"].btn.MouseButton1Click:Connect(function(
 searchToken = 0
 recordToken = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
-	if currentTab == "settings" or currentTab == "anchor" or currentTab == "move_anchored" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "fling_custom" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "gift_delivery" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
+	if currentTab == "settings" or currentTab == "anchor" or currentTab == "move_anchored" or currentTab == "anchor_auto" or currentTab == "fling2" or currentTab == "no_entrar" or currentTab == "fling_custom" or currentTab == "contact_fling" or currentTab == "fling_car" or currentTab == "fling_car2" or currentTab == "fling_object" or currentTab == "fling_moto" or currentTab == "fling_moto_xeno" or currentTab == "camera_control" or currentTab == "gift_delivery" or currentTab == "cinematic_camera" or currentTab == "flight_control" or currentTab == "car_control" or currentTab == "free_car_control" or currentTab == "movement_control" or currentTab == "vertical_control" or currentTab == "fps_booster" or currentTab == "shaders" or currentTab == "couples" or currentTab == "couple_movement" or currentTab == "poses" or currentTab == "preset_poses" then return end
 	searchToken = searchToken + 1
 	local myToken = searchToken
 	task.wait(0.08)

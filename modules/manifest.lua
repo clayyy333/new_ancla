@@ -385,6 +385,9 @@ return {
 
 		"_fling2CharacterAddedConn",
 		"fling2Panel",
+		"nanPersonalizadoPanel",
+		"NanPersonalizadoLauncher",
+		"UpdateNanPersonalizadoPanel",
 		"UpdateFling2Panel",
 		"contactFlingPanel",
 		"UpdateContactFlingPanel",

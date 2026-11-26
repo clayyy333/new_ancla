@@ -10,6 +10,7 @@ return function(context)
   move_anchored={"ui/move_anchored"},
   anchor_auto={"ui/anchor_auto"},
   fling2={"ui/fling2"},
+  no_entrar={"player/nan_personalizado_runtime","ui/nan_personalizado"},
   fling_custom={"ui/fling_custom"},
   contact_fling={"ui/contact_fling"},
   fling_moto={"ui/fling_moto"},

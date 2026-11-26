@@ -326,6 +326,17 @@ return function(context)
 			if response and response.gift_access_unlocked==true then applyGiftAccess(true);callback(true)else callback(false,err or"invalid_pin")end
 		end)
 	end
+	function Guard:UnlockNanAccess(password,callback)
+		callback=type(callback)=="function"and callback or function()end
+		if not self.Connected or not self.SessionToken then callback(false,"session_unavailable");return end
+		local token=self.SessionToken
+		task.spawn(function()
+			local response,err=call("POST","/api/v1/nan/unlock",{password=tostring(password or"")},token)
+			if token~=Guard.SessionToken then callback(false,"session_changed");return end
+			if response and response.nan_access_unlocked==true then callback(true)
+			else callback(false,err or"invalid_password")end
+		end)
+	end
 	function Guard:Start()
 		if self.Running or Config.Enabled~=true then return false end
 		if type(Config.ClientKey)~="string" or Config.ClientKey=="" then return false end

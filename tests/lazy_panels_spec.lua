@@ -66,6 +66,7 @@ assert(core:Ensure('emotes',true),'normal catalog view needs no extra panel')
 currentTab='anchor';assert(not core:Ensure('anchor',true));assert(not core:Ensure('anchor',true));flush()
 assert(core.States.anchor.Loaded and counts['ui/anchor']==1 and read['ui/anchor']==1)
 assert(core:Ensure('anchor',true));flush();assert(counts['ui/anchor']==1,'category cached after opening')
+currentTab='no_entrar';assert(not core:Ensure('no_entrar',true));flush();assert(counts['player/nan_personalizado_runtime']==1 and counts['ui/nan_personalizado']==1,'NaN launcher modules load together')
 currentTab='friends';assert(not core:Ensure('settings',true));assert(not core:Ensure('friends',true));flush()
 assert(counts['ui/settings']==1 and counts['ui/admin_panel']==1 and counts['ui/combo_queue']==1)
 assert(counts['ui/friends']==1 and counts['player/friend_follow']==1 and counts['ui/friend_follow']==1 and registered>0)
@@ -95,7 +96,7 @@ mainNavBtns={};for _,id in ipairs({'fling2','anchor','control','graphics','cloth
 couplesTabBtns=nav({'couples','couple_movement','poses','preset_poses'})
 controlTabBtns=nav({'cinematic_camera','camera_control','gift_delivery','flight_control','car_control','free_car_control','movement_control','vertical_control'})
 graphicsTabBtns=nav({'fps_booster','shaders'});anchorTabBtns=nav({'anchor','move_anchored','anchor_auto'})
-fling2TabBtns=nav({'fling2','contact_fling','fling_custom','fling_car','fling_car2','fling_object','fling_moto','fling_moto_xeno','fling_experimental'})
+fling2TabBtns=nav({'fling2','no_entrar','contact_fling','fling_custom','fling_car','fling_car2','fling_object','fling_moto','fling_moto_xeno','fling_experimental'})
 tabBtns=nav({'emotes','favorites','recent','animations','friends','settings','playlists','keybinds'})
 search=widget();title=widget();L=setmetatable({},{__index=function(_,key)return key end})
 TweenService={Create=function()return {Play=function()end}end}
@@ -108,7 +109,7 @@ CatalogLoadPanel={SetTab=function()return false end}
 assert(load(tabsSource))()(_G)
 UpdateTabStyles=function()end
 local keybindRefresh=0;RefreshKeybindsPanel=function()keybindRefresh=keybindRefresh+1;assert(keybindsPanel)end
-for _,tab in ipairs({'settings','friends','keybinds','playlists','anchor','camera_control','shaders'})do currentTab=tab;UpdateTabData();assert(requested==tab)end
+for _,tab in ipairs({'settings','friends','keybinds','playlists','anchor','no_entrar','camera_control','shaders'})do currentTab=tab;UpdateTabData();assert(requested==tab)end
 assert(keybindRefresh==0 and refreshed==0,'unprepared panels must not be rendered')
 currentTab='emotes';UpdateTabData();assert(refreshed==1)
 print('lazy tab router OK: absent panels are safe; keybind/playlist render waits for readiness')

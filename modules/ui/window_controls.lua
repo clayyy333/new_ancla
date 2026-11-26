@@ -133,6 +133,7 @@ minBtn.MouseButton1Click:Connect(MinimizeMainWindow)
 
 local function _CleanupScript()
 	pcall(function()if LazyPanels then LazyPanels:Destroy()end end)
+	pcall(function()if NanPersonalizadoLauncher then NanPersonalizadoLauncher:Destroy()end end)
 	pcall(function()if GraphicsFeatureLoader then GraphicsFeatureLoader:Destroy()end end)
 	pcall(function()if CatalogLoadState then CatalogLoadState:Destroy()end end)
 	pcall(function()if NoSitAnchorCore then NoSitAnchorCore:Destroy()end end)

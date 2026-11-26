@@ -324,6 +324,7 @@ return function(context)
 
 	local flingLabels = {
 		{"fling2", "Fling"},
+		{"no_entrar", "NO ENTRAR"},
 		{"fling_custom", isES and "Personaliza tu Fling" or "Customize your Fling"},
 		{"contact_fling", isES and "Fling por contacto" or "Contact Fling"},
 		{"fling_car", isES and "Fling con vehículo" or "Fling with Car"},
@@ -349,7 +350,7 @@ return function(context)
 	local customFlingButton = fling2TabBtns.fling_custom and fling2TabBtns.fling_custom.btn
 	if customFlingButton then
 		customFlingButton.Size = UDim2.new(1, -(pad * 2), 0, buttonH - 6)
-		customFlingButton.Position = UDim2.new(0, pad, 0, pad + buttonH + gap + 3)
+		customFlingButton.Position = UDim2.new(0, pad, 0, pad + 2 * (buttonH + gap) + 3)
 
 		local neonStroke = Instance.new("UIStroke")
 		neonStroke.Name = "NeonBorder"
