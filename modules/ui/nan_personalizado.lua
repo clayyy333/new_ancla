@@ -14,7 +14,7 @@ return function(context)
  nanPersonalizadoPanel.Parent=content
 
  local card=Instance.new("Frame")
- card.Size=UDim2.new(1,0,0,238)
+ card.Size=UDim2.new(1,0,0,108)
  card.BackgroundColor3=currentTheme.secondary
  card.BorderSizePixel=0
  card.ZIndex=7
@@ -22,37 +22,9 @@ return function(context)
  Instance.new("UICorner",card).CornerRadius=UDim.new(0,14)
  RegisterTheme(card,"BackgroundColor3","secondary")
 
- local heading=Instance.new("TextLabel")
- heading.Size=UDim2.new(1,-28,0,42)
- heading.Position=UDim2.new(0,14,0,14)
- heading.BackgroundTransparency=1
- heading.Text="NaN PERSONALIZADO"
- heading.TextColor3=currentTheme.text
- heading.Font=Enum.Font.GothamBold
- heading.TextSize=isMobile and 14 or 17
- heading.TextXAlignment=Enum.TextXAlignment.Left
- heading.ZIndex=8
- heading.Parent=card
- RegisterTheme(heading,"TextColor3","text")
-
- local description=Instance.new("TextLabel")
- description.Size=UDim2.new(1,-28,0,66)
- description.Position=UDim2.new(0,14,0,58)
- description.BackgroundTransparency=1
- description.Text="Abre la interfaz independiente de NaN Personalizado. Antes de cargar podrás conservar ambas GUIs o pasar únicamente a NaN."
- description.TextColor3=currentTheme.textDim
- description.Font=Enum.Font.GothamMedium
- description.TextSize=isMobile and 10 or 12
- description.TextWrapped=true
- description.TextXAlignment=Enum.TextXAlignment.Left
- description.TextYAlignment=Enum.TextYAlignment.Top
- description.ZIndex=8
- description.Parent=card
- RegisterTheme(description,"TextColor3","textDim")
-
  local loadButton=Instance.new("TextButton")
  loadButton.Size=UDim2.new(1,-28,0,52)
- loadButton.Position=UDim2.new(0,14,0,136)
+ loadButton.Position=UDim2.new(0,14,0,14)
  loadButton.BackgroundColor3=currentTheme.accent
  loadButton.BorderSizePixel=0
  loadButton.Text="CARGAR GUI"
@@ -67,7 +39,7 @@ return function(context)
 
  local status=Instance.new("TextLabel")
  status.Size=UDim2.new(1,-28,0,28)
- status.Position=UDim2.new(0,14,0,196)
+ status.Position=UDim2.new(0,14,0,72)
  status.BackgroundTransparency=1
  status.Text="Listo para cargar"
  status.TextColor3=currentTheme.textDim

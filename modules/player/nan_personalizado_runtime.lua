@@ -895,6 +895,12 @@ local function removeEquippedBalloonBeforeReturn()
  ss("no se confirmó la retirada del globo")
  return false
 end
+local function clearHeldObjectThenReturn(returnNow)
+ task.spawn(function()
+  removeEquippedBalloonBeforeReturn()
+  if returnNow then returnNow()end
+ end)
+end
 local launcherSize=mob and 50 or 60
 local mB=Instance.new("TextButton")mB.Size=UDim2.new(0,launcherSize,0,launcherSize)mB.Position=UDim2.new(0,20,0.5,-launcherSize/2)mB.BackgroundColor3=Color3.fromRGB(2,15,10)mB.Text=""mB.AutoButtonColor=false mB.BorderSizePixel=0 mB.ClipsDescendants=true mB.Visible=false mB.ZIndex=100 mB.Parent=sg mc(mob and 11 or 14,mB)ms(Color3.fromRGB(0,220,116),2,mB)
 local mBTitle=Instance.new("TextLabel")mBTitle.Size=UDim2.new(1,0,1,0)mBTitle.BackgroundTransparency=1 mBTitle.Text="Abrir"mBTitle.TextColor3=C.WHITE mBTitle.TextSize=mob and 10 or 12 mBTitle.Font=Enum.Font.GothamBold mBTitle.TextStrokeColor3=Color3.fromRGB(0,22,12)mBTitle.TextStrokeTransparency=.25 mBTitle.ZIndex=103 mBTitle.Parent=mB
@@ -1336,7 +1342,7 @@ if cE then
 stopTargetPerspective()
 stopFollow()
 local returnNow=activeReturnToOrigin
-if returnNow then task.spawn(returnNow)end
+clearHeldObjectThenReturn(returnNow)
 tE=false
 if sE then stopSit()end sS(false)sTog.Text="SIT KILL: INACTIVO"
 ss("parando...")
@@ -1530,7 +1536,7 @@ Extras.StopGift()
 cToken=cToken+1 setContinuousState(false)
 stopFollow()
 local returnNow=activeReturnToOrigin
-if returnNow then task.spawn(returnNow)end
+clearHeldObjectThenReturn(returnNow)
 tE=false
 if sE then stopSit()end sS(false)sTog.Text="SIT KILL: INACTIVO"
 ss("deteniendo y restaurando...")nt("DETENER","flujos cancelados",2)
@@ -1550,7 +1556,7 @@ confirmYes.Text="CERRANDO..."confirmNo.Active=false
 cToken=cToken+1 cE=false
 stopFollow()
 local returnNow=activeReturnToOrigin
-if returnNow then task.spawn(returnNow)end
+clearHeldObjectThenReturn(returnNow)
 tE=false
 if sE then stopSit()end
 clearDeathTracking()
