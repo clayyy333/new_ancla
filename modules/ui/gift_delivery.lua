@@ -20,7 +20,10 @@ return function(context)
 	local giftEffectsToggle=button(card,"",UDim2.new(.5,-16,0,44),UDim2.new(0,12,0,216),8)
 	local whistleAnimationToggle=button(card,"",UDim2.new(.5,-16,0,44),UDim2.new(.5,4,0,216),8)
 	local whistleSoundToggle=button(card,"",UDim2.new(.64,-14,0,44),UDim2.new(0,12,0,268),8)
-	local whistleScopeToggle=button(card,"",UDim2.new(.36,-14,0,44),UDim2.new(.64,2,0,268),8)
+	local whistleScopeToggle=Instance.new("Frame");whistleScopeToggle.Size=UDim2.new(.36,-14,0,44);whistleScopeToggle.Position=UDim2.new(.64,2,0,268);whistleScopeToggle.BackgroundColor3=currentTheme.secondary;whistleScopeToggle.BorderSizePixel=0;whistleScopeToggle.ZIndex=8;whistleScopeToggle.Parent=card;Instance.new("UICorner",whistleScopeToggle).CornerRadius=UDim.new(0,9);local scopeStroke=Instance.new("UIStroke",whistleScopeToggle);scopeStroke.Color=currentTheme.accent;scopeStroke.Transparency=.45;scopeStroke.Thickness=1;RegisterTheme(whistleScopeToggle,"BackgroundColor3","secondary");RegisterTheme(scopeStroke,"Color","accent")
+	local selfScopeButton=button(whistleScopeToggle,isES and"PROPIO"or"SELF",UDim2.new(.5,-3,1,-6),UDim2.new(0,3,0,3),9)
+	local allScopeButton=button(whistleScopeToggle,isES and"TODOS"or"ALL",UDim2.new(.5,-3,1,-6),UDim2.new(.5,0,0,3),9)
+	selfScopeButton.TextSize=isMobile and 9 or 10;allScopeButton.TextSize=isMobile and 9 or 10
 	local status=label("",UDim2.new(0,12,0,320),38);status.TextXAlignment=Enum.TextXAlignment.Center
 	local cleanupToggle=button(card,"",UDim2.new(1,-24,0,44),UDim2.new(0,12,0,364),8)
 	local cleanupStatus=label("",UDim2.new(0,12,0,418),24);cleanupStatus.TextXAlignment=Enum.TextXAlignment.Center
@@ -57,7 +60,8 @@ return function(context)
 	giftEffectsToggle.Activated:Connect(function()Effects:SetGiftEffectsEnabled(not Effects.GiftEffectsEnabled)end)
 	whistleAnimationToggle.Activated:Connect(function()Effects:SetWhistleAnimationEnabled(not Effects.WhistleAnimationEnabled)end)
 	whistleSoundToggle.Activated:Connect(function()Effects:SetWhistleSoundEnabled(not Effects.WhistleSoundEnabled)end)
-	whistleScopeToggle.Activated:Connect(function()Effects:SetWhistleScope(Effects.WhistleScope=="SELF"and"ALL"or"SELF")end)
+	selfScopeButton.Activated:Connect(function()Effects:SetWhistleScope("SELF")end)
+	allScopeButton.Activated:Connect(function()Effects:SetWhistleScope("ALL")end)
 	cleanupToggle.Activated:Connect(function()Core:SetAntiEnabled(not Core.AntiEnabled)end)
 	blockReception.Activated:Connect(function()closeLists();Core:BlockReception()end)
 
@@ -78,8 +82,10 @@ return function(context)
 		whistleAnimationToggle.BackgroundColor3=Effects.WhistleAnimationEnabled and currentTheme.accent or currentTheme.tertiary
 		whistleSoundToggle.Text=(isES and"ELIMINAR SONIDO DE SILBATO"or"REMOVE WHISTLE SOUND").." · "..(Effects.WhistleSoundEnabled and"ON"or"OFF")
 		whistleSoundToggle.BackgroundColor3=Effects.WhistleSoundEnabled and currentTheme.accent or currentTheme.tertiary
-		whistleScopeToggle.Text=Effects.WhistleScope=="ALL"and(isES and"TODOS"or"ALL")or(isES and"PROPIO"or"SELF")
-		whistleScopeToggle.BackgroundColor3=Effects.WhistleScope=="ALL"and currentTheme.accent or currentTheme.tertiary
+		selfScopeButton.BackgroundColor3=Effects.WhistleScope=="SELF"and currentTheme.accent or currentTheme.tertiary
+		allScopeButton.BackgroundColor3=Effects.WhistleScope=="ALL"and currentTheme.accent or currentTheme.tertiary
+		selfScopeButton.TextTransparency=Effects.WhistleScope=="SELF"and 0 or .28
+		allScopeButton.TextTransparency=Effects.WhistleScope=="ALL"and 0 or .28
 		status.Text=not allowed and(isES and"Desactivado por el administrador"or"Disabled by administrator")or message or((isES and"Estado: "or"Status: ")..Core:GetStateText().." · "..Core:GetSelectedCount()..(isES and" destinatario(s)"or" recipient(s)"))
 		cleanupToggle.Text=(isES and"LIMPIEZA DE REGALOS (NO BLOQUEA): "or"GIFT CLEANUP (NON-BLOCKING): ")..(Core.AntiEnabled and"ON"or"OFF")
 		cleanupToggle.BackgroundColor3=Core.AntiEnabled and currentTheme.accent or currentTheme.tertiary
