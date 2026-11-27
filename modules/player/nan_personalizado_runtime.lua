@@ -732,7 +732,7 @@ local function viewerClear()for _,group in pairs(viewerMarkers)do for object in 
 local function viewerTargets()local targets={}for _,candidate in ipairs(P:GetPlayers())do if candidate~=pl and selectedPlayerIds[candidate.UserId]then table.insert(targets,candidate)end end if #targets==0 then targets[1]=pl end return targets end
 local function viewerContainer(object,character)local current=object while current and current~=character do if current:IsA("Accessory")or current:IsA("Accoutrement")or current:IsA("Tool")then return current end current=current.Parent end end
 local function viewerUpdate()
- if closing or not viewerOpen then return end
+ if closing then return end
  local valid={attachments={},mesh={},boxes={},hrp={}}local count=0
  for _,player in ipairs(viewerTargets())do local character=player.Character local hrp=character and character:FindFirstChild("HumanoidRootPart")if character then
   for _,object in ipairs(character:GetDescendants())do
@@ -750,7 +750,7 @@ local function viewerUpdate()
 end
 for key,button in pairs(viewerButtons)do button.MouseButton1Click:Connect(function()viewerOptions[key]=not viewerOptions[key]button.Text=viewerNames[key]..(viewerOptions[key]and" - ON"or" - OFF")button.BackgroundColor3=viewerOptions[key]and Color3.fromRGB(29,55,44)or C.PANEL viewerUpdate()end)end
 viewerButton.MouseButton1Click:Connect(function()viewerOpen=true viewerPanel.Visible=true viewerUpdate()end)
-viewerClose.MouseButton1Click:Connect(function()viewerOpen=false viewerPanel.Visible=false viewerClear()end)
+viewerClose.MouseButton1Click:Connect(function()viewerOpen=false viewerPanel.Visible=false end)
 local viewerElapsed=0
 local viewerConn=R.Heartbeat:Connect(function(dt)viewerElapsed+=dt if viewerElapsed>=.25 then viewerElapsed=0 viewerUpdate()end end)
 local giftRecipientIndex=1
