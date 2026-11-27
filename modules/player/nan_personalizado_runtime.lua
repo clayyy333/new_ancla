@@ -687,6 +687,8 @@ resetLabel.Size=UDim2.new(1,-12,1,0)resetLabel.Position=UDim2.new(0,6,0,0)resetL
 sl.Parent=ct sl.Size=UDim2.new(.5,-4,0,30)sl.Position=UDim2.new(.5,4,0,314)sl.TextSize=10 sl.TextWrapped=false
 modoBtn.Size=UDim2.new(.49,-4,0,34)modoBtn.Position=UDim2.new(0,0,0,70)
 sTog.Size=UDim2.new(.51,-4,0,34)sTog.Position=UDim2.new(.49,4,0,70)
+modoBtn.Visible=false
+sTog.Visible=false
 cameraDistanceFrame.Size=UDim2.new(1,0,0,34)cameraDistanceFrame.Position=UDim2.new(0,0,0,110)
 depthFrame.Size=UDim2.new(1,0,0,34)depthFrame.Position=UDim2.new(0,0,0,148)
 balloonFrame.Size=UDim2.new(.49,-4,0,36)balloonFrame.Position=UDim2.new(0,0,0,186)
