@@ -662,7 +662,7 @@ local sl=Instance.new("TextLabel")sl.Size=UDim2.new(1,0,0,30)sl.Position=UDim2.n
 local rail=Instance.new("Frame")rail.Size=UDim2.new(1,-24,0,80)rail.Position=UDim2.new(0,12,0,66)rail.BackgroundColor3=Color3.fromRGB(3,14,10)rail.BorderSizePixel=0 rail.Parent=mf mc(8,rail)ms(Color3.fromRGB(20,103,70),1,rail)
 local railAccent=Instance.new("Frame")railAccent.Size=UDim2.new(0,4,1,-14)railAccent.Position=UDim2.new(0,0,0,7)railAccent.BackgroundColor3=C.CYAN railAccent.BorderSizePixel=0 railAccent.Parent=rail mc(2,railAccent)mg(C.CYAN,C.PURPLE,90,railAccent)
 local railTitle=Instance.new("TextLabel")railTitle.Size=UDim2.new(0,180,0,18)railTitle.Position=UDim2.new(0,12,0,4)railTitle.BackgroundTransparency=1 railTitle.Text="CONTROLES"railTitle.TextColor3=C.GREY railTitle.TextSize=11 railTitle.Font=Enum.Font.RobotoMono railTitle.TextXAlignment=Enum.TextXAlignment.Left railTitle.Parent=rail
-ct.Size=UDim2.new(1,-24,1,-166)ct.Position=UDim2.new(0,12,0,154)ct.CanvasSize=UDim2.new(0,0,0,346)ct.ScrollBarThickness=3
+ct.Size=UDim2.new(1,-24,1,-166)ct.Position=UDim2.new(0,12,0,154)ct.CanvasSize=UDim2.new(0,0,0,306)ct.ScrollBarThickness=3
 il.Text="CONFIGURACIÓN"
 flB.Parent=rail flB.Size=UDim2.new(0,154,0,42)flB.Position=UDim2.new(0,10,0,29)flB.TextWrapped=true flB.TextSize=12
 skipB.Parent=rail skipB.Size=UDim2.new(0,148,0,42)skipB.Position=UDim2.new(0,174,0,29)skipB.Text="SIGUIENTE"skipB.TextColor3=C.CYAN skipB.BackgroundColor3=Color3.fromRGB(5,33,27)skipB.TextWrapped=true skipB.TextSize=12
@@ -682,21 +682,21 @@ updateCommandLayout=function()
  end
 end
 updateCommandLayout()
-resetFrame.Parent=ct resetFrame.Size=UDim2.new(.48,0,0,30)resetFrame.Position=UDim2.new(0,0,0,314)
+resetFrame.Parent=ct resetFrame.Size=UDim2.new(.48,0,0,30)resetFrame.Position=UDim2.new(0,0,0,274)
 resetLabel.Size=UDim2.new(1,-12,1,0)resetLabel.Position=UDim2.new(0,6,0,0)resetLabel.TextSize=10 resetLabel.TextWrapped=false
-sl.Parent=ct sl.Size=UDim2.new(.5,-4,0,30)sl.Position=UDim2.new(.5,4,0,314)sl.TextSize=10 sl.TextWrapped=false
+sl.Parent=ct sl.Size=UDim2.new(.5,-4,0,30)sl.Position=UDim2.new(.5,4,0,274)sl.TextSize=10 sl.TextWrapped=false
 modoBtn.Size=UDim2.new(.49,-4,0,34)modoBtn.Position=UDim2.new(0,0,0,70)
 sTog.Size=UDim2.new(.51,-4,0,34)sTog.Position=UDim2.new(.49,4,0,70)
 modoBtn.Visible=false
 sTog.Visible=false
-cameraDistanceFrame.Size=UDim2.new(1,0,0,34)cameraDistanceFrame.Position=UDim2.new(0,0,0,110)
-depthFrame.Size=UDim2.new(1,0,0,34)depthFrame.Position=UDim2.new(0,0,0,148)
-balloonFrame.Size=UDim2.new(.49,-4,0,36)balloonFrame.Position=UDim2.new(0,0,0,186)
-perspectiveFrame.Size=UDim2.new(.51,-4,0,36)perspectiveFrame.Position=UDim2.new(.49,4,0,186)
+cameraDistanceFrame.Size=UDim2.new(1,0,0,34)cameraDistanceFrame.Position=UDim2.new(0,0,0,70)
+depthFrame.Size=UDim2.new(1,0,0,34)depthFrame.Position=UDim2.new(0,0,0,108)
+balloonFrame.Size=UDim2.new(.49,-4,0,36)balloonFrame.Position=UDim2.new(0,0,0,146)
+perspectiveFrame.Size=UDim2.new(.51,-4,0,36)perspectiveFrame.Position=UDim2.new(.49,4,0,146)
 local Extras=(function()
 local giftEnabled=false local giftToken=0
-local viewerButton=Instance.new("TextButton")viewerButton.Size=UDim2.new(1,0,0,36)viewerButton.Position=UDim2.new(0,0,0,226)viewerButton.BackgroundColor3=Color3.fromRGB(19,30,47)viewerButton.Text="VISOR DE ACCESORIOS Y HRP 3D"viewerButton.TextColor3=Color3.fromRGB(207,178,255)viewerButton.TextSize=11 viewerButton.Font=Enum.Font.GothamBold viewerButton.BorderSizePixel=0 viewerButton.Parent=ct mc(9,viewerButton)ms(Color3.fromRGB(133,82,210),1,viewerButton)
-local giftButton=Instance.new("TextButton")giftButton.Size=UDim2.new(1,0,0,36)giftButton.Position=UDim2.new(0,0,0,270)giftButton.BackgroundColor3=C.PANEL giftButton.Text=""giftButton.BorderSizePixel=0 giftButton.Parent=ct mc(9,giftButton)local giftStroke=ms(C.STROKE,1,giftButton)
+local viewerButton=Instance.new("TextButton")viewerButton.Size=UDim2.new(1,0,0,36)viewerButton.Position=UDim2.new(0,0,0,186)viewerButton.BackgroundColor3=Color3.fromRGB(19,30,47)viewerButton.Text="VISOR DE ACCESORIOS Y HRP 3D"viewerButton.TextColor3=Color3.fromRGB(207,178,255)viewerButton.TextSize=11 viewerButton.Font=Enum.Font.GothamBold viewerButton.BorderSizePixel=0 viewerButton.Parent=ct mc(9,viewerButton)ms(Color3.fromRGB(133,82,210),1,viewerButton)
+local giftButton=Instance.new("TextButton")giftButton.Size=UDim2.new(1,0,0,36)giftButton.Position=UDim2.new(0,0,0,230)giftButton.BackgroundColor3=C.PANEL giftButton.Text=""giftButton.BorderSizePixel=0 giftButton.Parent=ct mc(9,giftButton)local giftStroke=ms(C.STROKE,1,giftButton)
 local giftLabel=Instance.new("TextLabel")giftLabel.Size=UDim2.new(1,-76,1,0)giftLabel.Position=UDim2.new(0,12,0,0)giftLabel.BackgroundTransparency=1 giftLabel.Text="REGALOS SCHOOLBAG"giftLabel.TextColor3=C.GREY giftLabel.TextSize=11 giftLabel.Font=Enum.Font.GothamBold giftLabel.TextXAlignment=Enum.TextXAlignment.Left giftLabel.Parent=giftButton
 local giftSwitch=Instance.new("Frame")giftSwitch.Size=UDim2.new(0,48,0,24)giftSwitch.Position=UDim2.new(1,-60,.5,-12)giftSwitch.BackgroundColor3=Color3.fromRGB(35,48,43)giftSwitch.BorderSizePixel=0 giftSwitch.Parent=giftButton mc(12,giftSwitch)
 local giftKnob=Instance.new("Frame")giftKnob.Size=UDim2.new(0,18,0,18)giftKnob.Position=UDim2.new(0,3,.5,-9)giftKnob.BackgroundColor3=C.GREY giftKnob.BorderSizePixel=0 giftKnob.Parent=giftSwitch mc(9,giftKnob)
